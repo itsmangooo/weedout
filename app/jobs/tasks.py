@@ -30,6 +30,7 @@ from app.services.auth_service import purge_expired_sessions
 from app.services.feed_service import refresh_kev_catalog
 from app.services.mirror_service import sync_all_ecosystems
 from app.services.password_reset_service import purge_expired_reset_tokens
+from app.services.rate_limit_service import purge_expired_rate_limits
 from app.services.scan_service import due_targets, scan_target
 
 log = get_logger(__name__)
@@ -205,18 +206,26 @@ async def expire_subscriptions_task() -> int:
 
 
 async def sweep_sessions_task() -> int:
-    """Delete expired session rows and spent password-reset tokens.
+    """Delete expired sessions, spent reset tokens and stale rate-limit hits.
 
-    Both are dead credentials whose only remaining function is to occupy space.
-    Returns the combined number removed.
+    The first two are dead credentials whose only remaining function is to
+    occupy space. The third is bookkeeping: every failed sign-in writes a row,
+    so without pruning the table grows for as long as anyone is probing the
+    login page. Returns the combined number removed.
     """
     try:
         async with session_scope() as db:
             sessions = await purge_expired_sessions(db)
             tokens = await purge_expired_reset_tokens(db)
-            if sessions or tokens:
-                log.info("job.credentials_purged", sessions=sessions, reset_tokens=tokens)
-            return sessions + tokens
+            hits = await purge_expired_rate_limits(db)
+            if sessions or tokens or hits:
+                log.info(
+                    "job.credentials_purged",
+                    sessions=sessions,
+                    reset_tokens=tokens,
+                    rate_limit_hits=hits,
+                )
+            return sessions + tokens + hits
     except Exception as exc:
         log.exception("job.session_sweep_failed", error=str(exc))
         return 0

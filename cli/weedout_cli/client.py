@@ -181,8 +181,8 @@ def _from_http_error(exc: urllib.error.HTTPError) -> ApiError:
 _FALLBACK_MESSAGES = {
     401: "That API key was not accepted. Check WEEDOUT_API_KEY, or create a new key in Settings.",
     403: "That key is not allowed to do this.",
-    404: "No scan endpoint at that URL — check the configured address.",
+    404: "No scan endpoint at that URL. Check the configured address.",
     413: "That file is too large to scan.",
     429: "Too many scans for this project right now. Try again shortly.",
-    503: "The scan could not be completed. Nothing was checked — this is not a clean result.",
+    503: "The scan could not be completed. Nothing was checked; this is not a clean result.",
 }

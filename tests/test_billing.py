@@ -225,6 +225,159 @@ class TestDodoWebhookRoute:
         assert response.status_code == 404
 
 
+@pytest.fixture
+def billing_on(monkeypatch):
+    """Turn billing on for the app's cached settings object.
+
+    The route reads `get_settings()`, so patching the cached instance is what
+    actually changes behaviour — setting an environment variable would be read
+    too late.
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "dodo_enabled", True)
+    monkeypatch.setattr(settings, "dodo_webhook_secret", SECRET)
+    monkeypatch.setattr(settings, "dodo_api_key", "test-key")
+    monkeypatch.setattr(settings, "dodo_product_id_pro_monthly", "pdt_test")
+    return settings
+
+
+class TestWebhookSignatureIsEnforcedAtTheRoute:
+    """The unit tests above prove `verify_dodo_signature` is correct. These
+    prove the route actually calls it.
+
+    Those are different claims, and only the second one stops a forged request
+    granting somebody a paid plan. A verifier that is implemented but not
+    reached is worth nothing.
+    """
+
+    BODY = json.dumps({"type": "subscription.active", "data": {"subscription_id": "sub_x"}})
+
+    async def _post(self, client, body: str, headers: dict[str, str]):
+        return await client.post(
+            "/webhooks/dodo",
+            content=body.encode(),
+            headers={"content-type": "application/json", **headers},
+        )
+
+    async def test_a_correctly_signed_request_is_accepted(self, client, billing_on):
+        webhook_id, ts, signature = sign(self.BODY.encode())
+        response = await self._post(
+            client,
+            self.BODY,
+            {
+                "webhook-id": webhook_id,
+                "webhook-timestamp": ts,
+                "webhook-signature": signature,
+            },
+        )
+        assert response.status_code == 200
+
+    async def test_an_unsigned_request_is_rejected(self, client, billing_on):
+        response = await self._post(client, self.BODY, {})
+        assert response.status_code == 401
+
+    async def test_a_forged_signature_is_rejected(self, client, billing_on):
+        webhook_id, ts, _ = sign(self.BODY.encode())
+        response = await self._post(
+            client,
+            self.BODY,
+            {
+                "webhook-id": webhook_id,
+                "webhook-timestamp": ts,
+                "webhook-signature": "v1,YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo=",
+            },
+        )
+        assert response.status_code == 401
+
+    async def test_a_signature_from_a_different_secret_is_rejected(self, client, billing_on):
+        other = "whsec_" + base64.b64encode(b"a-completely-different-key-000000").decode()
+        webhook_id, ts, signature = sign(self.BODY.encode(), secret=other)
+
+        response = await self._post(
+            client,
+            self.BODY,
+            {
+                "webhook-id": webhook_id,
+                "webhook-timestamp": ts,
+                "webhook-signature": signature,
+            },
+        )
+        assert response.status_code == 401
+
+    async def test_a_tampered_body_is_rejected(self, client, billing_on):
+        """Sign a benign payload, then swap in one that grants Pro."""
+        webhook_id, ts, signature = sign(self.BODY.encode())
+        tampered = json.dumps(
+            {"type": "subscription.active", "data": {"subscription_id": "sub_evil"}}
+        )
+
+        response = await self._post(
+            client,
+            tampered,
+            {
+                "webhook-id": webhook_id,
+                "webhook-timestamp": ts,
+                "webhook-signature": signature,
+            },
+        )
+        assert response.status_code == 401
+
+    async def test_a_replayed_request_is_rejected_once_it_is_old(self, client, billing_on):
+        """A captured webhook must not keep working forever — otherwise it can
+        be replayed to reset a cancelled subscription back to active."""
+        stale = int(time.time()) - 3600
+        webhook_id, ts, signature = sign(self.BODY.encode(), timestamp=stale)
+
+        response = await self._post(
+            client,
+            self.BODY,
+            {
+                "webhook-id": webhook_id,
+                "webhook-timestamp": ts,
+                "webhook-signature": signature,
+            },
+        )
+        assert response.status_code == 401
+
+    async def test_a_forged_request_cannot_grant_a_paid_plan(self, client, db, user, billing_on):
+        """The outcome that actually matters."""
+        assert user.tier is Tier.FREE
+
+        body = json.dumps(
+            {
+                "type": "subscription.active",
+                "data": {
+                    "subscription_id": "sub_forged",
+                    "status": "active",
+                    "reference_id": str(user.id),
+                },
+            }
+        )
+        response = await self._post(
+            client,
+            body,
+            {
+                "webhook-id": "msg_forged",
+                "webhook-timestamp": str(int(time.time())),
+                "webhook-signature": "v1,dGhpcyBpcyBub3QgYSByZWFsIHNpZ25hdHVyZQ==",
+            },
+        )
+
+        assert response.status_code == 401
+        await db.refresh(user)
+        assert user.tier is Tier.FREE
+
+    async def test_the_rejection_does_not_explain_itself(self, client, billing_on):
+        # A verifier that says *why* it refused is a verifier that helps
+        # somebody iterate towards a valid forgery.
+        response = await self._post(client, self.BODY, {})
+
+        assert "secret" not in response.text.lower()
+        assert "timestamp" not in response.text.lower()
+
+
 class TestSubscriptionStateMapping:
     """The status → tier mapping, exercised through the handler directly."""
 

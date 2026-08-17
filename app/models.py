@@ -89,7 +89,10 @@ class User(TimestampMixin, Base):
     #: practice, which is what users expect from an email address.
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
 
-    #: Null for accounts created through OAuth that never set a password.
+    #: Nullable, though nothing currently creates an account without a
+    #: password. `verify_password` treats a null hash as a failed attempt and
+    #: still burns a dummy verification, so the column staying nullable costs
+    #: nothing and does not become a way in.
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     tier: Mapped[Tier] = mapped_column(
@@ -124,10 +127,6 @@ class User(TimestampMixin, Base):
         Boolean, nullable=False, default=True, server_default="true"
     )
 
-    #: Set once GitHub OAuth is enabled. Present now so adding it is a data
-    #: change rather than a schema change on a table that already has users.
-    github_id: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
-
     # --- Dodo Payments billing ---
     dodo_customer_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     dodo_subscription_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
@@ -158,7 +157,7 @@ class User(TimestampMixin, Base):
         """The single authority on whether this account may authenticate.
 
         Both gates live here so no caller has to remember that there are two.
-        Every auth path — password login, session resolution, future OAuth —
+        Every auth path — password login, session resolution, API key —
         must consult this rather than testing the flags individually.
         """
         return self.is_active and not self.is_suspended
@@ -347,7 +346,8 @@ class TrackedTarget(TimestampMixin, Base):
         enum_column(Ecosystem, "ecosystem"), nullable=False
     )
 
-    #: Reserved for the GitHub integration; manual uploads leave it null.
+    #: Reserved for repository auto-sync, which is not built. Unrelated to
+    #: sign-in; uploads and CLI scans both leave it null.
     repo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     manifest_content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -842,6 +842,36 @@ class AdminAuditLog(Base):
 
     def __repr__(self) -> str:
         return f"<AdminAuditLog {self.action} by={self.actor_email} target={self.target_email}>"
+
+
+class RateLimitHit(Base):
+    """One recorded attempt against a rate-limited action.
+
+    Stored in Postgres rather than in process memory, for the same reason
+    sessions are: the app can run as more than one replica, and an in-process
+    counter would multiply every limit by however many happen to be up while
+    also resetting on every deploy. This is the table the login, signup and
+    password-reset limits are counted from.
+
+    `bucket` is an opaque key built by `rate_limit_service` — never a raw email
+    address. Addresses are hashed into it so that a table an attacker might
+    read does not double as a list of who has accounts here.
+
+    Rows are pruned by the daily sweep; nothing here is worth keeping once its
+    window has passed.
+    """
+
+    __tablename__ = "rate_limit_hits"
+    __table_args__ = (Index("ix_rate_limit_hits_bucket_created", "bucket", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    bucket: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=utcnow, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<RateLimitHit {self.bucket} at={self.created_at}>"
 
 
 #: Order findings by real severity, not by the alphabetical order of the stored

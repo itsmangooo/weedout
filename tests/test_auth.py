@@ -331,14 +331,14 @@ class TestApiKeySettings:
 
     async def test_creating_a_key_requires_a_csrf_token(self, auth_client, db, user):
         target = await self._add_project(auth_client, db, user)
-        response = await auth_client.post(
-            "/settings/api-keys", data={"target_id": str(target.id)}
-        )
+        response = await auth_client.post("/settings/api-keys", data={"target_id": str(target.id)})
         assert response.status_code == 403
 
     async def test_creating_a_key_requires_authentication(self, client):
         csrf = set_csrf(client)
-        response = await client.post("/settings/api-keys", data={"target_id": "1", "csrf_token": csrf})
+        response = await client.post(
+            "/settings/api-keys", data={"target_id": "1", "csrf_token": csrf}
+        )
         assert response.status_code == 303
         assert "/login" in response.headers["location"]
 

@@ -63,7 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm ci
-      - uses: weedout/weedout@v1
+      - uses: weedout/weedout/.github@v1
         with:
           api-key: ${{ secrets.WEEDOUT_API_KEY }}
 

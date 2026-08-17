@@ -509,7 +509,7 @@ jobs:
       - run: npm ci
 
       - name: Scan dependencies
-        uses: weedout/weedout@v1
+        uses: weedout/weedout/.github@v1
         with:
           api-key: ${{ secrets.WEEDOUT_API_KEY }}
 

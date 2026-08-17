@@ -1,18 +1,15 @@
-"""Signup, login, logout, and account settings.
-
-GitHub OAuth is registered here but only mounted when credentials are
-configured, so the button appears exactly when it will work.
-"""
+"""Signup, login, logout, and account settings."""
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
-from app.config import ALLOWED_JWT_ALGORITHMS, get_settings
+from app.config import get_settings
 from app.deps import (
     CsrfProtected,
     CurrentUser,
@@ -52,6 +49,12 @@ from app.services.password_reset_service import (
     complete_password_reset,
     request_password_reset,
     validate_reset_token,
+)
+from app.services.rate_limit_service import (
+    bucket_for,
+    check_rate_limit,
+    client_ip,
+    record_attempt,
 )
 from app.services.target_service import get_target_for_user, list_targets
 from app.templating import render
@@ -101,6 +104,26 @@ async def signup_submit(
     password: Annotated[str, Form()] = "",
     website: Annotated[str, Form()] = "",
 ):
+    settings = get_settings()
+    ip_bucket = bucket_for("signup", "ip", client_ip(request, settings))
+    decision = await check_rate_limit(
+        db, ip_bucket, settings.signup_rate_limit_per_ip, timedelta(hours=1)
+    )
+    if not decision.allowed:
+        log.warning("auth.signup_rate_limited", used=decision.used)
+        return _rate_limited(
+            request,
+            "auth/signup.html",
+            {"page_title": "Create your account", "email": email},
+            decision,
+            "Too many accounts have been created from here recently.",
+        )
+
+    # Recorded before validation so that malformed submissions still count —
+    # otherwise the limit is trivially bypassed by sending garbage.
+    await record_attempt(db, ip_bucket)
+    await db.commit()
+
     try:
         form = SignupForm(email=email, password=password, website=website)
     except ValidationError as exc:
@@ -143,16 +166,7 @@ async def signup_submit(
 async def login_page(request: Request, user: OptionalUser, next: str = "/dashboard"):
     if user is not None:
         return redirect("/dashboard")
-    settings = get_settings()
-    return render(
-        request,
-        "auth/login.html",
-        {
-            "page_title": "Sign in",
-            "next": next,
-            "github_enabled": settings.github_oauth_configured,
-        },
-    )
+    return render(request, "auth/login.html", {"page_title": "Sign in", "next": next})
 
 
 @router.post("/login", dependencies=[CsrfProtected])
@@ -164,36 +178,57 @@ async def login_submit(
     next: Annotated[str, Form()] = "/dashboard",
 ):
     settings = get_settings()
+    page = {"page_title": "Sign in", "email": email, "next": next}
+
+    # Checked before the password is verified, not after. Argon2id is
+    # deliberately expensive — 19 MiB and real CPU per call — so an unlimited
+    # login endpoint is a memory-exhaustion lever as well as a credential
+    # stuffing target. A rejected attempt must cost one indexed count, not one
+    # hash.
+    window = timedelta(minutes=settings.login_rate_limit_window_minutes)
+    ip_bucket = bucket_for("login", "ip", client_ip(request, settings))
+    account_bucket = bucket_for("login", "account", email)
+
+    for bucket, limit in (
+        (ip_bucket, settings.login_rate_limit_per_ip),
+        (account_bucket, settings.login_rate_limit_per_account),
+    ):
+        decision = await check_rate_limit(db, bucket, limit, window)
+        if not decision.allowed:
+            log.warning("auth.login_rate_limited", used=decision.used, limit=decision.limit)
+            return _rate_limited(
+                request,
+                "auth/login.html",
+                page,
+                decision,
+                "Too many sign-in attempts.",
+            )
+
     try:
         form = LoginForm(email=email, password=password, next=next)
     except ValidationError as exc:
         return render(
             request,
             "auth/login.html",
-            {
-                "page_title": "Sign in",
-                "error": _first_error(exc),
-                "email": email,
-                "next": next,
-                "github_enabled": settings.github_oauth_configured,
-            },
+            {**page, "error": _first_error(exc)},
             status_code=400,
         )
 
     try:
         user = await authenticate(db, form.email, form.password)
     except InvalidCredentials as exc:
+        # Only failures are recorded, so a legitimate user is never throttled
+        # by their own successful sign-ins and a shared office address is not
+        # collectively punished for one person's typo.
+        await record_attempt(db, ip_bucket)
+        await record_attempt(db, account_bucket)
+        await db.commit()
+
         log.info("auth.login_failed", email_domain=form.email.rsplit("@", 1)[-1])
         return render(
             request,
             "auth/login.html",
-            {
-                "page_title": "Sign in",
-                "error": str(exc),
-                "email": form.email,
-                "next": form.next,
-                "github_enabled": settings.github_oauth_configured,
-            },
+            {**page, "error": str(exc), "email": form.email, "next": form.next},
             status_code=401,
         )
 
@@ -244,7 +279,32 @@ async def forgot_password_submit(
     suspended account and a malformed address alike. A validation error shown
     only for unknown addresses would leak exactly what the identical wording
     is there to hide.
+
+    The rate limit here is keyed on the client address *only*, never on the
+    submitted email. Keying it on the address would make the throttle response
+    depend on how many times that specific account had been targeted, which is
+    precisely the enumeration oracle the identical wording exists to close.
+    `password_reset_max_per_hour` separately caps mail sent to any one address;
+    this caps the endpoint, which is what a sweep hits.
     """
+    settings = get_settings()
+    ip_bucket = bucket_for("pwreset", "ip", client_ip(request, settings))
+    decision = await check_rate_limit(
+        db, ip_bucket, settings.password_reset_rate_limit_per_ip, timedelta(hours=1)
+    )
+    if not decision.allowed:
+        log.warning("password_reset.rate_limited", used=decision.used)
+        return _rate_limited(
+            request,
+            "auth/forgot_password.html",
+            {"page_title": "Reset your password"},
+            decision,
+            "Too many reset requests from here.",
+        )
+
+    await record_attempt(db, ip_bucket)
+    await db.commit()
+
     try:
         form = ForgotPasswordForm(email=email)
     except ValidationError:
@@ -342,7 +402,6 @@ async def reset_password_submit(
             "page_title": "Sign in",
             "next": "/dashboard",
             "success": "Your password has been changed. You've been signed out everywhere else.",
-            "github_enabled": get_settings().github_oauth_configured,
         },
     )
 
@@ -507,53 +566,6 @@ async def update_password(
     return response
 
 
-# ---------------------------------------------------------------------------
-# GitHub OAuth
-#
-# Not part of v1's happy path, but registered so switching it on is a matter of
-# setting two environment variables rather than writing an integration.
-# ---------------------------------------------------------------------------
-
-
-def _oauth_client():
-    """Build the Authlib client, or None when GitHub is not configured."""
-    settings = get_settings()
-    if not settings.github_oauth_configured:
-        return None
-
-    from authlib.integrations.starlette_client import OAuth
-
-    oauth = OAuth()
-    oauth.register(
-        name="github",
-        client_id=settings.github_client_id,
-        client_secret=settings.github_client_secret,
-        # S106 below is a false positive: despite the parameter name, this is
-        # GitHub's public endpoint URL, not a credential.
-        access_token_url="https://github.com/login/oauth/access_token",  # noqa: S106
-        authorize_url="https://github.com/login/oauth/authorize",
-        api_base_url="https://api.github.com/",
-        client_kwargs={
-            "scope": "read:user user:email",
-            # Explicit algorithm allow-list for any JWS/JWT this client
-            # verifies. Never left to a library default, and never "none".
-            "token_endpoint_auth_method": "client_secret_post",
-        },
-        jwks_uri="https://token.actions.githubusercontent.com/.well-known/jwks",
-        id_token_signing_alg_values_supported=ALLOWED_JWT_ALGORITHMS,
-    )
-    return oauth
-
-
-@router.get("/auth/github")
-async def github_login(request: Request):
-    oauth = _oauth_client()
-    if oauth is None:
-        return redirect("/login")
-    redirect_uri = f"{get_settings().base_url}/auth/github/callback"
-    return await oauth.github.authorize_redirect(request, redirect_uri)
-
-
 def _first_error(exc: ValidationError) -> str:
     error = exc.errors()[0]
     message = error["msg"].removeprefix("Value error, ")
@@ -569,12 +581,39 @@ def _first_error(exc: ValidationError) -> str:
     return f"{field.replace('_', ' ').capitalize()}: {message}"
 
 
-def _client_ip(request: Request) -> str | None:
-    """Best-effort client IP.
+def _rate_limited(request: Request, template: str, context: dict, decision, headline: str):
+    """Render a throttled response: 429, with a Retry-After the client can use.
 
-    `X-Forwarded-For` is only meaningful behind a proxy that sets it; it is
-    stored for the user's own session list, never used for authorisation.
+    A page rather than a bare error because a real person who mistyped their
+    password five times will see this, and "try again in 4 minutes" is the only
+    thing they need. `Retry-After` carries the same fact for anything
+    automated.
     """
+    minutes = max(1, round(decision.retry_after_seconds / 60))
+    unit = "minute" if minutes == 1 else "minutes"
+    return render(
+        request,
+        template,
+        {**context, "error": f"{headline} Try again in about {minutes} {unit}."},
+        status_code=429,
+        headers={"Retry-After": str(decision.retry_after_seconds)},
+    )
+
+
+def _client_ip(request: Request) -> str | None:
+    """Best-effort client IP, for the user's own session list.
+
+    Display only — never used for authorisation or rate limiting, which is why
+    it can afford to read an untrusted header. Anything that makes a security
+    decision must use `rate_limit_service.client_ip`, which consults only the
+    header the deployment is configured to trust.
+    """
+    settings = get_settings()
+    if settings.trusted_client_ip_header:
+        trusted = request.headers.get(settings.trusted_client_ip_header)
+        if trusted:
+            return trusted.split(",")[0].strip()
+
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[0].strip()

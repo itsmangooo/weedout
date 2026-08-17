@@ -465,3 +465,104 @@ class TestInit:
         monkeypatch.setenv("WEEDOUT_API_KEY", "wo_from_env")
         assert main(["init", str(tmp_path)]) == EXIT_OK
         assert "wo_from_env" in (tmp_path / CONFIG_FILENAME).read_text(encoding="utf-8")
+
+
+def encoded_stream(encoding: str) -> io.TextIOWrapper:
+    """A real stream with a real encoding, not a faked attribute.
+
+    `io.StringIO` accepts any text, so it can never reproduce the bug this
+    class exists for. A `TextIOWrapper` over bytes actually raises.
+    """
+    return io.TextIOWrapper(io.BytesIO(), encoding=encoding, errors="strict", newline="")
+
+
+class TestTerminalCompatibility:
+    """A tool that crashes while printing its own results is worse than one
+    that prints plain ASCII. A default Windows `cmd.exe` is still cp1252."""
+
+    def test_plain_symbols_are_chosen_for_a_legacy_code_page(self):
+        printer = Printer(encoded_stream("cp1252"))
+
+        assert printer.symbols is cli_module.PLAIN_SYMBOLS
+        assert printer.symbol("arrow") == "->"
+
+    def test_unicode_symbols_are_used_where_they_encode(self):
+        assert Printer(encoded_stream("utf-8")).symbols is cli_module.FANCY_SYMBOLS
+
+    def test_a_stream_with_no_encoding_gets_plain_symbols(self):
+        # io.StringIO has no `encoding` attribute at all.
+        assert Printer(io.StringIO()).symbols is cli_module.PLAIN_SYMBOLS
+
+    def test_the_whole_report_encodes_on_a_legacy_code_page(self, monkeypatch, tmp_path):
+        """The regression this class exists for.
+
+        Every glyph the report can emit has to survive the round trip, not just
+        the ones a particular fixture happens to exercise.
+        """
+        write(tmp_path, "package.json", PACKAGE_JSON)
+        write(tmp_path, CONFIG_FILENAME, "api_key = wo_test-key")
+
+        stream = encoded_stream("cp1252")
+        monkeypatch.setattr(cli_module, "Printer", lambda *a, **kw: Printer(stream))
+        monkeypatch.setattr(
+            cli_module,
+            "post_scan",
+            lambda *a, **kw: result(
+                actionable=2,
+                counts={
+                    "critical": 1,
+                    "high": 1,
+                    "medium": 0,
+                    "low": 0,
+                    "unknown": 0,
+                    "exploited": 1,
+                },
+                findings=[
+                    CRITICAL_FINDING,
+                    EXPLOITED_HIGH_FINDING,
+                    dict(CRITICAL_FINDING, fixed_in=None),
+                ],
+                warnings=["Advisory data is 60h old."],
+            ),
+        )
+
+        # Would raise UnicodeEncodeError here before the fix.
+        main(["scan", str(tmp_path)])
+
+        stream.flush()
+        output = stream.buffer.getvalue().decode("cp1252")
+        assert "->" in output
+        assert "critical" in output
+
+
+class TestUnexpectedFailures:
+    def test_a_crash_exits_two_not_one(self, monkeypatch, tmp_path, capsys):
+        """Exit 1 means "critical vulnerabilities found".
+
+        A bug in the client that exited 1 would fail builds that are fine, and
+        be indistinguishable from a real finding — so it would get worked
+        around rather than reported.
+        """
+        write(tmp_path, "package.json", PACKAGE_JSON)
+        write(tmp_path, CONFIG_FILENAME, "api_key = wo_test-key")
+
+        def explode(*args, **kwargs):
+            raise RuntimeError("something in the client broke")
+
+        monkeypatch.setattr(cli_module, "post_scan", explode)
+
+        assert main(["scan", str(tmp_path), "--ci"]) == EXIT_ERROR
+
+    def test_the_crash_is_still_reported(self, monkeypatch, tmp_path, capsys):
+        write(tmp_path, "package.json", PACKAGE_JSON)
+        write(tmp_path, CONFIG_FILENAME, "api_key = wo_test-key")
+        monkeypatch.setattr(
+            cli_module, "post_scan", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+        )
+
+        main(["scan", str(tmp_path)])
+        captured = capsys.readouterr()
+
+        # Swallowing it silently would be its own failure mode.
+        assert "boom" in captured.out + captured.err
+        assert "Nothing was checked" in captured.out + captured.err

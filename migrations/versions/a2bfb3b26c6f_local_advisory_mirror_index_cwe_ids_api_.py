@@ -20,6 +20,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
+
 revision: str = 'a2bfb3b26c6f'
 down_revision: str | None = 'b24fbb9a6b66'
 branch_labels: str | Sequence[str] | None = None

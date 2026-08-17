@@ -1,0 +1,139 @@
+# Production stack: Postgres + web + worker, behind a Cloudflare Tunnel.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Differs from docker-compose.yml in ways that all matter:
+#
+#   * Every secret comes from the environment with **no fallback**. `${VAR:?msg}`
+#     makes compose refuse to start and print `msg` when a variable is missing,
+#     which is the difference between a loud failure and a deployment silently
+#     running on the placeholder key published in `.env.example`.
+#   * Postgres publishes **no host port**. It is reachable only on the compose
+#     network, so the database is not exposed to the host or to anything that
+#     can reach the host.
+#   * Everything restarts unless explicitly stopped, so a crashed worker comes
+#     back instead of quietly leaving scans unrun.
+#   * Migrations run automatically before the web process starts.
+#
+# Provide values in a `.env.prod` file next to this one and pass it explicitly:
+#
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+#
+# See DEPLOY.md.
+
+name: weedout-prod
+
+x-app-env: &app-env
+  ENVIRONMENT: production
+  DEBUG: "false"
+  LOG_FORMAT: json
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  BASE_URL: ${BASE_URL:?set BASE_URL to the public https:// origin, e.g. https://weedout.dev}
+  SECRET_KEY: ${SECRET_KEY:?generate one with python -c "import secrets; print(secrets.token_urlsafe(48))"}
+  DATABASE_URL: postgresql+psycopg://weedout:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/weedout
+
+  # Cloudflare Tunnel terminates TLS and forwards over the compose network, so
+  # every request arrives from the tunnel's address. Without this the app would
+  # see one client for all traffic and IP rate limits would become a single
+  # shared bucket — the first brute-force attempt would lock out everyone.
+  # Cloudflare sets and overwrites CF-Connecting-IP at the edge, so a client
+  # cannot forge it. Change this if you put something else in front.
+  TRUSTED_CLIENT_IP_HEADER: ${TRUSTED_CLIENT_IP_HEADER:-cf-connecting-ip}
+
+  EMAIL_BACKEND: ${EMAIL_BACKEND:-smtp}
+  EMAIL_FROM: ${EMAIL_FROM:-Weedout <alerts@weedout.dev>}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+
+  DODO_ENABLED: ${DODO_ENABLED:-false}
+  DODO_ENVIRONMENT: ${DODO_ENVIRONMENT:-test}
+  DODO_API_KEY: ${DODO_API_KEY:-}
+  DODO_WEBHOOK_SECRET: ${DODO_WEBHOOK_SECRET:-}
+  DODO_PRODUCT_ID_PRO_MONTHLY: ${DODO_PRODUCT_ID_PRO_MONTHLY:-}
+
+x-logging: &logging
+  # Without a cap, container logs grow until the disk is full — which takes
+  # down Postgres alongside everything else.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: weedout
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: weedout
+      # Enforce scram-sha-256 rather than inheriting whatever the image's
+      # default trust settings happen to be.
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    # Deliberately no `ports:`. The database is reachable on the compose
+    # network and nowhere else.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weedout -d weedout"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    build: .
+    restart: unless-stopped
+    logging: *logging
+    # Migrations run here, on every deploy, before the server binds. Leaving
+    # this as a manual step is how a release ships against a schema it does not
+    # match; `alembic upgrade head` is a no-op when there is nothing to apply.
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app"
+    environment:
+      <<: *app-env
+      # The worker owns the schedule. Running it here too would mean two
+      # schedulers; the advisory lock makes that safe, but it is still wasted
+      # work in the process that should be answering requests.
+      RUN_SCHEDULER_IN_WEB: "false"
+    # Bound to loopback: the tunnel connects from the host, and nothing else
+    # should be able to reach the app directly. Change to "8000:8000" only if
+    # you are fronting it with something on another machine.
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    build: .
+    restart: unless-stopped
+    logging: *logging
+    command: python -m app.jobs.runner loop
+    environment:
+      <<: *app-env
+    # The image healthcheck probes /healthz, which only the web service serves.
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+      # Waits for the web container, which is what runs the migrations — the
+      # worker must not query a schema that has not been upgraded yet.
+      web:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  pgdata:

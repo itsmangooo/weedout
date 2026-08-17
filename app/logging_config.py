@@ -67,10 +67,29 @@ def configure_logging(level: str = "INFO", fmt: str = "console") -> None:
     root.setLevel(level)
 
     # Uvicorn installs its own handlers; drop them so records propagate to root.
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    for name in ("uvicorn", "uvicorn.error"):
         lg = logging.getLogger(name)
         lg.handlers.clear()
         lg.propagate = True
+
+    # Uvicorn's access log is silenced outright, and this is a security control
+    # rather than a formatting preference.
+    #
+    # It logs the full request target *including the query string*, so a
+    # password-reset visit writes `GET /reset-password?token=<the actual token>`
+    # into the log stream in plaintext — handing anyone with log access a live
+    # account-takeover credential. The app emits its own structured request line
+    # (`app.main`) carrying method, path, status and duration but never the
+    # query, which is strictly more useful and does not leak.
+    #
+    # Silenced here rather than via uvicorn's `access_log=False` because that
+    # flag only takes effect through uvicorn's own dictConfig, which is skipped
+    # when `log_config=None`. Doing it on the logger works no matter how the
+    # server was launched, including a bare `uvicorn app.main:app`.
+    access = logging.getLogger("uvicorn.access")
+    access.handlers.clear()
+    access.propagate = False
+    access.disabled = True
 
     # These are chatty at INFO and say nothing useful in normal operation.
     logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)

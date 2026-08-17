@@ -1,7 +1,13 @@
-# Secrets — never commit. Use .env.example as the template.
+# Secrets — never commit. Use .env.example / .env.prod.example as templates.
+#
+# The negations must come after the wildcard, and must name every template
+# explicitly: `.env.*` would otherwise swallow `.env.prod.example`, which is
+# meant to be committed and is the only place the production variables are
+# documented.
 .env
 .env.*
 !.env.example
+!.env.prod.example
 
 # `weedout init` writes an API key here. The CLI warns about this, but the
 # warning is easy to miss and the mistake is not recoverable by rotating a

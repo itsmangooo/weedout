@@ -14,10 +14,6 @@ from typing import Literal
 from pydantic import Field, PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Explicit algorithm allow-list for every JWT/JWS verification path in the app.
-# Never leave this to a library default and never allow "none".
-ALLOWED_JWT_ALGORITHMS: list[str] = ["RS256", "ES256"]
-
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -34,8 +30,14 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: Literal["console", "json"] = "console"
 
-    # Signs the OAuth-state cookie used by Authlib. Session auth does NOT rely
-    # on this (sessions are DB-backed opaque tokens), but it still must be secret.
+    #: Reserved signing key. Nothing signs with it today — application sessions
+    #: are database-backed opaque tokens, not signed cookies — and its previous
+    #: consumer (Authlib's OAuth state cookie) went away with GitHub sign-in.
+    #:
+    #: Kept required rather than deleted because it is referenced by every
+    #: deployment template and the production validator, and because the first
+    #: signed artefact this app grows should not also require a config change on
+    #: every environment. Treat it as a real secret: it is validated as one.
     secret_key: str = Field(min_length=32)
 
     # ---- Database ---------------------------------------------------------
@@ -49,6 +51,42 @@ class Settings(BaseSettings):
     session_ttl_hours: int = 24 * 14
     session_cookie_secure: bool | None = None  # defaults to (environment != local)
     session_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+
+    # ---- Client identity behind a proxy -----------------------------------
+    #: Header carrying the real client IP, or None to trust only the socket.
+    #:
+    #: This is load-bearing for rate limiting, so it is worth being precise
+    #: about. Behind a Cloudflare Tunnel every request arrives from the tunnel
+    #: process, so the socket address is the *same for every visitor*: an
+    #: IP-keyed limit computed from it would be one global bucket, and the first
+    #: brute-force attempt would lock out the whole site.
+    #:
+    #: `cf-connecting-ip` is the right source there because Cloudflare sets it
+    #: at the edge and overwrites any value the client supplied. The danger is
+    #: the mirror image: if the app is *not* actually behind the proxy named
+    #: here, anyone can spoof this header and rate limiting stops working
+    #: entirely. Set it to match the deployment, and to None for a direct bind.
+    trusted_client_ip_header: str | None = "cf-connecting-ip"
+
+    # ---- Rate limiting ----------------------------------------------------
+    #: Failed sign-ins tolerated per client IP, then per account, in the window.
+    #:
+    #: Two buckets rather than one because they stop different attacks: the IP
+    #: bucket stops one host working through a list of accounts, the account
+    #: bucket stops a distributed attack converging on one account. Only
+    #: *failures* count, so a legitimate user is never throttled by their own
+    #: successful sign-ins, and an office behind one NAT address is not
+    #: collectively punished for one person's typo.
+    login_rate_limit_per_ip: int = 15
+    login_rate_limit_per_account: int = 8
+    login_rate_limit_window_minutes: int = 15
+    #: Accounts creatable from one IP per hour. Every attempt counts here,
+    #: because a successful signup is the thing being abused.
+    signup_rate_limit_per_ip: int = 5
+    #: Reset requests per IP per hour. `password_reset_max_per_hour` already
+    #: caps mail sent to any one address; this caps the endpoint itself, which
+    #: is what an address-enumeration sweep hits.
+    password_reset_rate_limit_per_ip: int = 10
 
     # ---- Password reset ---------------------------------------------------
     #: Short by design. A reset link is a bearer credential sitting in an
@@ -91,6 +129,34 @@ class Settings(BaseSettings):
     scan_tick_minutes: int = 15
     job_max_targets_per_tick: int = 200
 
+    # ---- Backups ----------------------------------------------------------
+    #: Off by default so a development machine does not quietly accumulate
+    #: dumps; the production compose file turns it on.
+    backup_enabled: bool = False
+    backup_interval_hours: int = 24
+    #: Where dumps land inside the container. Bind-mount it to survive a
+    #: `docker compose down`.
+    backup_dir: str = "/var/backups/weedout"
+    #: How many local dumps to keep. Old ones are pruned after each run, so the
+    #: directory cannot grow without bound and fill the disk the database is on.
+    backup_keep: int = 7
+    #: Generous: a dump of a large mirror plus gzip takes a while, and a backup
+    #: killed halfway is worse than a slow one.
+    backup_timeout_seconds: int = 3600
+
+    #: Off-box copy. Optional but strongly recommended — a dump sitting on the
+    #: same disk as the database it came from protects against a bad migration
+    #: and nothing else. Any S3-compatible endpoint; Cloudflare R2 has no
+    #: egress fees. Leaving the bucket unset keeps backups local-only.
+    backup_s3_bucket: str | None = None
+    backup_s3_endpoint: str | None = None
+    backup_s3_access_key_id: str | None = None
+    backup_s3_secret_access_key: str | None = None
+    backup_s3_prefix: str = "weedout"
+    #: R2 ignores the region but SigV4 still has to sign one; "auto" is what
+    #: Cloudflare documents.
+    backup_s3_region: str = "auto"
+
     # ---- Email ------------------------------------------------------------
     email_backend: Literal["console", "smtp", "resend"] = "console"
     email_from: str = "Weedout <alerts@weedout.dev>"
@@ -112,10 +178,6 @@ class Settings(BaseSettings):
     dodo_webhook_secret: str | None = None
     #: The product customers buy for the Pro plan.
     dodo_product_id_pro_monthly: str | None = None
-
-    # ---- GitHub OAuth (wired but optional; enables "Sign in with GitHub") --
-    github_client_id: str | None = None
-    github_client_secret: str | None = None
 
     # ---- Administration -----------------------------------------------------
     #: The one account that may reach /admin. Promoted automatically the first
@@ -177,15 +239,96 @@ class Settings(BaseSettings):
                 raise ValueError(f"DODO_ENABLED=true requires: {', '.join(missing)}")
         return self
 
+    @model_validator(mode="after")
+    def _check_production_hardening(self) -> Settings:
+        """Refuse to start a production process with development settings.
+
+        Every check here is for something that is *silently* wrong: the app
+        boots, serves pages, and looks healthy while a cookie goes out without
+        `Secure`, or the whole deployment runs on a secret key published in a
+        public example file. None of these announce themselves, so the only
+        place to catch them is before the process accepts its first request.
+
+        Deliberately scoped to `production`. Staging and local get to be
+        convenient; the environment name is the switch.
+        """
+        if self.environment != "production":
+            return self
+
+        problems: list[str] = []
+
+        if self.debug:
+            # Beyond the interactive API docs this exposes, `DEBUG` is the flag
+            # people reach for to make errors verbose. It has no business on.
+            problems.append("DEBUG must be false in production")
+
+        if _is_placeholder_secret(self.secret_key):
+            problems.append(
+                "SECRET_KEY looks like a placeholder or is too low-entropy. "
+                'Generate one with: python -c "import secrets; '
+                'print(secrets.token_urlsafe(48))"'
+            )
+
+        if not self.base_url.startswith("https://"):
+            # Not cosmetic: an http:// base URL puts password-reset links on
+            # plaintext and breaks every Secure cookie the app sets.
+            problems.append(f"BASE_URL must be https:// in production (got {self.base_url!r})")
+
+        if "localhost" in self.base_url or "127.0.0.1" in self.base_url:
+            problems.append(f"BASE_URL still points at localhost (got {self.base_url!r})")
+
+        if self.session_cookie_secure is False:
+            problems.append("SESSION_COOKIE_SECURE=false would send session cookies in the clear")
+
+        if self.db_echo:
+            # Echoes every statement, parameters included, into the logs.
+            problems.append("DB_ECHO must be false in production")
+
+        if problems:
+            raise ValueError(
+                "Refusing to start in production with unsafe configuration:\n  - "
+                + "\n  - ".join(problems)
+            )
+
+        return self
+
+    @property
+    def production_warnings(self) -> list[str]:
+        """Configuration that is legal but probably not what you want.
+
+        Separate from the hard failures above because each of these has a real
+        use during a rollout — deploying before mail is wired up, for
+        instance. They are logged loudly at startup instead of blocking it.
+        """
+        warnings: list[str] = []
+        if self.environment != "production":
+            return warnings
+
+        if self.email_backend == "console":
+            warnings.append(
+                "EMAIL_BACKEND=console: no mail is actually sent, so password-reset "
+                "links and alert digests silently go nowhere."
+            )
+        if self.log_level == "DEBUG":
+            warnings.append("LOG_LEVEL=DEBUG is very verbose and may log request internals.")
+        if self.trusted_client_ip_header is None:
+            warnings.append(
+                "TRUSTED_CLIENT_IP_HEADER is unset. Behind a proxy every request appears "
+                "to come from one address, so IP rate limits become a single shared "
+                "bucket. Set it to the header your proxy sets (Cloudflare: cf-connecting-ip)."
+            )
+        if self.admin_email is None:
+            warnings.append(
+                "ADMIN_EMAIL is unset; nobody will be auto-promoted to admin. "
+                "Use `python -m app.manage promote-admin <email>`."
+            )
+        return warnings
+
     @property
     def cookie_secure(self) -> bool:
         if self.session_cookie_secure is not None:
             return self.session_cookie_secure
         return self.environment != "local"
-
-    @property
-    def github_oauth_configured(self) -> bool:
-        return bool(self.github_client_id and self.github_client_secret)
 
     @property
     def dodo_checkout_base(self) -> str:
@@ -208,6 +351,46 @@ class Settings(BaseSettings):
         so the same URL works for `create_engine` and `create_async_engine`.
         """
         return str(self.database_url)
+
+
+#: Substrings that mark a secret as one somebody never replaced. Matched
+#: case-insensitively against the whole value.
+_PLACEHOLDER_MARKERS = (
+    "change-me",
+    "changeme",
+    "change_me",
+    "placeholder",
+    "your-secret",
+    "yoursecret",
+    "example",
+    "local-dev",
+    "local-development",
+    "not-for-production",
+    "insecure",
+    "test-key",
+    "secret-key-here",
+)
+
+
+def _is_placeholder_secret(value: str) -> bool:
+    """Is this secret one that was copied rather than generated?
+
+    Two independent checks, because they catch different mistakes. The marker
+    list catches the exact strings shipped in `.env.example` and in this
+    repository's compose files — the ones most likely to reach production by
+    being copied verbatim. The distinct-character floor catches the other
+    common shortcut, a long run of one character or a mashed keyboard row,
+    which passes a length check while carrying almost no entropy.
+
+    Not a substitute for generating the key properly. It only has to be good
+    enough to catch the values a human would plausibly leave in place.
+    """
+    lowered = value.lower()
+    if any(marker in lowered for marker in _PLACEHOLDER_MARKERS):
+        return True
+    # 48 random urlsafe bytes yield ~40 distinct characters; 16 is a floor low
+    # enough never to reject a genuinely random key.
+    return len(set(value)) < 16
 
 
 @lru_cache(maxsize=1)

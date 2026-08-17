@@ -18,7 +18,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import Settings, get_settings
 from app.db import configure_event_loop_policy, dispose_engine
@@ -70,6 +69,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         except Exception as exc:
             log.warning("app.initial_kev_refresh_failed", error=str(exc))
 
+    # Configuration that is legal but probably unintended. Hard failures are
+    # raised by the settings validator before we ever get here; these are the
+    # ones with a legitimate use during a rollout, so they are announced rather
+    # than fatal. Logged one per line at WARNING so they are greppable and hard
+    # to scroll past.
+    for warning in settings.production_warnings:
+        log.warning("app.config_warning", detail=warning)
+
     log.info(
         "app.started",
         environment=settings.environment,
@@ -107,17 +114,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
 
-    # Authlib's OAuth flow stores its state/nonce in a signed cookie session.
-    # Application login does NOT use this — sessions are DB-backed rows — so
-    # this cookie stays short-lived and carries nothing sensitive.
-    app.add_middleware(
-        SessionMiddleware,
-        secret_key=settings.secret_key,
-        session_cookie="weedout_oauth",
-        max_age=600,
-        same_site="lax",
-        https_only=settings.cookie_secure,
-    )
+    # No signed-cookie session middleware: the only thing that used it was
+    # Authlib's OAuth state, and application login has never relied on it —
+    # sessions are database rows carrying an opaque token. One fewer cookie
+    # leaving the server, and one fewer thing holding the secret key.
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -150,8 +150,12 @@ def _register_middleware(app: FastAPI) -> None:
         started = time.perf_counter()
         try:
             response = await call_next(request)
-        except Exception:
-            log.exception("request.unhandled")
+        except Exception as exc:
+            # Deliberately without the traceback: the `Exception` handler below
+            # logs that, and doing it here as well wrote every 500 to the log
+            # twice, doubling the volume of exactly the entries someone is
+            # trying to read. This line exists to close out the request context.
+            log.error("request.unhandled", error=type(exc).__name__)
             structlog.contextvars.clear_contextvars()
             raise
 

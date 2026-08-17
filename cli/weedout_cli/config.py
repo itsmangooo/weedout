@@ -126,7 +126,7 @@ def write_config_file(path: Path, api_key: str, base_url: str | None = None) -> 
     lines = [
         "# Weedout project configuration.",
         "#",
-        "# This file holds a credential. Add it to .gitignore — a key committed",
+        "# This file holds a credential. Add it to .gitignore: a key committed",
         "# to a repository is a key anyone who can read the repository has.",
         "# In CI, prefer the WEEDOUT_API_KEY environment variable, which takes",
         "# precedence over this file.",

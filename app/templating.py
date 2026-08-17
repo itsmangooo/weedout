@@ -104,6 +104,7 @@ def render(
     template_name: str,
     context: dict[str, Any] | None = None,
     status_code: int = 200,
+    headers: dict[str, str] | None = None,
 ) -> HTMLResponse:
     """Render a template with the shared context every page expects.
 
@@ -127,7 +128,11 @@ def render(
     merged.update(context or {})
 
     response = templates.TemplateResponse(
-        request=request, name=template_name, context=merged, status_code=status_code
+        request=request,
+        name=template_name,
+        context=merged,
+        status_code=status_code,
+        headers=headers,
     )
     response.set_cookie(
         CSRF_COOKIE_NAME,

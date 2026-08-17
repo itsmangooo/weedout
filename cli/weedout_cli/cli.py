@@ -45,6 +45,12 @@ EXIT_ERROR = 2
 #
 # Colour is opt-out via NO_COLOR and automatically off when stdout is not a
 # terminal, so a CI log does not fill with escape sequences.
+#
+# Glyphs get the same treatment for a less obvious reason. A Windows console
+# still commonly runs a legacy code page — cp1252 on a default `cmd.exe` — and
+# printing "→" to one raises UnicodeEncodeError. A security tool that crashes
+# while printing its own results is worse than one that prints plain ASCII, so
+# the symbol set is chosen from what the stream can actually encode.
 # ---------------------------------------------------------------------------
 
 
@@ -54,10 +60,30 @@ def _use_colour(stream) -> bool:
     return bool(getattr(stream, "isatty", lambda: False)())
 
 
+#: The two symbol sets. Keys are identical so callers never branch.
+FANCY_SYMBOLS = {"arrow": "→", "sep": "·", "bullet": "•", "alert": "!"}
+PLAIN_SYMBOLS = {"arrow": "->", "sep": "-", "bullet": "*", "alert": "!"}
+
+
+def _supports_unicode(stream) -> bool:
+    encoding = getattr(stream, "encoding", None)
+    if not encoding:
+        return False
+    try:
+        "".join(FANCY_SYMBOLS.values()).encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        return False
+    return True
+
+
 class Printer:
     def __init__(self, stream=None) -> None:
         self.stream = stream or sys.stdout
         self.colour = _use_colour(self.stream)
+        self.symbols = FANCY_SYMBOLS if _supports_unicode(self.stream) else PLAIN_SYMBOLS
+
+    def symbol(self, name: str) -> str:
+        return self.symbols[name]
 
     def _wrap(self, text: str, code: str) -> str:
         return f"\033[{code}m{text}\033[0m" if self.colour else text
@@ -78,7 +104,14 @@ class Printer:
         return self._wrap(text, "32")
 
     def line(self, text: str = "") -> None:
-        print(text, file=self.stream)
+        try:
+            print(text, file=self.stream)
+        except UnicodeEncodeError:
+            # Belt and braces. The symbol set above covers what this tool
+            # prints; a package name containing something the console cannot
+            # encode is not the tool's to fix, and must not stop the report.
+            encoding = getattr(self.stream, "encoding", "ascii") or "ascii"
+            print(text.encode(encoding, "replace").decode(encoding), file=self.stream)
 
 
 def _report(result: ScanResult, printer: Printer, manifest: Path) -> None:
@@ -93,7 +126,7 @@ def _report(result: ScanResult, printer: Printer, manifest: Path) -> None:
     printer.line(f"{printer.bold(result.project or manifest.name)}  {printer.dim(str(manifest))}")
     printer.line(
         printer.dim(
-            f"{result.dependencies_scanned} dependencies scanned · "
+            f"{result.dependencies_scanned} dependencies scanned {printer.symbol('sep')} "
             f"{result.suppressed} filtered out as noise"
         )
     )
@@ -110,14 +143,22 @@ def _report(result: ScanResult, printer: Printer, manifest: Path) -> None:
         for label in ("high", "medium", "low"):
             if result.counts.get(label):
                 parts.append(printer.yellow(f"{result.counts[label]} {label}"))
-        printer.line("  " + "  ·  ".join(parts))
+        printer.line("  " + f"  {printer.symbol('sep')}  ".join(parts))
 
     if result.findings:
         printer.line()
         for finding in result.findings:
-            marker = printer.red("!") if finding.get("exploited") else printer.yellow("•")
+            marker = (
+                printer.red(printer.symbol("alert"))
+                if finding.get("exploited")
+                else printer.yellow(printer.symbol("bullet"))
+            )
             fix = finding.get("fixed_in")
-            fix_text = printer.green(f"→ {fix}") if fix else printer.dim("no fix yet")
+            fix_text = (
+                printer.green(f"{printer.symbol('arrow')} {fix}")
+                if fix
+                else printer.dim("no fix yet")
+            )
             printer.line(
                 f"  {marker} {finding.get('package', '?')}@{finding.get('version', '?')}"
                 f"  {printer.dim(finding.get('cve', ''))}  {fix_text}"
@@ -223,7 +264,7 @@ def command_init(args: argparse.Namespace, printer: Printer) -> int:
         )
 
     printer.line()
-    printer.line(printer.yellow("This file contains a credential — add it to .gitignore."))
+    printer.line(printer.yellow("This file contains a credential. Add it to .gitignore."))
     return EXIT_OK
 
 
@@ -279,6 +320,21 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         printer.line()
         printer.line(printer.dim("Interrupted."))
+        return EXIT_ERROR
+    except Exception as exc:
+        # An unhandled crash must exit 2, never 1.
+        #
+        # Left to propagate, Python exits 1 — which in this tool means
+        # "critical vulnerabilities found". A bug in the client would then be
+        # indistinguishable from a real finding: it would fail builds that are
+        # fine, and, once someone stopped trusting the signal, be worked around
+        # rather than reported. Traceback still goes to stderr so the bug is
+        # reportable.
+        import traceback
+
+        traceback.print_exc()
+        printer.line(printer.red(f"weedout failed unexpectedly: {exc}"))
+        printer.line(printer.dim("This is a bug. Nothing was checked."))
         return EXIT_ERROR
 
 

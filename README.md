@@ -237,10 +237,8 @@ offer.
 - Failed logins run a dummy verification so "no such user" and "wrong password"
   take the same time.
 - All mutating routes are CSRF-protected (double-submit cookie).
-- GitHub OAuth is wired through Authlib and appears automatically once
-  `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set. The JWS algorithm
-  allow-list is explicit (`ALLOWED_JWT_ALGORITHMS` in `app/config.py`) — never a
-  library default, never `none`.
+- **Email and password is the only way in.** There is no social sign-in and no
+  signed-cookie session middleware; the one credential path is the one above.
 
 ### Password reset
 
@@ -342,7 +340,10 @@ environment variables, and a `.weedout` that got committed must never quietly
 override the key the pipeline was configured with — authenticating as the wrong
 account is worse than failing to authenticate at all.
 
-A composite GitHub Action is in `.github/action.yml`.
+A composite GitHub Action is in `.github/action.yml`, referenced as
+`uses: weedout/weedout/.github@v1`. The path suffix is required from that
+location — GitHub resolves a bare `owner/repo@ref` to an `action.yml` at the
+repository root, so moving the file there is all it takes to shorten it.
 
 ---
 
@@ -545,9 +546,10 @@ Three backends, selected by `EMAIL_BACKEND`:
 
 ## Configuration
 
-Everything is environment-driven; see [`.env.example`](.env.example) for the full
-list with comments. Nothing that must be secret has a default — the process
-refuses to boot rather than run with a guessable key.
+Everything is environment-driven; see [`.env.example`](.env.example) for local
+development and [`.env.prod.example`](.env.prod.example) for a deployment.
+Nothing that must be secret has a default — the process refuses to boot rather
+than run with a guessable key.
 
 Selected variables:
 
@@ -555,7 +557,8 @@ Selected variables:
 |---|---|---|
 | `SECRET_KEY` | *(required)* | Min 32 chars. Signs the OAuth state cookie. |
 | `DATABASE_URL` | *(required)* | Note the `+psycopg` driver suffix. |
-| `BASE_URL` | `http://localhost:8000` | Used in email links and OAuth redirects. |
+| `BASE_URL` | `http://localhost:8000` | Used in email links and OAuth redirects. Must be https in production. |
+| `TRUSTED_CLIENT_IP_HEADER` | `cf-connecting-ip` | Which header carries the real client IP. See below. |
 | `RUN_SCHEDULER_IN_WEB` | `true` | Set false when running a dedicated worker. |
 | `SCAN_TICK_MINUTES` | `15` | How often the sweep looks for due targets. |
 | `KEV_REFRESH_HOURS` | `6` | How often the KEV catalog is re-pulled. |
@@ -563,11 +566,57 @@ Selected variables:
 | `MIRROR_STALE_AFTER_HOURS` | `48` | Past this, scans warn rather than fail. |
 | `API_SCAN_MAX_BYTES` | `5 MB` | Upload cap on `POST /api/v1/scan`. |
 | `API_SCAN_RATE_LIMIT_PER_HOUR` | `60` | Scans per **project** per hour. |
+| `LOGIN_RATE_LIMIT_PER_IP` | `15` | Failed sign-ins per IP per window. |
+| `LOGIN_RATE_LIMIT_PER_ACCOUNT` | `8` | Failed sign-ins per account per window. |
+| `LOGIN_RATE_LIMIT_WINDOW_MINUTES` | `15` | The window both apply over. |
+| `SIGNUP_RATE_LIMIT_PER_IP` | `5` | Accounts creatable per IP per hour. |
+| `PASSWORD_RESET_RATE_LIMIT_PER_IP` | `10` | Reset requests per IP per hour. |
 | `EMAIL_BACKEND` | `console` | `console`, `smtp` or `resend`. |
 | `DODO_ENABLED` | `false` | Requires three more values when true. |
 | `ADMIN_EMAIL` | *(unset)* | Promoted to super-admin on first sign-in. |
 | `PASSWORD_RESET_TTL_MINUTES` | `60` | Lifetime of a reset link. |
 | `PASSWORD_RESET_MAX_PER_HOUR` | `5` | Reset emails per account per hour. |
+
+### Production refuses unsafe configuration
+
+With `ENVIRONMENT=production` the settings validator refuses to start on
+`DEBUG=true`, a placeholder or low-entropy `SECRET_KEY`, a non-`https` or
+`localhost` `BASE_URL`, `SESSION_COOKIE_SECURE=false`, or `DB_ECHO=true`. Every
+problem is reported at once rather than one per restart.
+
+These are all *silent* failures otherwise: the app boots, serves pages and looks
+healthy while cookies go out without `Secure` or the deployment runs on a key
+published in a public example file. `_check_production_hardening` in
+`app/config.py`; `tests/test_production_config.py`.
+
+A second, softer list is logged at startup (`app.config_warning`) for
+configuration that is legal but probably unintended — `EMAIL_BACKEND=console`
+in production, an unset proxy header, no admin.
+
+### Rate limiting
+
+Login, signup and password reset are limited; the scan API is limited per
+project. Counted in Postgres rather than in process memory, because the app can
+run as more than one replica and an in-process counter would multiply every
+limit by however many are up and reset on each deploy.
+
+Sign-in counts **failures only**, against two buckets — per IP and per account.
+A legitimate user is never throttled by their own successful sign-ins, and an
+office behind one NAT address is not collectively locked out for one person's
+typo. The check runs *before* the Argon2 verification, so a rejected attempt
+costs one indexed count rather than 19 MiB and real CPU.
+
+`TRUSTED_CLIENT_IP_HEADER` is load-bearing for this. Behind a proxy every
+request arrives from the proxy's address, so without it the per-IP limits
+collapse into a single shared bucket and the first attacker locks out
+everybody. Set it to the header your proxy sets — and **unset it** if the app
+is not behind one, or anyone can spoof a fresh bucket per request.
+
+## Deploying
+
+See [DEPLOY.md](DEPLOY.md) and
+[`docker-compose.prod.yml`](docker-compose.prod.yml). Migrations run
+automatically on every deploy as part of the web container's start command.
 
 ### Database migrations
 
@@ -602,9 +651,15 @@ Logs are structured via `structlog` — human-readable locally, JSON in producti
   `docs/reachability.md`.
 - **No Slack/Discord webhooks.** The email path works end to end first; the tier
   flag exists so adding them touches one table.
+- **No GitHub sign-in.** It was started and removed rather than left
+  half-finished. Re-adding it means re-answering the question that stopped it:
+  linking a GitHub identity to an existing password account by matching email
+  addresses is an account-takeover path unless the address is known-verified on
+  both sides. Nothing in the schema or the config presumes an answer any more,
+  which is the point — the next attempt starts from that decision.
 - **No GitHub App / repo auto-sync.** Manual upload and the CLI are enough to
-  validate the idea. The `TrackedTarget.repo_url` column and the OAuth client are
-  in place so it is an addition, not a rewrite.
+  validate the idea. `TrackedTarget.repo_url` is reserved for it. Unrelated to
+  sign-in.
 - **No `/insights` page.** The aggregate queries exist and are parameterised by
   window (`trending_cves`, `trending_packages` in `public_service.py`); only the
   landing section consumes them today. A standalone page is a template away, and

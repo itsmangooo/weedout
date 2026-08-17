@@ -40,6 +40,14 @@ log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
+# Starlette renamed its constants for these two (`HTTP_413_CONTENT_TOO_LARGE`,
+# `HTTP_422_UNPROCESSABLE_CONTENT`) and deprecated the old spellings. The
+# numbers are the stable thing — they are what goes on the wire and what a
+# client branches on — so they are written literally rather than pinning this
+# module to whichever spelling the installed Starlette happens to prefer.
+HTTP_CONTENT_TOO_LARGE = 413
+HTTP_UNPROCESSABLE_CONTENT = 422
+
 
 def _fail(status_code: int, code: str, message: str, **extra) -> HTTPException:
     """A JSON error with a stable machine-readable code.
@@ -116,7 +124,7 @@ async def scan(
     # of whitespace as "empty" — true, but not the thing to fix.
     if len(raw) > settings.api_scan_max_bytes:
         raise _fail(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            HTTP_CONTENT_TOO_LARGE,
             "file_too_large",
             f"That file is larger than {settings.api_scan_max_bytes // (1024 * 1024)} MB.",
         )
@@ -138,7 +146,7 @@ async def scan(
     try:
         changed = await replace_manifest(db, target, content, filename=manifest.filename)
     except UnsupportedManifest as exc:
-        raise _fail(status.HTTP_422_UNPROCESSABLE_ENTITY, "unsupported_manifest", str(exc)) from exc
+        raise _fail(HTTP_UNPROCESSABLE_CONTENT, "unsupported_manifest", str(exc)) from exc
 
     outcome = await scan_target(db, target)
 
