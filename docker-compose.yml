@@ -3,51 +3,82 @@
 #   docker compose up --build
 #
 # The web container waits for Postgres to pass its healthcheck, runs
-# `alembic upgrade head`, then serves on http://localhost:8000.
+# `alembic upgrade head`, then serves on:
+#
+#   http://localhost:8000
+#
+# This file is intended for LOCAL development.
+# Production uses docker-compose.prod.yaml behind Coolify / Traefik.
 
 name: weedout
 
 services:
   db:
     image: postgres:17-alpine
+
     environment:
       POSTGRES_USER: weedout
       POSTGRES_PASSWORD: weedout
       POSTGRES_DB: weedout
+
     ports:
-      # Host port is configurable: 5432 is often already taken by a local
-      # Postgres or another project's stack. Override with POSTGRES_PORT.
+      # Local development only.
+      # Override if port 5432 is already occupied:
+      #
+      #   POSTGRES_PORT=5433 docker compose up
       - "${POSTGRES_PORT:-5432}:5432"
+
     volumes:
       - pgdata:/var/lib/postgresql/data
+
     healthcheck:
-      # Without this, the web container races Postgres' first-boot
-      # initialisation and dies on an unreachable socket.
-      test: ["CMD-SHELL", "pg_isready -U weedout -d weedout"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U weedout -d weedout
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
 
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+
     command: >
       sh -c "alembic upgrade head &&
              python -m app"
+
     environment:
       DATABASE_URL: postgresql+psycopg://weedout:weedout@db:5432/weedout
+
       SECRET_KEY: ${SECRET_KEY:-local-development-secret-key-change-me-please}
+
       ENVIRONMENT: local
-      BASE_URL: http://localhost:80
+
+      BASE_URL: http://localhost:8000
+
       EMAIL_BACKEND: console
-      # The worker service owns the schedule; the web process just serves.
+
+      # The worker owns scheduled jobs.
       RUN_SCHEDULER_IN_WEB: "false"
+
       LOG_FORMAT: console
+
+    # Local development:
+    #
+    # host :8000
+    #     ↓
+    # container :8000
+    #
+    # The Python app must bind to 0.0.0.0:8000 inside the container.
     ports:
-      - "80:80"
+      - "8000:8000"
+
     depends_on:
       db:
         condition: service_healthy
+
     develop:
       watch:
         - action: sync+restart
@@ -55,23 +86,35 @@ services:
           target: /app/app
 
   worker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+
     command: python -m app.jobs.runner loop
-    # The image's healthcheck probes /healthz, which only the web service
-    # serves. Inheriting it here reports the worker as permanently unhealthy —
-    # a false alarm that trains you to ignore the column that matters.
+
+    # The Dockerfile healthcheck probes /healthz on port 8000.
+    # The worker does not serve HTTP, so inheriting that healthcheck would
+    # incorrectly mark the worker as unhealthy.
     healthcheck:
       disable: true
+
     environment:
       DATABASE_URL: postgresql+psycopg://weedout:weedout@db:5432/weedout
+
       SECRET_KEY: ${SECRET_KEY:-local-development-secret-key-change-me-please}
+
       ENVIRONMENT: local
-      BASE_URL: http://localhost:80
+
+      BASE_URL: http://localhost:8000
+
       EMAIL_BACKEND: console
+
       LOG_FORMAT: console
+
     depends_on:
       db:
         condition: service_healthy
+
       web:
         condition: service_started
 

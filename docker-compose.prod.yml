@@ -1,23 +1,39 @@
-# Production stack: Postgres + web + worker, behind a Cloudflare Tunnel.
+# Production stack: Postgres + web + worker, deployed behind Coolify's
+# reverse proxy (Traefik), with Cloudflare Tunnel forwarding public traffic
+# to the Coolify proxy on the host.
 #
-#   docker compose -f docker-compose.prod.yml up -d --build
+#   Cloudflare Tunnel
+#        ↓
+#   host :80
+#        ↓
+#   Coolify / Traefik
+#        ↓
+#   web :8000
+#
+# Local/manual production run:
+#
+#   docker compose \
+#     --env-file .env.prod \
+#     -f docker-compose.prod.yaml \
+#     up -d --build
 #
 # Differs from docker-compose.yml in ways that all matter:
 #
 #   * Every secret comes from the environment with **no fallback**. `${VAR:?msg}`
 #     makes compose refuse to start and print `msg` when a variable is missing,
 #     which is the difference between a loud failure and a deployment silently
-#     running on the placeholder key published in `.env.example`.
-#   * Postgres publishes **no host port**. It is reachable only on the compose
-#     network, so the database is not exposed to the host or to anything that
-#     can reach the host.
+#     running on a placeholder key published in `.env.example`.
+#
+#   * Postgres publishes **no host port**. It is reachable only on the Compose
+#     network.
+#
+#   * The web service also publishes **no host port**. Coolify's reverse proxy
+#     reaches it internally on port 8000.
+#
 #   * Everything restarts unless explicitly stopped, so a crashed worker comes
 #     back instead of quietly leaving scans unrun.
+#
 #   * Migrations run automatically before the web process starts.
-#
-# Provide values in a `.env.prod` file next to this one and pass it explicitly:
-#
-#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 #
 # See DEPLOY.md.
 
@@ -28,25 +44,29 @@ x-app-env: &app-env
   DEBUG: "false"
   LOG_FORMAT: json
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
   BASE_URL: ${BASE_URL:?set BASE_URL to the public https:// origin, e.g. https://weedout.dev}
+
   SECRET_KEY: ${SECRET_KEY:?generate one with python -c "import secrets; print(secrets.token_urlsafe(48))"}
+
   DATABASE_URL: postgresql+psycopg://weedout:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/weedout
 
-  # Cloudflare Tunnel terminates TLS and forwards over the compose network, so
-  # every request arrives from the tunnel's address. Without this the app would
-  # see one client for all traffic and IP rate limits would become a single
-  # shared bucket — the first brute-force attempt would lock out everyone.
-  # Cloudflare sets and overwrites CF-Connecting-IP at the edge, so a client
-  # cannot forge it. Change this if you put something else in front.
+  # Public traffic reaches Weedout through Cloudflare and then Coolify/Traefik.
+  # Cloudflare supplies CF-Connecting-IP for the original client address.
+  #
+  # Only trust this header when requests are guaranteed to arrive through the
+  # trusted proxy path configured for production.
   TRUSTED_CLIENT_IP_HEADER: ${TRUSTED_CLIENT_IP_HEADER:-cf-connecting-ip}
 
   EMAIL_BACKEND: ${EMAIL_BACKEND:-smtp}
   EMAIL_FROM: ${EMAIL_FROM:-Weedout <alerts@weedout.dev>}
+
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}
   SMTP_USERNAME: ${SMTP_USERNAME:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+
   RESEND_API_KEY: ${RESEND_API_KEY:-}
 
   ADMIN_EMAIL: ${ADMIN_EMAIL:-}
@@ -58,8 +78,7 @@ x-app-env: &app-env
   DODO_PRODUCT_ID_PRO_MONTHLY: ${DODO_PRODUCT_ID_PRO_MONTHLY:-}
 
 x-logging: &logging
-  # Without a cap, container logs grow until the disk is full — which takes
-  # down Postgres alongside everything else.
+  # Without a cap, container logs can grow until the disk is full.
   driver: json-file
   options:
     max-size: "10m"
@@ -69,69 +88,100 @@ services:
   db:
     image: postgres:17-alpine
     restart: unless-stopped
+
     logging: *logging
+
     environment:
       POSTGRES_USER: weedout
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_DB: weedout
-      # Enforce scram-sha-256 rather than inheriting whatever the image's
-      # default trust settings happen to be.
+
+      # Enforce SCRAM-SHA-256 authentication.
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
-    # Deliberately no `ports:`. The database is reachable on the compose
-    # network and nowhere else.
+
+    # Intentionally no `ports:` mapping.
+    # Only services on the Compose network can reach Postgres.
     volumes:
       - pgdata:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U weedout -d weedout"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U weedout -d weedout
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
 
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+
     restart: unless-stopped
+
     logging: *logging
-    # Migrations run here, on every deploy, before the server binds. Leaving
-    # this as a manual step is how a release ships against a schema it does not
-    # match; `alembic upgrade head` is a no-op when there is nothing to apply.
+
+    # Upgrade the database schema before starting the application.
     command: >
       sh -c "alembic upgrade head &&
              python -m app"
+
     environment:
       <<: *app-env
-      # The worker owns the schedule. Running it here too would mean two
-      # schedulers; the advisory lock makes that safe, but it is still wasted
-      # work in the process that should be answering requests.
+
+      # The worker owns scheduled jobs.
       RUN_SCHEDULER_IN_WEB: "false"
-    # Bound to loopback: the tunnel connects from the host, and nothing else
-    # should be able to reach the app directly. Change to "8000:8000" only if
-    # you are fronting it with something on another machine.
-    ports:
-      - "127.0.0.1:80:80"
+
+    # IMPORTANT:
+    #
+    # The application listens on port 8000 INSIDE the container.
+    #
+    # We deliberately do NOT publish it as a host port.
+    #
+    # Coolify / Traefik reaches:
+    #
+    #   web:8000
+    #
+    # internally over Docker networking.
+    expose:
+      - "8000"
+
     depends_on:
       db:
         condition: service_healthy
+
     security_opt:
       - no-new-privileges:true
 
   worker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+
     restart: unless-stopped
+
     logging: *logging
+
     command: python -m app.jobs.runner loop
+
     environment:
       <<: *app-env
-    # The image healthcheck probes /healthz, which only the web service serves.
+
+    # The Dockerfile healthcheck probes /healthz, which only exists on the web
+    # process. The worker therefore disables the inherited image healthcheck.
     healthcheck:
       disable: true
+
     depends_on:
       db:
         condition: service_healthy
-      # Waits for the web container, which is what runs the migrations — the
-      # worker must not query a schema that has not been upgraded yet.
+
+      # The web service runs Alembic migrations before starting the HTTP server.
+      # Don't start the worker before that service has begun its startup path.
       web:
         condition: service_started
+
     security_opt:
       - no-new-privileges:true
 
