@@ -1,0 +1,126 @@
+{% extends "admin/_layout.html" %}
+
+{% block admin_title %}Users{% endblock %}
+
+{% block admin_content %}
+<form method="get" action="/admin/users" class="filter-bar">
+  <div class="filter-bar__search">
+    <label class="label" for="search">Search</label>
+    <input class="input" type="search" id="search" name="search"
+           value="{{ query.search }}" placeholder="Email contains…" maxlength="320">
+  </div>
+
+  <div>
+    <label class="label" for="tier">Plan</label>
+    <select class="select" id="tier" name="tier">
+      <option value="">Any</option>
+      {% for t in ['free', 'pro'] %}
+        <option value="{{ t }}" {% if query.tier == t %}selected{% endif %}>{{ t | capitalize }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div>
+    <label class="label" for="status">Status</label>
+    <select class="select" id="status" name="status">
+      <option value="">Any</option>
+      {% for s in ['active', 'suspended', 'admin'] %}
+        <option value="{{ s }}" {% if query.status == s %}selected{% endif %}>{{ s | capitalize }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div>
+    <label class="label" for="per_page">Per page</label>
+    <select class="select" id="per_page" name="per_page">
+      {% for n in [25, 50, 100] %}
+        <option value="{{ n }}" {% if query.per_page == n %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <button type="submit" class="btn">Apply</button>
+  {% if query.search or query.tier or query.status %}
+    <a href="/admin/users" class="btn btn--ghost">Clear</a>
+  {% endif %}
+</form>
+
+<div class="card card--flush">
+  {% if result.rows %}
+    <div class="table-scroll">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Plan</th>
+            <th>Status</th>
+            <th>Projects</th>
+            <th>Open alerts</th>
+            <th>Signed up</th>
+            <th>Last login</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in result.rows %}
+            <tr>
+              <td>
+                <a href="/admin/users/{{ row.user.id }}" class="mono">{{ row.user.email }}</a>
+                {% if row.user.is_admin %}<span class="badge badge--admin">Admin</span>{% endif %}
+              </td>
+              <td>
+                <span class="badge {% if row.user.tier.value == 'pro' %}badge--pro{% endif %}">
+                  {{ row.user.tier.label }}
+                </span>
+              </td>
+              <td>
+                {% if row.user.is_suspended %}
+                  <span class="badge sev-critical">Suspended</span>
+                {% else %}
+                  <span class="badge badge--calm">{{ row.user.status_label }}</span>
+                {% endif %}
+              </td>
+              <td class="mono">{{ row.target_count }}</td>
+              <td class="mono">{{ row.open_alert_count or '—' }}</td>
+              <td class="mono dim">{{ row.user.created_at | relative_time }}</td>
+              <td class="mono dim">{{ row.user.last_login_at | relative_time }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty">
+      <h2>No users match</h2>
+      <p>
+        {% if query.search or query.tier or query.status %}
+          Nothing matches those filters. <a href="/admin/users">Clear them</a> to see everyone.
+        {% else %}
+          There are no accounts yet.
+        {% endif %}
+      </p>
+    </div>
+  {% endif %}
+</div>
+
+{% if result.total %}
+  <nav class="pager" aria-label="Pagination">
+    <span class="pager__summary mono">
+      {{ result.start_index }}–{{ result.end_index }} of {{ result.total }}
+    </span>
+    <div class="pager__controls">
+      {% set base = '/admin/users?search=' ~ query.search | urlencode ~ '&tier=' ~ query.tier ~ '&status=' ~ query.status ~ '&per_page=' ~ query.per_page %}
+      {% if result.has_prev %}
+        <a class="btn btn--sm" href="{{ base }}&page={{ result.page - 1 }}">Previous</a>
+      {% else %}
+        <span class="btn btn--sm" aria-disabled="true">Previous</span>
+      {% endif %}
+      <span class="mono dim" style="font-size:0.75rem">Page {{ result.page }} of {{ result.pages }}</span>
+      {% if result.has_next %}
+        <a class="btn btn--sm" href="{{ base }}&page={{ result.page + 1 }}">Next</a>
+      {% else %}
+        <span class="btn btn--sm" aria-disabled="true">Next</span>
+      {% endif %}
+    </div>
+  </nav>
+{% endif %}
+{% endblock %}

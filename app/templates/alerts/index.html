@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Alerts</h1>
+    <p>Every finding across every project.</p>
+  </div>
+</div>
+
+<nav class="tabs" aria-label="Findings">
+  <a class="tab" href="?show=open" {% if selected == 'open' %}aria-selected="true"{% endif %}>Open</a>
+  <a class="tab" href="?show=filtered" {% if selected == 'filtered' %}aria-selected="true"{% endif %}>Filtered</a>
+  <a class="tab" href="?show=dismissed" {% if selected == 'dismissed' %}aria-selected="true"{% endif %}>Dismissed</a>
+  <a class="tab" href="?show=resolved" {% if selected == 'resolved' %}aria-selected="true"{% endif %}>Resolved</a>
+</nav>
+
+<div class="card card--flush">
+  {% if matches %}
+    <ul class="findings">
+      {% for match in matches %}
+        {% include "partials/_finding.html" %}
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">
+      <span class="empty__mark" aria-hidden="true"><i style="height:10px"></i><i style="height:22px"></i><i style="height:15px"></i></span>
+      <h2>Nothing here</h2>
+      <p>
+        {% if selected == 'open' %}
+          No advisory has cleared the alerting bar. Check the Filtered tab to see what was set aside.
+        {% else %}
+          Nothing in this state yet.
+        {% endif %}
+      </p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

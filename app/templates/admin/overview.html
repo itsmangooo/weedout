@@ -1,0 +1,177 @@
+{% extends "admin/_layout.html" %}
+
+{% block admin_title %}Overview{% endblock %}
+
+{% block admin_content %}
+
+{# Feed health leads the page. A silently broken feed doesn't break any screen —
+   scans still succeed, dashboards still render — it just makes every answer
+   wrong. So it is the first thing shown, not a footnote. #}
+<section aria-labelledby="feeds-heading">
+  <h2 id="feeds-heading" class="eyebrow">Feed health</h2>
+  <div class="feed-grid">
+    {% for feed in feeds %}
+      <div class="feed feed--{{ feed.status | replace(' ', '-') }}">
+        <div class="feed__top">
+          <span class="feed__name">{{ feed.label }}</span>
+          <span class="feed__status">{{ feed.status }}</span>
+        </div>
+        <dl class="datalist datalist--tight">
+          <dt>Last success</dt>
+          <dd>{{ feed.last_success_at | relative_time }}</dd>
+          {% if feed.last_attempt_at %}
+            <dt>Last attempt</dt>
+            <dd>{{ feed.last_attempt_at | relative_time }}</dd>
+          {% endif %}
+          {% if feed.record_count %}
+            <dt>Records</dt>
+            <dd class="mono">{{ feed.record_count }}</dd>
+          {% endif %}
+          {% if feed.catalog_version %}
+            <dt>Version</dt>
+            <dd class="mono">{{ feed.catalog_version }}</dd>
+          {% endif %}
+        </dl>
+        {% if feed.last_error %}
+          <p class="feed__error">{{ feed.last_error[:300] }}</p>
+        {% elif feed.is_stale and feed.last_success_at %}
+          <p class="feed__error">
+            No successful sync in over {{ feed.stale_after_hours }}h. Alerts may be
+            based on outdated data.
+          </p>
+        {% elif not feed.last_success_at %}
+          <p class="feed__error">
+            Never synced. Run <code>python -m app.jobs.runner refresh-kev</code> or
+            check the worker.
+          </p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section style="margin-top:2.5rem" aria-labelledby="metrics-heading">
+  <h2 id="metrics-heading" class="eyebrow">Platform</h2>
+  <div class="stat-grid">
+    <div class="stat">
+      <b>{{ metrics.total_users }}</b>
+      <span>Users</span>
+      <small>{{ metrics.free_users }} free · {{ metrics.paid_users }} paid</small>
+    </div>
+    <div class="stat">
+      <b>{{ metrics.paid_share }}<span class="stat__unit">%</span></b>
+      <span>Paid share</span>
+      <small>{{ metrics.new_users_7d }} new this week</small>
+    </div>
+    <div class="stat">
+      <b>{{ metrics.total_targets }}</b>
+      <span>Projects</span>
+      <small>{{ metrics.total_dependencies }} dependencies watched</small>
+    </div>
+    <div class="stat">
+      <b>{{ metrics.scans_all_time }}</b>
+      <span>Scans, all time</span>
+      <small>{{ metrics.scans_today }} today · {{ metrics.scans_7d }} this week</small>
+    </div>
+    <div class="stat {% if metrics.failed_scans_7d %}stat--warn{% endif %}">
+      <b>{{ metrics.failed_scans_7d }}</b>
+      <span>Failed scans, 7d</span>
+      <small>{{ metrics.alerts_emailed_7d }} alert emails sent</small>
+    </div>
+    <div class="stat">
+      <b>{{ metrics.noise_filtered_share }}<span class="stat__unit">%</span></b>
+      <span>Noise filtered</span>
+      <small>{{ metrics.open_alerts }} open · {{ metrics.suppressed_alerts }} suppressed</small>
+    </div>
+    {% if metrics.suspended_users %}
+      <div class="stat stat--warn">
+        <b>{{ metrics.suspended_users }}</b>
+        <span>Suspended</span>
+        <small><a href="/admin/users?status=suspended">Review</a></small>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section style="margin-top:2.5rem" aria-labelledby="signups-heading">
+  <div class="card">
+    <div class="chart-head">
+      <div>
+        <h2 id="signups-heading" style="font-size:0.9375rem">Total accounts</h2>
+        <p class="muted" style="font-size:0.8125rem;margin:0.25rem 0 0">
+          Cumulative, last {{ chart_days }} days.
+        </p>
+      </div>
+      <div class="chart-range">
+        {% for option in [7, 30, 90] %}
+          <a href="?days={{ option }}"
+             class="chart-range__option"
+             {% if chart_days == option %}aria-current="true"{% endif %}>{{ option }}d</a>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if chart.empty %}
+      <p class="muted" style="font-size:0.875rem;margin:1.5rem 0 0">
+        No accounts yet. The chart appears after the first signup.
+      </p>
+    {% else %}
+      {# Single series, single axis, no legend — the heading names it.
+         Hover targets carry a native <title>, which is a real tooltip layer
+         that needs no JavaScript and so survives the strict CSP. #}
+      <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}"
+           role="img" preserveAspectRatio="xMidYMid meet"
+           aria-labelledby="signups-heading signups-desc">
+        <desc id="signups-desc">
+          Cumulative account total over the last {{ chart_days }} days, ending at
+          {{ chart.last_point.value }}.
+        </desc>
+
+        {% for line in chart.grid %}
+          <line class="chart__grid" x1="46" x2="{{ chart.width - 14 }}"
+                y1="{{ line.y }}" y2="{{ line.y }}"/>
+          <text class="chart__ylabel" x="38" y="{{ line.y + 4 }}"
+                text-anchor="end">{{ line.label }}</text>
+        {% endfor %}
+
+        <path class="chart__area" d="{{ chart.area_path }}"/>
+        <path class="chart__line" d="{{ chart.line_path }}"/>
+
+        {% set last = chart.last_point %}
+        <circle class="chart__dot" cx="{{ last.x }}" cy="{{ last.y }}" r="4"/>
+
+        {% for x, label in chart.x_labels %}
+          <text class="chart__xlabel" x="{{ x }}" y="{{ chart.height - 8 }}"
+                text-anchor="middle">{{ label }}</text>
+        {% endfor %}
+
+        {% for point in chart.points %}
+          <rect class="chart__hit" x="{{ point.hit_x }}" y="14"
+                width="{{ point.hit_width }}" height="{{ chart.baseline_y - 14 }}">
+            <title>{{ point.label }} — {{ point.value }} total{% if point.delta %}, +{{ point.delta }} new{% endif %}</title>
+          </rect>
+        {% endfor %}
+      </svg>
+
+      {# The table view the chart is an alternative to, not a replacement for. #}
+      <details class="chart-table">
+        <summary>View as table</summary>
+        <div class="table-scroll" style="max-height:280px;overflow-y:auto">
+          <table class="table">
+            <thead><tr><th>Day</th><th>New</th><th>Total</th></tr></thead>
+            <tbody>
+              {% for point in signups | reverse %}
+                <tr>
+                  <td class="mono">{{ point.day }}</td>
+                  <td class="mono">{{ point.count or '—' }}</td>
+                  <td class="mono">{{ point.cumulative }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,47 @@
+[project]
+name = "weedout-cli"
+version = "0.1.0"
+description = "Scan your dependencies for the CVEs that actually matter, from the command line or CI."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["security", "cve", "vulnerability", "dependencies", "ci"]
+
+# No runtime dependencies, and that is a feature.
+#
+# This package is installed into the same environment as the project being
+# built, frequently by a `pip install` in a CI step that also installs the
+# project's own requirements. Anything listed here becomes a version constraint
+# that someone else's build has to satisfy — to solve a problem that is one
+# POST request and one argument parser wide. `urllib` and `argparse` are in the
+# standard library and are enough.
+dependencies = []
+
+# 3.10 rather than the server's 3.12: a CI runner's Python is whatever the
+# project already uses, and refusing to install on it would make the tool
+# unusable exactly where it is meant to run. 3.10 is the floor because the
+# dataclasses here use `slots=True`; everything below it is past end of life.
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://weedout.dev"
+Documentation = "https://weedout.dev/docs"
+
+[project.scripts]
+weedout = "weedout_cli.cli:run"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["weedout_cli*"]

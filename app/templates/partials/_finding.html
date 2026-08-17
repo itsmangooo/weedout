@@ -1,0 +1,48 @@
+{# One finding row.
+
+   The reason it cleared (or didn't clear) the filter leads the row, because that
+   is what tells the reader whether to stop what they're doing. Expects `match`
+   in scope, and optionally `target_names` to label which project it came from. #}
+
+{% set record = match.vulnerability %}
+{% set cve = (record.cve_ids[0] if record and record.cve_ids else match.vulnerability_id) %}
+
+<li class="finding {% if match.is_kev %}finding--exploited{% elif match.verdict.value == 'actionable' %}finding--surfaced{% endif %}">
+  <a class="finding__link" href="/alerts/{{ match.id }}">
+    <span class="finding__reason">
+      {% if match.is_kev %}
+        Exploited in the wild
+      {% elif match.actionable_reason %}
+        {{ match.actionable_reason.label }}
+      {% elif match.suppression_reason %}
+        Filtered · {{ match.suppression_reason.label }}
+      {% endif %}
+    </span>
+
+    <span class="finding__title">
+      <span class="finding__pkg">{{ match.package_name }}</span>
+      <span class="finding__version">{{ match.package_version }}</span>
+      <span class="badge {{ match.severity|severity_class }}">{{ match.severity.label }}</span>
+      {% if match.is_kev %}<span class="badge badge--kev">KEV</span>{% endif %}
+      <span class="finding__cve">{{ cve }}</span>
+    </span>
+
+    {% if record and record.summary %}
+      <p class="finding__summary">{{ record.summary }}</p>
+    {% endif %}
+
+    <span class="finding__meta">
+      {% if target_names and target_names.get(match.target_id) %}
+        <span>{{ target_names[match.target_id] }}</span>
+      {% endif %}
+      <span>{{ match.reachability.label }}</span>
+      {% if match.fixed_version %}
+        <span>Fixed in {{ match.fixed_version }}</span>
+      {% else %}
+        <span>No fix published</span>
+      {% endif %}
+      <span>First seen {{ match.first_seen_at|relative_time }}</span>
+      {% if not match.version_exact %}<span>Version assumed from range</span>{% endif %}
+    </span>
+  </a>
+</li>

@@ -1,0 +1,118 @@
+{% extends "admin/_layout.html" %}
+
+{% block admin_title %}Billing{% endblock %}
+
+{% block admin_actions %}
+  {# Anything with financial consequence links out. Reimplementing refunds and
+     disputes here would mean a second, lagging source of truth for money. #}
+  <a href="{{ dodo_dashboard_url }}" class="btn" target="_blank" rel="noopener noreferrer">
+    Open Dodo dashboard
+  </a>
+{% endblock %}
+
+{% block admin_content %}
+
+{% if not dodo_enabled %}
+  <div class="notice notice--info">
+    <p>
+      Dodo Payments isn't enabled on this deployment, so nothing new will arrive here.
+      These figures reflect whatever webhooks were processed previously.
+    </p>
+  </div>
+{% endif %}
+
+<section aria-labelledby="revenue-heading">
+  <h2 id="revenue-heading" class="eyebrow">Revenue</h2>
+  <div class="stat-grid">
+    <div class="stat stat--wide">
+      <b>{{ '%.2f' | format(snapshot.mrr) }}<span class="stat__unit">{{ snapshot.currency }}</span></b>
+      <span>MRR</span>
+      <small>{{ '%.2f' | format(snapshot.arr) }} {{ snapshot.currency }} annualised</small>
+    </div>
+    <div class="stat">
+      <b>{{ snapshot.active_count }}</b>
+      <span>Active</span>
+      {% if snapshot.trialing_count %}<small>{{ snapshot.trialing_count }} trialing</small>{% endif %}
+    </div>
+    <div class="stat {% if snapshot.past_due_count %}stat--warn{% endif %}">
+      <b>{{ snapshot.past_due_count }}</b>
+      <span>Past due</span>
+      <small>Still have access while retrying</small>
+    </div>
+    <div class="stat">
+      <b>{{ snapshot.canceled_count }}</b>
+      <span>Canceled</span>
+    </div>
+  </div>
+
+  {% if snapshot.untracked_paid_count %}
+    <div class="notice notice--info" style="margin-top:1.25rem">
+      <p>
+        {{ snapshot.untracked_paid_count }}
+        {{ snapshot.untracked_paid_count | pluralize('account is', 'accounts are') }}
+        on the Pro plan with no recorded subscription amount — manual comps, or a
+        webhook processed before the price fields existed. They are excluded from
+        MRR, so the figure above is a floor rather than an estimate.
+      </p>
+    </div>
+  {% endif %}
+</section>
+
+<section style="margin-top:2.5rem" aria-labelledby="subs-heading">
+  <div class="card card--flush">
+    <div class="card__head">
+      <h2 id="subs-heading">Subscribers</h2>
+      <span class="mono dim" style="font-size:0.75rem">{{ subscribers | length }}</span>
+    </div>
+
+    {% if subscribers %}
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Email</th><th>Plan</th><th>Status</th><th>Amount</th><th>Next billed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sub in subscribers %}
+              <tr>
+                <td><a href="/admin/users/{{ sub.id }}" class="mono">{{ sub.email }}</a></td>
+                <td>
+                  <span class="badge {% if sub.tier.value == 'pro' %}badge--pro{% endif %}">
+                    {{ sub.tier.label }}
+                  </span>
+                </td>
+                <td>
+                  {% set status = (sub.subscription_status or 'unknown') %}
+                  {% if status in ('active', 'trialing') %}
+                    <span class="badge badge--calm">{{ status }}</span>
+                  {% elif status == 'on_hold' %}
+                    <span class="badge sev-high">on hold</span>
+                  {% else %}
+                    <span class="badge">{{ status }}</span>
+                  {% endif %}
+                </td>
+                <td class="mono">
+                  {% if sub.subscription_amount_cents %}
+                    {{ '%.2f' | format(sub.subscription_amount_cents / 100) }}
+                    {{ sub.subscription_currency }}
+                    <span class="dim">/{{ sub.subscription_interval }}</span>
+                  {% else %}
+                    <span class="dim">—</span>
+                  {% endif %}
+                </td>
+                <td class="mono dim">{{ sub.subscription_ends_at | relative_time }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">
+        <h2>No subscriptions yet</h2>
+        <p>Subscribers appear here once Dodo sends its first subscription webhook.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

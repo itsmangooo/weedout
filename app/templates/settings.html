@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p>{{ user.email }} · {{ limits_for(user.tier).display_name }} plan</p>
+  </div>
+</div>
+
+{% if error %}<div class="notice notice--error" role="alert">{{ error }}</div>{% endif %}
+{% if success %}<div class="notice notice--success" role="status">{{ success }}</div>{% endif %}
+
+<div class="card" style="max-width:560px">
+  <h2 style="font-size:0.9375rem;margin-bottom:1.25rem">Alerts</h2>
+  <form method="post" action="/settings/alerts">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="checkbox-row" style="margin-bottom:1.25rem">
+      <input type="checkbox" id="email_alerts_enabled" name="email_alerts_enabled"
+             {% if user.email_alerts_enabled %}checked{% endif %}>
+      <div>
+        <label class="label" for="email_alerts_enabled">Email me about new findings</label>
+        <p class="field__hint" style="margin:0">
+          One digest per scan, only for findings that clear the alerting bar. Turning this
+          off keeps everything on your dashboard.
+        </p>
+      </div>
+    </div>
+    <button type="submit" class="btn">Save</button>
+  </form>
+</div>
+
+<div class="card" style="max-width:560px;margin-top:1.5rem">
+  <h2 style="font-size:0.9375rem;margin-bottom:1.25rem">Password</h2>
+  <form method="post" action="/settings/password">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="current_password">Current password</label>
+      <input class="input" type="password" id="current_password" name="current_password"
+             required autocomplete="current-password">
+    </div>
+    <div class="field">
+      <label for="new_password">New password</label>
+      <input class="input" type="password" id="new_password" name="new_password"
+             required minlength="10" autocomplete="new-password">
+      <p class="field__hint">At least 10 characters. Changing this signs you out everywhere else.</p>
+    </div>
+    <button type="submit" class="btn">Change password</button>
+  </form>
+</div>
+
+{# ---------------------------------------------------------------------------
+   API keys.
+
+   The plaintext appears in exactly one response — the one that created it —
+   and there is no route anywhere that can show it again. The panel below says
+   so plainly rather than letting someone discover it by coming back later.
+   --------------------------------------------------------------------------- #}
+<div class="card" style="max-width:560px;margin-top:1.5rem">
+  <h2 style="font-size:0.9375rem;margin-bottom:0.5rem">API keys</h2>
+  <p class="field__hint" style="margin-top:0">
+    For scanning from CI with <code>weedout scan</code>. Each key works for one
+    project, so a key leaked from a build only ever affects that project.
+  </p>
+
+  {% if new_api_key %}
+    <div class="keyreveal" role="status">
+      <p class="keyreveal__head">
+        Your new key for <strong>{{ new_api_key_target }}</strong>
+      </p>
+      <code class="keyreveal__value mono">{{ new_api_key }}</code>
+      <p class="keyreveal__note">
+        Copy it now. Only a hash is stored, so this is the last time it can be
+        shown — if you lose it, revoke the key and create another.
+      </p>
+    </div>
+  {% endif %}
+
+  {% if targets %}
+    <form method="post" action="/settings/api-keys" style="margin-top:1.25rem">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="target_id">Project</label>
+        <select class="input" id="target_id" name="target_id" required>
+          {% for target in targets %}
+            <option value="{{ target.id }}">{{ target.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="key_name">Label <span class="dim">(optional)</span></label>
+        <input class="input" type="text" id="key_name" name="name" maxlength="120"
+               placeholder="github-actions" autocomplete="off">
+        <p class="field__hint">Only so you can tell your keys apart later.</p>
+      </div>
+      <button type="submit" class="btn">Create key</button>
+    </form>
+  {% else %}
+    <p class="field__hint" style="margin-top:1.25rem">
+      <a href="/targets/new">Add a project</a> first — a key is issued for one project.
+    </p>
+  {% endif %}
+
+  {% if api_keys %}
+    <table class="keytable" style="margin-top:1.5rem">
+      <thead>
+        <tr>
+          <th scope="col">Key</th>
+          <th scope="col">Project</th>
+          <th scope="col">Last used</th>
+          <th scope="col"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key in api_keys %}
+          <tr{% if not key.is_active %} class="keytable__row--revoked"{% endif %}>
+            <td>
+              <span class="mono">{{ key.prefix }}…</span>
+              {% if key.name %}<span class="dim">{{ key.name }}</span>{% endif %}
+            </td>
+            <td>{{ key.target.name if key.target else '—' }}</td>
+            <td class="dim">
+              {% if not key.is_active %}
+                Revoked {{ key.revoked_at|relative_time }}
+              {% elif key.last_used_at %}
+                {{ key.last_used_at|relative_time }}
+              {% else %}
+                Never
+              {% endif %}
+            </td>
+            <td style="text-align:right">
+              {% if key.is_active %}
+                <form method="post" action="/settings/api-keys/{{ key.id }}/revoke">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn--ghost btn--sm">Revoke</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<div class="card" style="max-width:560px;margin-top:1.5rem">
+  <h2 style="font-size:0.9375rem;margin-bottom:1rem">Plan</h2>
+  {% set limits = limits_for(user.tier) %}
+  <dl class="datalist">
+    <dt>Plan</dt><dd>{{ limits.display_name }}</dd>
+    <dt>Projects</dt><dd>{{ limits.targets_label }}</dd>
+    <dt>Checks</dt><dd>{{ limits.scan_frequency_label }}</dd>
+    {% if user.subscription_status %}
+      <dt>Status</dt><dd>{{ user.subscription_status }}</dd>
+    {% endif %}
+    {% if user.subscription_ends_at %}
+      <dt>Renews</dt><dd>{{ user.subscription_ends_at|absolute_time }}</dd>
+    {% endif %}
+  </dl>
+  <div class="btn-row" style="margin-top:1.25rem">
+    <a href="/billing" class="btn">Manage billing</a>
+    <a href="/pricing" class="btn btn--ghost">Compare plans</a>
+  </div>
+</div>
+{% endblock %}

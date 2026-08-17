@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+
+{% block body %}
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Dependency vulnerability alerts</p>
+    {# The slogan doubles as the headline: "weed out" is the product's verb, and
+       naming what it removes says more than naming what it keeps. #}
+    <h1 class="hero__headline">Weed out the CVE alerts nobody acts on.</h1>
+    <p class="hero__sub">
+      Weedout watches your dependency manifests and tells you about two kinds of
+      vulnerability: the ones attackers are actively exploiting right now, and the ones
+      that are severe and reachable in the code you actually ship. Everything else is
+      filed away, counted, and left alone.
+    </p>
+    <div class="hero__cta">
+      <a href="/signup" class="btn btn--primary">Add your first project</a>
+      <a href="/docs/getting-started" class="btn">Read the docs</a>
+      <span class="hero__note">Free · no card · takes about a minute</span>
+    </div>
+
+    {# The command, not a picture of one. It is short enough to read at a
+       glance and real enough to paste, which is the whole promise. #}
+    <p class="hero__cmd mono">
+      <span class="hero__cmd-prompt" aria-hidden="true">$</span>
+      pip install weedout-cli &amp;&amp; weedout scan
+      <span class="hero__cmd-note">or upload a file in the browser — no install</span>
+    </p>
+
+    {# The filter, shown rather than described. These are real advisories and real
+       reasoning — the same rules the scanner applies. #}
+    <div class="demo">
+      <p class="demo__head">One package.json · 412 dependencies · 34 advisories matched</p>
+
+      <div class="demo__row demo__row--kept">
+        <span class="demo__verdict">Sent</span>
+        <span class="demo__pkg">CVE-2021-44228</span>
+        <span class="demo__why">On CISA's exploited list. Attacks using this have been observed.</span>
+      </div>
+      <div class="demo__row demo__row--kept">
+        <span class="demo__verdict">Sent</span>
+        <span class="demo__pkg">CVE-2022-25883</span>
+        <span class="demo__why">Critical, in a package that ships to production.</span>
+      </div>
+      <div class="demo__row">
+        <span class="demo__verdict">Filed</span>
+        <span class="demo__pkg">CVE-2023-26136</span>
+        <span class="demo__why">High severity, but four levels deep in the tree and not exploited.</span>
+      </div>
+      <div class="demo__row">
+        <span class="demo__verdict">Filed</span>
+        <span class="demo__pkg">CVE-2022-46175</span>
+        <span class="demo__why">Only in devDependencies. Never reaches your running app.</span>
+      </div>
+      <div class="demo__row">
+        <span class="demo__verdict">Filed</span>
+        <span class="demo__pkg">30 more</span>
+        <span class="demo__why">Moderate or unrated, no evidence of exploitation anywhere.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ---------------------------------------------------------------------------
+   Recently flagged — real findings from real scans, anonymised.
+
+   Rendered only when there is genuine data. An empty platform shows nothing
+   here rather than placeholder rows, because the entire point of the section
+   is that it is live.
+   --------------------------------------------------------------------------- #}
+{% if landing.has_findings %}
+<section class="section section--flush">
+  <div class="wrap">
+    <div class="flagged__head reveal">
+      <div>
+        <p class="eyebrow">
+          <span class="pulse" aria-hidden="true"></span> Recently flagged
+        </p>
+        <h2>What cleared the bar this week.</h2>
+        <p class="prose">
+          Live from scans across every account — critical severity or confirmed
+          exploitation, nothing else. Package names and CVE ids are public
+          information; nothing here identifies a project or a customer.
+        </p>
+      </div>
+    </div>
+
+    <div class="flagged" role="list">
+      {% for finding in landing.findings %}
+        <div class="flagged__row reveal" role="listitem" style="transition-delay:{{ loop.index0 * 40 }}ms">
+          <span class="flagged__cve mono">{{ finding.cve_id }}</span>
+          <span class="flagged__pkg mono">
+            {{ finding.package }}<span class="dim">@{{ finding.version }}</span>
+          </span>
+          <span class="flagged__badges">
+            {% if finding.is_kev %}
+              <span class="badge badge--kev">Exploited</span>
+            {% else %}
+              <span class="badge {{ finding.severity|severity_class }}">{{ finding.severity_label }}</span>
+            {% endif %}
+            <span class="badge">{{ finding.ecosystem }}</span>
+          </span>
+          <span class="flagged__summary">{{ finding.summary or 'Advisory published for this version.' }}</span>
+          <span class="flagged__fix mono">
+            {% if finding.fixed_version %}→ {{ finding.fixed_version }}{% else %}no fix yet{% endif %}
+          </span>
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if landing.stats.advisories_matched %}
+      <p class="flagged__foot mono">
+        {{ landing.stats.advisories_matched }} advisories matched across
+        {{ landing.stats.dependencies_watched }} watched dependencies ·
+        <strong>{{ landing.stats.filtered_share }}% were filtered out</strong> ·
+        cross-referenced against {{ landing.stats.kev_entries }} CISA KEV entries
+      </p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{# ---------------------------------------------------------------------------
+   Aggregate view of the same data: what is landing on the most projects.
+
+   Counts only. Every row here needed at least two distinct accounts behind it
+   before it could be published, so a row describes a pattern rather than
+   anyone's stack. Hidden entirely until that bar is met.
+   --------------------------------------------------------------------------- #}
+{% if landing.has_trends %}
+<section class="section section--flush">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">Across every account</p>
+      <h2>What's spreading this week.</h2>
+      <p class="prose">
+        The same findings, counted instead of listed. Project counts only —
+        no names, no accounts, and nothing that appears on a single team's
+        dependency list.
+      </p>
+    </div>
+
+    <div class="trends">
+      {% if landing.trending_cves %}
+        <div class="trend reveal">
+          <h3 class="trend__title">Most-seen advisories</h3>
+          <ol class="trend__list">
+            {% for cve in landing.trending_cves %}
+              <li class="trend__row">
+                <span class="trend__label mono">{{ cve.cve_id }}</span>
+                <span class="trend__badges">
+                  {% if cve.is_kev %}
+                    <span class="badge badge--kev">Exploited</span>
+                  {% else %}
+                    <span class="badge {{ cve.severity|severity_class }}">{{ cve.severity_label }}</span>
+                  {% endif %}
+                </span>
+                <span class="trend__count mono">
+                  {{ cve.project_count }} project{{ '' if cve.project_count == 1 else 's' }}
+                </span>
+                <span class="trend__bar" aria-hidden="true">
+                  <span class="trend__fill"
+                        style="--fill:{{ (cve.project_count / landing.trending_cves[0].project_count * 100)|round|int }}%"></span>
+                </span>
+              </li>
+            {% endfor %}
+          </ol>
+        </div>
+      {% endif %}
+
+      {% if landing.trending_packages %}
+        <div class="trend reveal">
+          <h3 class="trend__title">Most-affected packages</h3>
+          <ol class="trend__list">
+            {% for package in landing.trending_packages %}
+              <li class="trend__row">
+                <span class="trend__label mono">{{ package.name }}</span>
+                <span class="trend__badges">
+                  <span class="badge">{{ package.ecosystem }}</span>
+                </span>
+                <span class="trend__count mono">
+                  {{ package.project_count }} project{{ '' if package.project_count == 1 else 's' }}
+                </span>
+                <span class="trend__bar" aria-hidden="true">
+                  <span class="trend__fill"
+                        style="--fill:{{ (package.project_count / landing.trending_packages[0].project_count * 100)|round|int }}%"></span>
+                </span>
+              </li>
+            {% endfor %}
+          </ol>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# --------------------------------------------------------------------------- #}
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">How it works</p>
+    <h2>One command, wired into your pipeline.</h2>
+
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step__text">
+          <p class="step__number mono">01</p>
+          <h3>Add a project</h3>
+          <p>
+            <code>weedout scan</code> finds your lockfile, checks it, and prints
+            what came back. Add <code>--ci</code> and it fails the build on
+            anything critical or actively exploited.
+          </p>
+          <p>
+            No install to hand? Upload <code>package.json</code>,
+            <code>package-lock.json</code>, <code>requirements.txt</code> or
+            <code>go.mod</code> in the browser, or paste the contents. Either
+            way the first scan runs immediately, not on the next schedule.
+          </p>
+        </div>
+        <figure class="step__shot">
+          <img src="/static/img/screens/add-project.png" width="1568" height="764" loading="lazy"
+               alt="The add-project form, with a file picker and a paste-contents option.">
+        </figure>
+      </div>
+
+      <div class="step step--reverse reveal">
+        <div class="step__text">
+          <p class="step__number mono">02</p>
+          <h3>See the noise you're not being shown</h3>
+          <p>
+            The dashboard leads with the number of advisories that matched your
+            dependencies and were <em>filtered out</em>. It's the largest number on
+            the page, because it's the whole argument.
+          </p>
+        </div>
+        <figure class="step__shot">
+          <img src="/static/img/screens/dashboard.png" width="1568" height="764" loading="lazy"
+               alt="The dashboard, showing filtered and open counts with a signal-and-noise bar.">
+        </figure>
+      </div>
+
+      <div class="step reveal">
+        <div class="step__text">
+          <p class="step__number mono">03</p>
+          <h3>Check our work</h3>
+          <p>
+            Every filtered advisory stays on the Filtered tab with the reason
+            attached — dev-only, transitive and unexploited, below threshold.
+            Nothing is discarded, so you can disagree with a call.
+          </p>
+        </div>
+        <figure class="step__shot">
+          <img src="/static/img/screens/filtered.png" width="1568" height="764" loading="lazy"
+               alt="The filtered tab, showing critical advisories suppressed as dev-only dependencies.">
+        </figure>
+      </div>
+
+      <div class="step step--reverse reveal">
+        <div class="step__text">
+          <p class="step__number mono">04</p>
+          <h3>Get one email, in plain language</h3>
+          <p>
+            Alerts explain what can go wrong, why you're seeing this one and not
+            the other 200, and the exact command to fix it. One digest per scan,
+            and never twice for the same finding.
+          </p>
+        </div>
+        <figure class="step__shot">
+          <img src="/static/img/screens/alert-detail.png" width="1568" height="764" loading="lazy"
+               alt="An alert detail page explaining the risk in prose with a paste-able fix command.">
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">What gets through</p>
+    <h2>Three rules decide whether you hear from us.</h2>
+    <p class="prose">
+      They are the whole product, and they are written down so you can disagree with them.
+      Every filtered advisory stays on your dashboard with the reason attached.
+    </p>
+
+    <ul class="rules">
+      <li class="reveal">
+        <h3>Exploited in the wild</h3>
+        <p>
+          The CVE is in CISA's Known Exploited Vulnerabilities catalog. This
+          overrides everything else — severity, dependency depth, even dev-only
+          scope. If someone has a working exploit, "it's only in CI" is thin comfort.
+        </p>
+      </li>
+      <li class="reveal">
+        <h3>Critical and shipping</h3>
+        <p>
+          Critical severity in code that reaches production. No evidence of
+          exploitation needed; critical findings in running code clear the bar on
+          their own.
+        </p>
+      </li>
+      <li class="reveal">
+        <h3>High and yours</h3>
+        <p>
+          High severity in a package your project declares directly. Direct
+          dependencies are the ones you can actually upgrade today, which is what
+          makes them actionable rather than merely true.
+        </p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+{# Pricing reads from app/tiers.py — the same table the limits are enforced
+   from, so this can never drift from what a plan actually does. #}
+<section class="section" id="pricing">
+  <div class="wrap">
+    <p class="eyebrow">Pricing</p>
+    <h2>Two plans. No sales call.</h2>
+    <p class="prose">
+      Both plans use the same filtering rules. Pro checks more often and watches
+      more projects — it does not show you a different set of vulnerabilities.
+    </p>
+
+    <div class="plans" style="margin-top:2.5rem">
+      {% for tier, plan in PLANS.items() %}
+        <div class="plan reveal {% if tier.value == 'pro' %}plan--featured{% endif %}">
+          <div class="plan__name">{{ plan.display_name }}</div>
+          <div class="plan__price">
+            {{ plan.price_label }}<span class="plan__period">{% if tier.value != 'free' %} / month{% endif %}</span>
+          </div>
+          <ul class="plan__features">
+            {% for feature in plan.features %}<li>{{ feature }}</li>{% endfor %}
+          </ul>
+          <a href="/signup" class="btn {% if tier.value == 'pro' %}btn--primary{% endif %} btn--block">
+            {% if tier.value == 'free' %}Start free{% else %}Get Pro{% endif %}
+          </a>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">Questions</p>
+    <h2>The things people ask first.</h2>
+
+    <div class="faq">
+      {% set faqs = [
+        ("Does this scan my source code?",
+         "No. Weedout reads dependency manifests and will never claim to know whether you call the vulnerable function. What it does know is whether a package ships to production or only builds and tests your project, and whether you declared it directly or inherited it. Those two facts remove most of the noise on their own."),
+        ("What if my manifest only has version ranges?",
+         "Then we say so. A range like ^4.17.4 permits many versions, so Weedout assumes the lowest one it allows — the conservative floor — and labels every affected finding as inexact. Upload a lockfile and the versions are exact instead."),
+        ("Where does the data come from?",
+         "CISA's Known Exploited Vulnerabilities catalog for evidence of exploitation, and OSV.dev for the advisories themselves — which aggregates the GitHub Advisory Database, PyPA and the Go vulnerability database. Both are cached locally, so a scan is a database join rather than a fan-out of HTTP calls."),
+        ("How often will you email me?",
+         "One digest per scan, covering only findings that are new. A finding you have already seen is never emailed twice, a finding you dismiss stays dismissed, and scans you trigger yourself do not also arrive by email — you are already looking at the results."),
+        ("What happens when I upgrade a dependency?",
+         "The next scan marks the finding resolved rather than deleting it, so the history survives. If it ever comes back — a downgrade, a reverted upgrade — it reopens and notifies you, because that is genuinely news."),
+        ("Which ecosystems are supported?",
+         "npm, PyPI and Go today, via package.json, package-lock.json, requirements.txt and go.mod."),
+      ] %}
+      {% for question, answer in faqs %}
+        <details class="faq__item reveal">
+          <summary>{{ question }}</summary>
+          <p>{{ answer }}</p>
+        </details>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section section--cta">
+  <div class="wrap">
+    <h2>Start with one project.</h2>
+    <p class="prose">
+      Free, no card, and the first scan runs the moment you upload a manifest.
+    </p>
+    <div class="btn-row" style="margin-top:2rem">
+      <a href="/signup" class="btn btn--primary">Add your first project</a>
+      <a href="/docs" class="btn">Read the docs</a>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <div class="footer__brand">
+      <span class="brand__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="mono">Weedout</span>
+      <p class="footer__tagline">Weed out the noise.</p>
+    </div>
+
+    <nav class="footer__links" aria-label="Footer">
+      <div>
+        <p class="footer__heading">Product</p>
+        <a href="/pricing">Pricing</a>
+        <a href="/signup">Start free</a>
+        <a href="/login">Sign in</a>
+      </div>
+      <div>
+        <p class="footer__heading">Documentation</p>
+        {% if docs_pages %}
+          {% for page in docs_pages[:4] %}
+            <a href="/docs/{{ page.slug }}">{{ page.title }}</a>
+          {% endfor %}
+        {% else %}
+          <a href="/docs">All docs</a>
+        {% endif %}
+      </div>
+      <div>
+        <p class="footer__heading">Data sources</p>
+        <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" rel="noopener noreferrer" target="_blank">CISA KEV</a>
+        <a href="https://osv.dev" rel="noopener noreferrer" target="_blank">OSV.dev</a>
+      </div>
+    </nav>
+  </div>
+  <div class="wrap footer__bottom mono">
+    <span>© {{ now.year }} Weedout</span>
+    <span>Reads manifests, not source code.</span>
+  </div>
+</footer>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ target.manifest_kind.value }} · {{ target.ecosystem.label }}</p>
+    <h1>{{ target.name }}</h1>
+    <p>
+      {{ target.dependency_count }} {{ target.dependency_count|pluralize('dependency', 'dependencies') }} ·
+      checked {{ target.last_scanned_at|relative_time }} ·
+      next check {{ target.next_scan_at|relative_time }}
+    </p>
+  </div>
+  <div class="btn-row">
+    <form method="post" action="/targets/{{ target.id }}/scan">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn" data-busy-text="Checking…">Check now</button>
+    </form>
+    <form method="post" action="/targets/{{ target.id }}/delete"
+          data-confirm="Remove {{ target.name }} and all its findings? This can't be undone.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn--danger">Remove</button>
+    </form>
+  </div>
+</div>
+
+{% if target.last_scan_error %}
+  <div class="notice notice--error" role="alert">
+    <p><strong>Last check didn't complete.</strong> {{ target.last_scan_error }}</p>
+  </div>
+{% endif %}
+
+{% if target.parse_warnings %}
+  <div class="notice notice--info">
+    <p><strong>{{ target.parse_warnings|length }} {{ target.parse_warnings|length|pluralize('line', 'lines') }} couldn't be checked.</strong>
+      These aren't covered by any finding below:</p>
+    <ul style="margin:0.5rem 0 0;padding-left:1.2rem;font-size:0.8125rem;color:var(--text-muted)">
+      {% for warning in target.parse_warnings[:8] %}<li>{{ warning }}</li>{% endfor %}
+      {% if target.parse_warnings|length > 8 %}
+        <li class="dim">…and {{ target.parse_warnings|length - 8 }} more</li>
+      {% endif %}
+    </ul>
+  </div>
+{% endif %}
+
+<nav class="tabs" aria-label="Findings">
+  <a class="tab" href="?show=open" {% if selected == 'open' %}aria-selected="true"{% endif %}>
+    Open <span class="tab__count">{{ counts.open }}</span>
+  </a>
+  <a class="tab" href="?show=filtered" {% if selected == 'filtered' %}aria-selected="true"{% endif %}>
+    Filtered <span class="tab__count">{{ counts.filtered }}</span>
+  </a>
+  <a class="tab" href="?show=dismissed" {% if selected == 'dismissed' %}aria-selected="true"{% endif %}>
+    Dismissed <span class="tab__count">{{ counts.dismissed }}</span>
+  </a>
+  <a class="tab" href="?show=resolved" {% if selected == 'resolved' %}aria-selected="true"{% endif %}>
+    Resolved <span class="tab__count">{{ counts.resolved }}</span>
+  </a>
+</nav>
+
+{% if selected == 'filtered' %}
+  <p class="prose" style="font-size:0.875rem;margin-bottom:1.25rem">
+    These advisories genuinely affect versions you have. They were filed instead of sent,
+    with the reason on each row. If you disagree with a call, it's here so you can see it.
+  </p>
+{% endif %}
+
+<div class="card card--flush">
+  {% if matches %}
+    <ul class="findings">
+      {% for match in matches %}
+        {% include "partials/_finding.html" %}
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">
+      <span class="empty__mark" aria-hidden="true"><i style="height:10px"></i><i style="height:22px"></i><i style="height:15px"></i></span>
+      <h2>
+        {% if selected == 'open' %}Nothing needs you here
+        {% elif selected == 'filtered' %}Nothing has been filtered yet
+        {% elif selected == 'dismissed' %}Nothing dismissed
+        {% else %}Nothing resolved yet{% endif %}
+      </h2>
+      <p>
+        {% if selected == 'open' %}
+          No advisory affecting this project cleared the alerting bar.
+        {% elif selected == 'filtered' %}
+          When an advisory matches your dependencies but doesn't clear the bar, it lands here with the reason.
+        {% elif selected == 'dismissed' %}
+          Findings you dismiss move here and stop appearing on your dashboard.
+        {% else %}
+          Findings move here once a scan confirms the affected version is gone.
+        {% endif %}
+      </p>
+    </div>
+  {% endif %}
+</div>
+
+{% if recent_runs %}
+  <section style="margin-top:2.5rem">
+    <div class="card card--flush">
+      <div class="card__head"><h2>Recent checks</h2></div>
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>When</th><th>Result</th><th>Deps</th><th>Surfaced</th><th>Filtered</th><th>New</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for run in recent_runs %}
+              <tr>
+                <td class="mono">{{ run.started_at|relative_time }}</td>
+                <td>
+                  {% if run.status == 'success' %}
+                    <span class="badge badge--calm">OK</span>
+                  {% elif run.status == 'running' %}
+                    <span class="badge">Running</span>
+                  {% else %}
+                    <span class="badge sev-critical">Failed</span>
+                  {% endif %}
+                </td>
+                <td class="mono">{{ run.dependencies_scanned }}</td>
+                <td class="mono">{{ run.actionable_count }}</td>
+                <td class="mono">{{ run.suppressed_count }}</td>
+                <td class="mono">{{ run.new_actionable_count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+{% endif %}
+
+{% if dependencies %}
+  <section style="margin-top:2.5rem">
+    <details class="card card--flush">
+      <summary class="card__head" style="cursor:pointer">
+        <h2>Dependencies ({{ dependencies|length }})</h2>
+        <span class="mono dim" style="font-size:0.75rem">Show</span>
+      </summary>
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr><th>Package</th><th>Version</th><th>Declared as</th><th>Reaches production</th></tr>
+          </thead>
+          <tbody>
+            {% for dep in dependencies %}
+              <tr>
+                <td class="mono">{{ dep.name }}</td>
+                <td class="mono">
+                  {{ dep.version }}
+                  {% if not dep.version_exact %}<span class="dim" title="Assumed from a range">≈</span>{% endif %}
+                </td>
+                <td class="mono dim">{{ dep.version_spec }}</td>
+                <td>{{ 'Yes' if dep.reachability.ships_to_production else 'No — dev only' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Billing</h1>
+    <p>You're on the {{ limits_for(user.tier).display_name }} plan.</p>
+  </div>
+</div>
+
+{% if not dodo_enabled %}
+  <div class="notice notice--info">
+    <p>
+      Checkout isn't configured on this deployment. Set <code>DODO_ENABLED=true</code>
+      along with the Dodo API key, webhook secret and product ID.
+    </p>
+  </div>
+{% elif user.tier.value == 'pro' %}
+  <div class="card" style="max-width:560px">
+    <h2 style="font-size:0.9375rem;margin-bottom:1rem">Pro</h2>
+    <dl class="datalist">
+      <dt>Status</dt><dd>{{ user.subscription_status or 'active' }}</dd>
+      {% if user.subscription_ends_at %}
+        <dt>Next billed</dt><dd>{{ user.subscription_ends_at|absolute_time }}</dd>
+      {% endif %}
+    </dl>
+    <p class="field__hint" style="margin-top:1.25rem">
+      Manage or cancel your subscription from the receipt Dodo emailed you.
+      Changes appear here within a minute.
+    </p>
+  </div>
+{% else %}
+  <div class="card" style="max-width:560px">
+    <h2 style="font-size:0.9375rem;margin-bottom:0.5rem">Upgrade to Pro</h2>
+    <p class="muted" style="font-size:0.875rem">
+      Unlimited projects, checked every 4 hours, with full alert history.
+    </p>
+    {% if checkout_url %}
+      {# A plain link to Dodo's hosted checkout — no embedded SDK, so nothing
+         third-party runs on this page and the CSP stays strict. #}
+      <a href="{{ checkout_url }}" class="btn btn--primary" rel="noopener">
+        Continue to checkout
+      </a>
+    {% else %}
+      <p class="field__hint">No product is configured for the Pro plan yet.</p>
+    {% endif %}
+    <p class="field__hint" style="margin-top:0.875rem">
+      Dodo Payments handles payment and tax as merchant of record. Your card
+      details never reach our servers.
+    </p>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,716 @@
+"""Manifest parsing: turn an uploaded dependency file into `Dependency` records.
+
+The hard part is not reading the file formats, it is deciding *which version* to
+test against advisories. A lockfile states the installed version as fact. A
+manifest states a range, and the honest answer to "what is installed?" is "we
+don't know". Rather than guess high (which hides real vulnerabilities) this
+module resolves each range to the lowest version it permits and marks the
+result inexact, so the UI can say "your manifest allows 4.17.4, which is
+vulnerable — check your lockfile" instead of asserting something it cannot know.
+
+Every parser is total: malformed lines are collected as warnings rather than
+raising, because a single unparseable line in a 300-line requirements.txt must
+not cost the user their whole scan.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass, field
+
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
+
+from app.core.types import Dependency, Ecosystem, ManifestKind, Reachability
+from app.core.versions import InvalidVersion, compare, normalize
+
+__all__ = [
+    "ManifestParseError",
+    "ParsedManifest",
+    "detect_manifest_kind",
+    "parse_manifest",
+]
+
+MAX_DEPENDENCIES = 5000
+
+
+class ManifestParseError(ValueError):
+    """The file could not be parsed as the claimed manifest kind at all."""
+
+
+@dataclass(slots=True)
+class ParsedManifest:
+    kind: ManifestKind
+    ecosystem: Ecosystem
+    dependencies: list[Dependency] = field(default_factory=list)
+    #: Non-fatal problems: unparseable lines, unsupported specifiers, git deps.
+    warnings: list[str] = field(default_factory=list)
+    #: Project name when the manifest declares one (package.json `name`, go.mod `module`).
+    project_name: str | None = None
+
+    @property
+    def runtime_count(self) -> int:
+        return sum(1 for d in self.dependencies if d.reachability.ships_to_production)
+
+    @property
+    def dev_count(self) -> int:
+        return sum(1 for d in self.dependencies if not d.reachability.ships_to_production)
+
+
+def detect_manifest_kind(filename: str, content: str) -> ManifestKind | None:
+    """Identify a manifest from its filename, falling back to content sniffing.
+
+    Users rename files (``requirements-prod.txt``, ``frontend-package.json``),
+    so the name is a hint rather than a rule.
+    """
+    name = (filename or "").strip().replace("\\", "/").rsplit("/", maxsplit=1)[-1].lower()
+
+    if name == "package-lock.json":
+        return ManifestKind.PACKAGE_LOCK_JSON
+    if name == "package.json":
+        return ManifestKind.PACKAGE_JSON
+    if name == "go.mod":
+        return ManifestKind.GO_MOD
+    if name.endswith(".txt") and "requirement" in name:
+        return ManifestKind.REQUIREMENTS_TXT
+
+    stripped = content.lstrip()
+    if stripped.startswith("{"):
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(data, dict):
+            return None
+        if "lockfileVersion" in data:
+            return ManifestKind.PACKAGE_LOCK_JSON
+        if {"dependencies", "devDependencies", "peerDependencies"} & data.keys():
+            return ManifestKind.PACKAGE_JSON
+        return None
+
+    if re.search(r"^module\s+\S+", content, re.MULTILINE):
+        return ManifestKind.GO_MOD
+    if name.endswith(".txt"):
+        return ManifestKind.REQUIREMENTS_TXT
+    return None
+
+
+def parse_manifest(kind: ManifestKind, content: str) -> ParsedManifest:
+    """Parse ``content`` as ``kind``. Raises ``ManifestParseError`` only if the
+    file is not that format at all."""
+    parsers = {
+        ManifestKind.PACKAGE_JSON: _parse_package_json,
+        ManifestKind.PACKAGE_LOCK_JSON: _parse_package_lock,
+        ManifestKind.REQUIREMENTS_TXT: _parse_requirements_txt,
+        ManifestKind.GO_MOD: _parse_go_mod,
+    }
+    parsed = parsers[kind](content)
+    parsed.dependencies = _dedupe(parsed.dependencies)
+    if len(parsed.dependencies) > MAX_DEPENDENCIES:
+        parsed.warnings.append(
+            f"Manifest lists {len(parsed.dependencies)} dependencies; "
+            f"only the first {MAX_DEPENDENCIES} were kept."
+        )
+        parsed.dependencies = parsed.dependencies[:MAX_DEPENDENCIES]
+    return parsed
+
+
+def _dedupe(deps: list[Dependency]) -> list[Dependency]:
+    """Collapse duplicates, keeping the most exposed reachability.
+
+    A package listed in both ``dependencies`` and ``devDependencies`` ships to
+    production, so the runtime classification must win. Distinct versions of the
+    same package (normal in a lockfile) are kept as separate entries.
+    """
+    order = {
+        Reachability.RUNTIME_DIRECT: 0,
+        Reachability.RUNTIME_TRANSITIVE: 1,
+        Reachability.DEV_ONLY: 2,
+    }
+    best: dict[tuple[str, str, str], Dependency] = {}
+    for dep in deps:
+        key = (str(dep.ecosystem), dep.name, dep.version)
+        current = best.get(key)
+        if current is None or order[dep.reachability] < order[current.reachability]:
+            best[key] = dep
+    return sorted(best.values(), key=lambda d: (d.name.lower(), d.version))
+
+
+# ---------------------------------------------------------------------------
+# npm: package.json
+# ---------------------------------------------------------------------------
+
+#: Specifiers that describe a source location rather than a registry version.
+#: We cannot resolve these to a version, so they are reported and skipped.
+_NPM_NON_REGISTRY_PREFIXES = (
+    "file:",
+    "link:",
+    "git:",
+    "git+",
+    "github:",
+    "workspace:",
+    "portal:",
+    "http://",
+    "https://",
+)
+
+_NPM_ALIAS_RE = re.compile(r"^npm:(?P<name>@?[^@]+(?:/[^@]+)?)@(?P<spec>.+)$")
+_NPM_VERSION_TOKEN_RE = re.compile(r"\d+(?:\.\d+)*(?:[-+][0-9A-Za-z.\-]+)?")
+
+
+def _parse_package_json(content: str) -> ParsedManifest:
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ManifestParseError(
+            f"package.json is not valid JSON: {exc.msg} (line {exc.lineno})"
+        ) from exc
+    if not isinstance(data, dict):
+        raise ManifestParseError("package.json must contain a JSON object")
+
+    result = ParsedManifest(kind=ManifestKind.PACKAGE_JSON, ecosystem=Ecosystem.NPM)
+    name = data.get("name")
+    result.project_name = name if isinstance(name, str) else None
+
+    sections: list[tuple[str, Reachability]] = [
+        ("dependencies", Reachability.RUNTIME_DIRECT),
+        ("optionalDependencies", Reachability.RUNTIME_DIRECT),
+        # Peers are expected to be installed alongside and do reach production.
+        ("peerDependencies", Reachability.RUNTIME_DIRECT),
+        ("devDependencies", Reachability.DEV_ONLY),
+    ]
+
+    for section, reachability in sections:
+        block = data.get(section)
+        if block is None:
+            continue
+        if not isinstance(block, dict):
+            result.warnings.append(f'"{section}" is not an object; skipped.')
+            continue
+        for raw_name, raw_spec in block.items():
+            if not isinstance(raw_name, str) or not isinstance(raw_spec, str):
+                result.warnings.append(f'Skipped malformed entry in "{section}".')
+                continue
+            _add_npm_dependency(result, raw_name, raw_spec, reachability)
+
+    return result
+
+
+def _add_npm_dependency(
+    result: ParsedManifest, name: str, spec: str, reachability: Reachability
+) -> None:
+    spec = spec.strip()
+
+    if alias := _NPM_ALIAS_RE.match(spec):
+        # "npm:lodash@^4.17.21" — the vulnerable package is the aliased one.
+        name = alias.group("name")
+        spec = alias.group("spec")
+
+    if spec.startswith(_NPM_NON_REGISTRY_PREFIXES):
+        result.warnings.append(
+            f"{name}: installed from a source location ({spec}) — no version to check."
+        )
+        return
+
+    resolved = resolve_npm_floor(spec)
+    if resolved is None:
+        result.warnings.append(f"{name}: version range {spec!r} is unbounded — skipped.")
+        return
+
+    version, exact = resolved
+    result.dependencies.append(
+        Dependency(
+            ecosystem=Ecosystem.NPM,
+            name=name,
+            version=version,
+            version_spec=spec,
+            reachability=reachability,
+            version_exact=exact,
+        )
+    )
+
+
+def resolve_npm_floor(spec: str) -> tuple[str, bool] | None:
+    """Resolve an npm range to (lowest permitted version, is_exact).
+
+    Returns ``None`` for ranges with no lower bound (``*``, ``latest``, ``<2``),
+    where any version at all could be installed and guessing would be dishonest.
+
+    ``||`` unions take the lowest floor across branches, since that is the
+    lowest version the whole range permits.
+    """
+    spec = (spec or "").strip()
+    if not spec or spec in {"*", "x", "X", "latest", "next"}:
+        return None
+
+    branches = [b.strip() for b in spec.split("||")]
+    floors: list[tuple[str, bool]] = []
+    for branch in branches:
+        resolved = _resolve_npm_branch(branch)
+        if resolved is not None:
+            floors.append(resolved)
+
+    if not floors:
+        return None
+
+    lowest = floors[0]
+    for candidate in floors[1:]:
+        try:
+            if compare(Ecosystem.NPM, candidate[0], lowest[0]) < 0:
+                lowest = candidate
+        except InvalidVersion:
+            continue
+    # A union of several branches is never a single pinned version.
+    return (lowest[0], lowest[1] and len(floors) == 1)
+
+
+def _resolve_npm_branch(branch: str) -> tuple[str, bool] | None:
+    branch = branch.strip()
+    if not branch or branch in {"*", "x", "X"}:
+        return None
+
+    # Hyphen range: "1.2.3 - 2.3.4". The floor is the left operand.
+    if " - " in branch:
+        left = branch.split(" - ", maxsplit=1)[0].strip()
+        return _npm_zero_fill(left, exact=False)
+
+    # Comparator set: ">=1.2.3 <2.0.0". Use the lowest inclusive lower bound.
+    tokens = branch.split()
+    if len(tokens) > 1:
+        for token in tokens:
+            if token.startswith((">=", "^", "~")) or re.match(r"^\d", token):
+                resolved = _resolve_npm_branch(token)
+                if resolved is not None:
+                    return (resolved[0], False)
+        return None
+
+    token = tokens[0] if tokens else branch
+
+    for prefix in ("^", "~>", "~", ">=", "="):
+        if token.startswith(prefix):
+            # Only "=" and a bare version pin exactly; the rest are floors.
+            return _npm_zero_fill(token[len(prefix) :], exact=(prefix == "="))
+
+    if token.startswith(("<", ">")):
+        # "<2.0.0" has no lower bound; ">1.2.3" excludes its own value but is
+        # the closest honest floor we can name.
+        if token.startswith(">"):
+            return _npm_zero_fill(token.lstrip(">"), exact=False)
+        return None
+
+    return _npm_zero_fill(token, exact=True)
+
+
+def _npm_zero_fill(raw: str, exact: bool) -> tuple[str, bool] | None:
+    """Turn a possibly-partial npm version into a concrete floor.
+
+    ``4`` and ``4.x`` both mean "anything in 4.x", whose floor is ``4.0.0``.
+    """
+    value = normalize(Ecosystem.NPM, raw)
+    if not value:
+        return None
+
+    # "4.x" / "4.*" / "4.2.x" -> drop the wildcard components and zero-fill.
+    parts = value.replace("*", "x").split(".")
+    concrete: list[str] = []
+    for part in parts:
+        if part.lower().startswith("x") or part == "":
+            break
+        concrete.append(part)
+    if not concrete:
+        return None
+
+    was_partial = len(concrete) < 3 or len(concrete) < len(parts)
+    while len(concrete) < 3:
+        concrete.append("0")
+
+    candidate = ".".join(concrete)
+    # Preserve a prerelease/build suffix that survived the split.
+    if len(parts) >= 3 and not was_partial:
+        candidate = value
+
+    if not _NPM_VERSION_TOKEN_RE.match(candidate):
+        return None
+    try:
+        compare(Ecosystem.NPM, candidate, candidate)
+    except InvalidVersion:
+        return None
+
+    return (candidate, exact and not was_partial)
+
+
+# ---------------------------------------------------------------------------
+# npm: package-lock.json  (authoritative — exact installed versions)
+# ---------------------------------------------------------------------------
+
+
+def _parse_package_lock(content: str) -> ParsedManifest:
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ManifestParseError(
+            f"package-lock.json is not valid JSON: {exc.msg} (line {exc.lineno})"
+        ) from exc
+    if not isinstance(data, dict):
+        raise ManifestParseError("package-lock.json must contain a JSON object")
+
+    result = ParsedManifest(kind=ManifestKind.PACKAGE_LOCK_JSON, ecosystem=Ecosystem.NPM)
+    name = data.get("name")
+    result.project_name = name if isinstance(name, str) else None
+
+    packages = data.get("packages")
+    if isinstance(packages, dict) and packages:
+        _parse_lock_v2(result, packages)
+    elif isinstance(data.get("dependencies"), dict):
+        _parse_lock_v1(result, data["dependencies"], direct_names=set())
+    else:
+        raise ManifestParseError(
+            "package-lock.json has neither a 'packages' nor a 'dependencies' section."
+        )
+    return result
+
+
+def _lock_package_name(path: str) -> str | None:
+    """``node_modules/a/node_modules/@scope/b`` -> ``@scope/b``."""
+    marker = "node_modules/"
+    index = path.rfind(marker)
+    if index == -1:
+        return None
+    name = path[index + len(marker) :]
+    return name or None
+
+
+def _parse_lock_v2(result: ParsedManifest, packages: dict[str, object]) -> None:
+    root = packages.get("")
+    direct: set[str] = set()
+    if isinstance(root, dict):
+        for section in ("dependencies", "optionalDependencies", "peerDependencies"):
+            block = root.get(section)
+            if isinstance(block, dict):
+                direct.update(k for k in block if isinstance(k, str))
+        if isinstance(root.get("name"), str) and not result.project_name:
+            result.project_name = root["name"]  # type: ignore[index]
+
+    for path, entry in packages.items():
+        if not path or not isinstance(entry, dict):
+            continue
+        if entry.get("link") is True:
+            continue  # symlinked workspace member; its real entry appears separately
+        name = entry.get("name") if isinstance(entry.get("name"), str) else _lock_package_name(path)
+        version = entry.get("version")
+        if not name or not isinstance(version, str) or not version:
+            continue
+
+        if entry.get("dev") is True:
+            reachability = Reachability.DEV_ONLY
+        elif name in direct:
+            reachability = Reachability.RUNTIME_DIRECT
+        else:
+            reachability = Reachability.RUNTIME_TRANSITIVE
+
+        result.dependencies.append(
+            Dependency(
+                ecosystem=Ecosystem.NPM,
+                name=name,
+                version=version,
+                version_spec=version,
+                reachability=reachability,
+                version_exact=True,
+            )
+        )
+
+
+def _parse_lock_v1(
+    result: ParsedManifest, tree: dict[str, object], direct_names: set[str], depth: int = 0
+) -> None:
+    if depth > 32:  # pathological nesting guard
+        return
+    for name, entry in tree.items():
+        if not isinstance(name, str) or not isinstance(entry, dict):
+            continue
+        version = entry.get("version")
+        if isinstance(version, str) and version and not version.startswith(("file:", "git")):
+            if entry.get("dev") is True:
+                reachability = Reachability.DEV_ONLY
+            elif depth == 0:
+                reachability = Reachability.RUNTIME_DIRECT
+            else:
+                reachability = Reachability.RUNTIME_TRANSITIVE
+            result.dependencies.append(
+                Dependency(
+                    ecosystem=Ecosystem.NPM,
+                    name=name,
+                    version=version,
+                    version_spec=version,
+                    reachability=reachability,
+                    version_exact=True,
+                )
+            )
+        nested = entry.get("dependencies")
+        if isinstance(nested, dict):
+            _parse_lock_v1(result, nested, direct_names, depth + 1)
+
+
+# ---------------------------------------------------------------------------
+# PyPI: requirements.txt
+# ---------------------------------------------------------------------------
+
+_REQ_OPTION_PREFIXES = (
+    "-r",
+    "--requirement",
+    "-c",
+    "--constraint",
+    "-e",
+    "--editable",
+    "-f",
+    "--find-links",
+    "-i",
+    "--index-url",
+    "--extra-index-url",
+    "--no-index",
+    "--pre",
+    "--trusted-host",
+    "--use-feature",
+    "--no-binary",
+    "--only-binary",
+    "--prefer-binary",
+    "--require-hashes",
+)
+
+
+def _parse_requirements_txt(content: str) -> ParsedManifest:
+    result = ParsedManifest(kind=ManifestKind.REQUIREMENTS_TXT, ecosystem=Ecosystem.PYPI)
+
+    for lineno, line in _join_continuations(content):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        # Strip inline comments (only when " #", so URLs with fragments survive).
+        stripped = re.split(r"\s+#", stripped, maxsplit=1)[0].strip()
+        if not stripped:
+            continue
+
+        # Drop --hash=... fragments; they are not part of the requirement.
+        stripped = re.sub(r"\s--hash=\S+", "", stripped).strip()
+
+        if stripped.startswith("-"):
+            option = stripped.split(maxsplit=1)[0]
+            if option in ("-r", "--requirement", "-c", "--constraint"):
+                result.warnings.append(
+                    f"Line {lineno}: '{stripped}' references another file, "
+                    "which was not uploaded — its dependencies are not covered."
+                )
+            elif not option.startswith(_REQ_OPTION_PREFIXES):
+                result.warnings.append(f"Line {lineno}: unrecognised option {option!r}; skipped.")
+            continue
+
+        try:
+            requirement = Requirement(stripped)
+        except InvalidRequirement:
+            result.warnings.append(f"Line {lineno}: could not parse {stripped!r}; skipped.")
+            continue
+
+        if requirement.url:
+            result.warnings.append(
+                f"{requirement.name}: installed from a URL — no version to check."
+            )
+            continue
+
+        resolved = resolve_pypi_floor(requirement.specifier)
+        if resolved is None:
+            result.warnings.append(
+                f"{requirement.name}: no lower version bound "
+                f"({str(requirement.specifier) or 'unpinned'}) — skipped."
+            )
+            continue
+
+        version, exact = resolved
+        result.dependencies.append(
+            Dependency(
+                ecosystem=Ecosystem.PYPI,
+                name=requirement.name,
+                version=version,
+                version_spec=str(requirement.specifier) or "*",
+                # requirements.txt has no dev/prod distinction; treat as shipping.
+                reachability=Reachability.RUNTIME_DIRECT,
+                version_exact=exact,
+            )
+        )
+
+    return result
+
+
+def _join_continuations(content: str) -> list[tuple[int, str]]:
+    """Merge backslash-continued lines, reporting the first line number of each."""
+    joined: list[tuple[int, str]] = []
+    buffer = ""
+    start = 1
+    for lineno, raw in enumerate(content.splitlines(), start=1):
+        if not buffer:
+            start = lineno
+        if raw.rstrip().endswith("\\"):
+            buffer += raw.rstrip()[:-1]
+            continue
+        joined.append((start, buffer + raw))
+        buffer = ""
+    if buffer:
+        joined.append((start, buffer))
+    return joined
+
+
+def resolve_pypi_floor(specifier: SpecifierSet | str) -> tuple[str, bool] | None:
+    """Resolve a PEP 440 specifier set to (lowest permitted version, is_exact)."""
+    if isinstance(specifier, str):
+        try:
+            specifier = SpecifierSet(specifier)
+        except InvalidSpecifier:
+            return None
+
+    clauses = list(specifier)
+    if not clauses:
+        return None
+
+    # An exact pin is authoritative, even alongside other clauses.
+    for clause in clauses:
+        if clause.operator in ("==", "===") and "*" not in clause.version:
+            return (clause.version, True)
+
+    floors: list[str] = []
+    for clause in clauses:
+        if clause.operator in (">=", "~=", ">"):
+            floors.append(clause.version)
+        elif clause.operator == "==" and "*" in clause.version:
+            # "==1.4.*" -> floor 1.4
+            floors.append(clause.version.replace(".*", "").replace("*", "").rstrip("."))
+
+    floors = [f for f in floors if f]
+    if not floors:
+        return None
+
+    highest = floors[0]
+    for candidate in floors[1:]:
+        try:
+            if compare(Ecosystem.PYPI, candidate, highest) > 0:
+                highest = candidate
+        except InvalidVersion:
+            continue
+    try:
+        compare(Ecosystem.PYPI, highest, highest)
+    except InvalidVersion:
+        return None
+    return (highest, False)
+
+
+# ---------------------------------------------------------------------------
+# Go: go.mod
+# ---------------------------------------------------------------------------
+
+_GO_MODULE_RE = re.compile(r"^module\s+(?P<path>\S+)")
+_GO_REQUIRE_LINE_RE = re.compile(
+    r"^(?P<path>[^\s()]+)\s+(?P<version>v\S+)(?P<rest>.*)$",
+)
+_GO_REPLACE_RE = re.compile(
+    r"^(?:replace\s+)?(?P<old>[^\s=]+)(?:\s+(?P<oldver>v\S+))?\s*=>\s*"
+    r"(?P<new>\S+)(?:\s+(?P<newver>v\S+))?\s*$"
+)
+
+
+def _parse_go_mod(content: str) -> ParsedManifest:
+    result = ParsedManifest(kind=ManifestKind.GO_MOD, ecosystem=Ecosystem.GO)
+
+    block: str | None = None
+    requires: list[tuple[str, str, bool]] = []  # (path, version, indirect)
+    replacements: dict[str, tuple[str, str | None]] = {}
+    excluded: set[tuple[str, str]] = set()
+
+    for raw in content.splitlines():
+        line = raw.split("//")[0].strip() if not raw.strip().startswith("//") else ""
+        comment = raw.partition("//")[2].strip()
+        if not line:
+            continue
+
+        if block is None:
+            if match := _GO_MODULE_RE.match(line):
+                result.project_name = match.group("path")
+                continue
+            for directive in ("require", "replace", "exclude", "retract"):
+                if line == f"{directive} (" or line.startswith(f"{directive} ("):
+                    block = directive
+                    break
+            else:
+                if line.startswith("require "):
+                    _collect_go_require(requires, line[len("require ") :], comment, result)
+                elif line.startswith("replace "):
+                    _collect_go_replace(replacements, line[len("replace ") :], result)
+                elif line.startswith("exclude "):
+                    _collect_go_exclude(excluded, line[len("exclude ") :])
+                continue
+            continue
+
+        if line == ")":
+            block = None
+            continue
+
+        if block == "require":
+            _collect_go_require(requires, line, comment, result)
+        elif block == "replace":
+            _collect_go_replace(replacements, line, result)
+        elif block == "exclude":
+            _collect_go_exclude(excluded, line)
+
+    for path, version, indirect in requires:
+        if (path, version) in excluded:
+            continue
+        if path in replacements:
+            new_path, new_version = replacements[path]
+            if new_version is None:
+                result.warnings.append(
+                    f"{path} is replaced by a local path ({new_path}) — no version to check."
+                )
+                continue
+            path, version = new_path, new_version
+
+        result.dependencies.append(
+            Dependency(
+                ecosystem=Ecosystem.GO,
+                name=path,
+                version=normalize(Ecosystem.GO, version),
+                version_spec=version,
+                reachability=(
+                    Reachability.RUNTIME_TRANSITIVE if indirect else Reachability.RUNTIME_DIRECT
+                ),
+                version_exact=True,
+            )
+        )
+
+    return result
+
+
+def _collect_go_require(
+    out: list[tuple[str, str, bool]], line: str, comment: str, result: ParsedManifest
+) -> None:
+    match = _GO_REQUIRE_LINE_RE.match(line.strip())
+    if not match:
+        if line.strip() and line.strip() != "(":
+            result.warnings.append(f"Unparseable require line: {line.strip()!r}")
+        return
+    indirect = "indirect" in comment or "indirect" in match.group("rest")
+    out.append((match.group("path"), match.group("version"), indirect))
+
+
+def _collect_go_replace(
+    out: dict[str, tuple[str, str | None]], line: str, result: ParsedManifest
+) -> None:
+    match = _GO_REPLACE_RE.match(line.strip())
+    if not match:
+        result.warnings.append(f"Unparseable replace directive: {line.strip()!r}")
+        return
+    out[match.group("old")] = (match.group("new"), match.group("newver"))
+
+
+def _collect_go_exclude(out: set[tuple[str, str]], line: str) -> None:
+    match = _GO_REQUIRE_LINE_RE.match(line.strip())
+    if match:
+        out.add((match.group("path"), match.group("version")))

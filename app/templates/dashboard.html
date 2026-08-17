@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Dashboard</h1>
+    <p>{{ stats.dependencies }} {{ stats.dependencies|pluralize('dependency', 'dependencies') }} watched across {{ stats.targets }} {{ stats.targets|pluralize('project') }}.</p>
+  </div>
+  <a href="/targets/new" class="btn btn--primary">Add a project</a>
+</div>
+
+{# The noise ledger. The largest number on this page is the count of things we
+   did NOT interrupt you with — that is the product's argument, so it leads. #}
+<section class="ledger" aria-labelledby="ledger-heading">
+  <h2 id="ledger-heading" class="eyebrow">Signal &amp; noise</h2>
+
+  <div class="ledger__figures">
+    <div class="ledger__primary">
+      <span class="ledger__value">{{ stats.suppressed }}</span>
+      <span class="ledger__label">
+        {{ stats.suppressed|pluralize('advisory', 'advisories') }} matched your dependencies
+        and were filtered out. You didn't have to read {{ 'it' if stats.suppressed == 1 else 'them' }}.
+      </span>
+    </div>
+
+    <div class="ledger__secondary">
+      <div class="ledger__stat ledger__stat--surfaced">
+        <span class="ledger__value">{{ stats.open_alerts }}</span>
+        <span class="ledger__label">Open</span>
+      </div>
+      <div class="ledger__stat ledger__stat--exploited">
+        <span class="ledger__value">{{ stats.exploited }}</span>
+        <span class="ledger__label">Exploited</span>
+      </div>
+      <div class="ledger__stat">
+        <span class="ledger__value">{{ stats.dismissed }}</span>
+        <span class="ledger__label">Dismissed</span>
+      </div>
+      <div class="ledger__stat">
+        <span class="ledger__value">{{ stats.resolved }}</span>
+        <span class="ledger__label">Resolved</span>
+      </div>
+    </div>
+  </div>
+
+  {% set total = stats.open_alerts + stats.suppressed %}
+  {% if total > 0 %}
+    {% set surfaced_pct = (stats.open_alerts / total * 100) %}
+    <div class="ledger__bar" role="img"
+         aria-label="{{ stats.suppressed }} of {{ total }} matched advisories filtered out, {{ stats.noise_ratio }} percent">
+      <span class="ledger__seg ledger__seg--filtered" style="flex: {{ stats.suppressed if stats.suppressed else 0 }}"></span>
+      {% if stats.open_alerts %}
+        <span class="ledger__seg ledger__seg--surfaced" style="flex: {{ stats.open_alerts }}"></span>
+      {% endif %}
+    </div>
+    <div class="ledger__key">
+      <span><i style="background:var(--surface-3);border:1px solid var(--border-strong)"></i>{{ stats.noise_ratio }}% filtered</span>
+      <span><i style="background:var(--signal)"></i>{{ 100 - stats.noise_ratio }}% surfaced</span>
+    </div>
+  {% else %}
+    <p class="muted" style="margin:0;font-size:0.875rem">
+      Nothing matched yet. This fills in after your first scan.
+    </p>
+  {% endif %}
+</section>
+
+{% if summaries %}
+  <section style="margin-top:2.5rem">
+    <div class="page-head" style="margin-bottom:1.25rem">
+      <h2 style="font-size:var(--step-2)">Projects</h2>
+    </div>
+    <div class="projects">
+      {% for summary in summaries %}
+        {% set t = summary.target %}
+        <a class="project" href="/targets/{{ t.id }}">
+          <div class="project__name">{{ t.name }}</div>
+          <div class="project__kind">{{ t.manifest_kind.value }} · {{ t.dependency_count }} deps · checked {{ t.last_scanned_at|relative_time }}</div>
+          <div class="project__counts">
+            <div class="project__count {% if summary.open_actionable %}project__count--open{% else %}project__count--clear{% endif %}">
+              <b>{{ summary.open_actionable }}</b>
+              <span>Open</span>
+            </div>
+            <div class="project__count">
+              <b>{{ summary.suppressed }}</b>
+              <span>Filtered</span>
+            </div>
+            {% if summary.exploited %}
+              <div class="project__count" style="color:var(--exploited)">
+                <b style="color:var(--exploited)">{{ summary.exploited }}</b>
+                <span>Exploited</span>
+              </div>
+            {% endif %}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+<section style="margin-top:2.5rem">
+  <div class="card card--flush">
+    <div class="card__head">
+      <h2>Needs your attention</h2>
+      {% if open_alerts %}<a href="/alerts" class="mono" style="font-size:0.75rem;color:var(--text-dim)">View all</a>{% endif %}
+    </div>
+
+    {% if open_alerts %}
+      <ul class="findings">
+        {% for match in open_alerts %}
+          {% include "partials/_finding.html" %}
+        {% endfor %}
+      </ul>
+    {% elif not summaries %}
+      <div class="empty">
+        <span class="empty__mark" aria-hidden="true"><i style="height:10px"></i><i style="height:22px"></i><i style="height:15px"></i></span>
+        <h2>Add a project to start watching</h2>
+        <p>Upload a package.json, package-lock.json, requirements.txt or go.mod. The first scan runs immediately.</p>
+        <div class="btn-row" style="justify-content:center;margin-top:1.5rem">
+          <a href="/targets/new" class="btn btn--primary">Add a project</a>
+        </div>
+      </div>
+    {% else %}
+      <div class="empty">
+        <span class="empty__mark" aria-hidden="true"><i style="height:10px;background:var(--calm)"></i><i style="height:22px;background:var(--calm)"></i><i style="height:15px;background:var(--calm)"></i></span>
+        <h2>Nothing needs you right now</h2>
+        <p>
+          {% if stats.suppressed %}
+            {{ stats.suppressed }} {{ stats.suppressed|pluralize('advisory', 'advisories') }} matched your dependencies and none of them cleared the bar. They're on each project's Filtered tab if you want to check our work.
+          {% else %}
+            No advisories match your dependencies. We'll email you if that changes.
+          {% endif %}
+        </p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

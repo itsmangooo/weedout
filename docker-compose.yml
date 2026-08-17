@@ -1,0 +1,79 @@
+# Full local stack: Postgres + web + a dedicated background worker.
+#
+#   docker compose up --build
+#
+# The web container waits for Postgres to pass its healthcheck, runs
+# `alembic upgrade head`, then serves on http://localhost:8000.
+
+name: weedout
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: weedout
+      POSTGRES_PASSWORD: weedout
+      POSTGRES_DB: weedout
+    ports:
+      # Host port is configurable: 5432 is often already taken by a local
+      # Postgres or another project's stack. Override with POSTGRES_PORT.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Without this, the web container races Postgres' first-boot
+      # initialisation and dies on an unreachable socket.
+      test: ["CMD-SHELL", "pg_isready -U weedout -d weedout"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  web:
+    build: .
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app"
+    environment:
+      DATABASE_URL: postgresql+psycopg://weedout:weedout@db:5432/weedout
+      SECRET_KEY: ${SECRET_KEY:-local-development-secret-key-change-me-please}
+      ENVIRONMENT: local
+      BASE_URL: http://localhost:8000
+      EMAIL_BACKEND: console
+      # The worker service owns the schedule; the web process just serves.
+      RUN_SCHEDULER_IN_WEB: "false"
+      LOG_FORMAT: console
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /app/app
+
+  worker:
+    build: .
+    command: python -m app.jobs.runner loop
+    # The image's healthcheck probes /healthz, which only the web service
+    # serves. Inheriting it here reports the worker as permanently unhealthy —
+    # a false alarm that trains you to ignore the column that matters.
+    healthcheck:
+      disable: true
+    environment:
+      DATABASE_URL: postgresql+psycopg://weedout:weedout@db:5432/weedout
+      SECRET_KEY: ${SECRET_KEY:-local-development-secret-key-change-me-please}
+      ENVIRONMENT: local
+      BASE_URL: http://localhost:8000
+      EMAIL_BACKEND: console
+      LOG_FORMAT: console
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  pgdata:

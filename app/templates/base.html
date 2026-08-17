@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if page_title %}{{ page_title }} · Weedout{% else %}Weedout — weed out the noise in your CVE alerts{% endif %}</title>
+  <meta name="description" content="Weedout watches your dependency manifests and only tells you about vulnerabilities that are actually exploited in the wild or actually reachable in what you ship.">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="/static/css/weedout.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="wrap topbar__inner">
+      <a class="brand" href="{% if user %}/dashboard{% else %}/{% endif %}">
+        <span class="brand__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        Weedout
+      </a>
+
+      <nav class="nav" aria-label="Main">
+        {% if user %}
+          <a href="/dashboard" {% if request.url.path == '/dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+          <a href="/alerts" {% if request.url.path.startswith('/alerts') %}aria-current="page"{% endif %}>Alerts</a>
+          <a href="/targets/new" {% if request.url.path.startswith('/targets') %}aria-current="page"{% endif %}>Projects</a>
+          <span class="nav__sep" aria-hidden="true"></span>
+          {% if user.is_admin %}
+            {# Convenience only. The access control is `require_admin` on the
+               router — hiding this link protects nothing by itself. #}
+            <a href="/admin" {% if request.url.path.startswith('/admin') %}aria-current="page"{% endif %}>Admin</a>
+          {% endif %}
+          <a href="/settings" {% if request.url.path == '/settings' %}aria-current="page"{% endif %}>Settings</a>
+          <form method="post" action="/logout" style="display:contents">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn--ghost btn--sm">Sign out</button>
+          </form>
+        {% else %}
+          <a href="/docs" {% if request.url.path.startswith('/docs') %}aria-current="page"{% endif %}>Docs</a>
+          <a href="/pricing" {% if request.url.path == '/pricing' %}aria-current="page"{% endif %}>Pricing</a>
+          <a href="/login">Sign in</a>
+          <a href="/signup" class="btn btn--primary btn--sm">Start free</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    {# Pages render their own `error`/`success` notices, positioned where they
+       belong — inside the card on auth screens, above the tabs in admin. A
+       generic copy here would render every one of them a second time. #}
+    {% block body %}
+      <div class="wrap page">
+        {% block content %}{% endblock %}
+      </div>
+    {% endblock %}
+  </main>
+
+  <script src="/static/js/app.js" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

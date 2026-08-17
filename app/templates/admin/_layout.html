@@ -1,0 +1,34 @@
+{# Shared chrome for the admin panel.
+
+   Same visual language as the rest of the app — same tokens, same type, same
+   spacing. The only distinguishing mark is a small "Admin" tag in the section
+   nav, so it is obvious which side of the product you are looking at without
+   the panel becoming a different-looking application. #}
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="admin-head">
+  <div>
+    <p class="eyebrow">
+      <span class="admin-tag">Admin</span>
+      Signed in as {{ user.email }}
+    </p>
+    <h1>{% block admin_title %}{{ page_title }}{% endblock %}</h1>
+  </div>
+  {% block admin_actions %}{% endblock %}
+</div>
+
+<nav class="tabs" aria-label="Admin sections">
+  <a class="tab" href="/admin" {% if admin_section == 'overview' %}aria-selected="true"{% endif %}>Overview</a>
+  <a class="tab" href="/admin/users" {% if admin_section == 'users' %}aria-selected="true"{% endif %}>Users</a>
+  <a class="tab" href="/admin/billing" {% if admin_section == 'billing' %}aria-selected="true"{% endif %}>Billing</a>
+  <a class="tab" href="/admin/docs" {% if admin_section == 'docs' %}aria-selected="true"{% endif %}>Docs</a>
+  <a class="tab" href="/admin/audit" {% if admin_section == 'audit' %}aria-selected="true"{% endif %}>Audit log</a>
+</nav>
+
+{% if error %}<div class="notice notice--error" role="alert">{{ error }}</div>{% endif %}
+{% if success %}<div class="notice notice--success" role="status">{{ success }}</div>{% endif %}
+
+{% block admin_content %}{% endblock %}
+{% endblock %}

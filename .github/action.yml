@@ -1,0 +1,68 @@
+name: Weedout
+description: Scan your dependencies for the CVEs that are actually exploited or actually reachable.
+author: Weedout
+
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  api-key:
+    description: >-
+      A Weedout API key. Create one in Settings, store it as a repository
+      secret, and pass it as ${{ secrets.WEEDOUT_API_KEY }}. Keys are scoped to
+      a single project, so a key leaked from a build only affects that project.
+    required: true
+
+  path:
+    description: Directory to scan, or a path to a specific manifest file.
+    required: false
+    default: "."
+
+  fail-on-critical:
+    description: >-
+      Fail the step when something critical or actively exploited is found.
+      Set to "false" to report findings without failing — useful for a first
+      run, so adding this action is not the thing that breaks the build.
+    required: false
+    default: "true"
+
+  url:
+    description: API base URL. Only needed when self-hosting.
+    required: false
+    default: "https://weedout.dev"
+
+  version:
+    description: Version of weedout-cli to install. Pin this for reproducible builds.
+    required: false
+    default: "*"
+
+runs:
+  using: composite
+  steps:
+    # The CLI has no dependencies, so this installs in about a second and
+    # cannot conflict with whatever the project itself needs.
+    - name: Install weedout-cli
+      shell: bash
+      run: |
+        if [ "${{ inputs.version }}" = "*" ]; then
+          python3 -m pip install --quiet --disable-pip-version-check weedout-cli
+        else
+          python3 -m pip install --quiet --disable-pip-version-check \
+            "weedout-cli==${{ inputs.version }}"
+        fi
+
+    - name: Scan dependencies
+      shell: bash
+      env:
+        # Passed through the environment rather than as a command-line
+        # argument: arguments show up in `ps` and in some runner logs, and the
+        # environment is where every CI system expects a secret to live.
+        WEEDOUT_API_KEY: ${{ inputs.api-key }}
+        WEEDOUT_URL: ${{ inputs.url }}
+      run: |
+        if [ "${{ inputs.fail-on-critical }}" = "true" ]; then
+          weedout scan "${{ inputs.path }}" --ci
+        else
+          weedout scan "${{ inputs.path }}"
+        fi

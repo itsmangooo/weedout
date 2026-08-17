@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card auth-card">
+  <h1>Create your account</h1>
+  <p class="muted" style="font-size:0.875rem;margin-bottom:1.5rem">
+    One project, checked daily, email alerts. Free, and no card.
+  </p>
+
+  {% if error %}<div class="notice notice--error" role="alert">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/signup" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="field">
+      <label for="email">Email</label>
+      <input class="input" type="email" id="email" name="email" value="{{ email or '' }}"
+             required autocomplete="email" autofocus>
+      <p class="field__hint">Where your alerts go. Nothing else is sent here.</p>
+    </div>
+
+    <div class="field">
+      <label for="password">Password</label>
+      <input class="input" type="password" id="password" name="password"
+             required minlength="10" autocomplete="new-password">
+      <p class="field__hint">At least 10 characters.</p>
+    </div>
+
+    {# Honeypot: hidden from people, irresistible to bots. #}
+    <div class="honeypot" aria-hidden="true">
+      <label for="website">Website</label>
+      <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+    </div>
+
+    <button type="submit" class="btn btn--primary btn--block">Create account</button>
+  </form>
+
+  <p class="auth-card__foot">
+    Already have an account? <a href="/login">Sign in</a>
+  </p>
+</div>
+{% endblock %}
