@@ -58,7 +58,7 @@ x-app-env: &app-env
   # trusted proxy path configured for production.
   TRUSTED_CLIENT_IP_HEADER: ${TRUSTED_CLIENT_IP_HEADER:-cf-connecting-ip}
 
-  EMAIL_BACKEND: ${EMAIL_BACKEND:-smtp}
+  EMAIL_BACKEND: ${EMAIL_BACKEND:-console}
   EMAIL_FROM: ${EMAIL_FROM:-Weedout <alerts@weedout.dev>}
 
   SMTP_HOST: ${SMTP_HOST:-}
@@ -71,8 +71,8 @@ x-app-env: &app-env
 
   ADMIN_EMAIL: ${ADMIN_EMAIL:-}
 
-  DODO_ENABLED: ${DODO_ENABLED:-false}
-  DODO_ENVIRONMENT: ${DODO_ENVIRONMENT:-test}
+  DODO_ENABLED: ${DODO_ENABLED:-true}
+  DODO_ENVIRONMENT: ${DODO_ENVIRONMENT:-live}
   DODO_API_KEY: ${DODO_API_KEY:-}
   DODO_WEBHOOK_SECRET: ${DODO_WEBHOOK_SECRET:-}
   DODO_PRODUCT_ID_PRO_MONTHLY: ${DODO_PRODUCT_ID_PRO_MONTHLY:-}
