@@ -51,6 +51,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:
         log.warning("app.docs_seed_failed", error=str(exc))
 
+    # First administrator, if this deployment has none. Idempotent and holds an
+    # advisory lock, so replicas starting together and restart loops cannot
+    # create two or re-send a password. A failure here must not stop the app
+    # from serving — `python -m app.manage ensure-admin` retries it, and
+    # `promote-admin` is always available as the manual path.
+    try:
+        from app.db import session_scope
+        from app.services.bootstrap_service import ensure_admin
+
+        async with session_scope() as db:
+            outcome = await ensure_admin(db, settings)
+            if outcome.changed:
+                await db.commit()
+        if outcome.action != "noop":
+            log.info("app.admin_bootstrap", action=outcome.action, detail=outcome.detail)
+    except Exception as exc:
+        log.warning("app.admin_bootstrap_failed", error=str(exc))
+
     if settings.run_scheduler_in_web:
         # Imported here so a web process with the scheduler disabled never pays
         # for APScheduler at import time.

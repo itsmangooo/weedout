@@ -9,6 +9,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# `pg_dump` for scheduled backups. The client package only — no server — and
+# pinned to the same major version as the database, because pg_dump refuses to
+# run against a server newer than itself. Bump both together.
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y postgresql-client-17 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Dependencies are installed from pyproject alone, before the source is copied,
 # so editing application code does not invalidate the dependency layer.
 COPY pyproject.toml README.md ./
@@ -19,11 +26,15 @@ RUN mkdir -p app \
 
 COPY alembic.ini ./
 COPY migrations ./migrations
+COPY scripts ./scripts
 COPY app ./app
 
-# Run as an unprivileged user.
+# Run as an unprivileged user. The backup directory is created and chowned here
+# because by the time the script runs the process has dropped privileges and
+# could not create a directory under /var itself.
 RUN useradd --create-home --uid 10001 weedout \
-    && chown -R weedout:weedout /app
+    && mkdir -p /var/backups/weedout \
+    && chown -R weedout:weedout /app /var/backups/weedout
 
 USER weedout
 

@@ -118,5 +118,31 @@ services:
       web:
         condition: service_started
 
+  # ---------------------------------------------------------------------------
+  # Local mail catcher
+  # ---------------------------------------------------------------------------
+  #   docker compose --profile mail up
+  #
+  # Behind a profile so a plain `docker compose up` is unchanged. Start it when
+  # you need to look at an email, then point the app at it:
+  #
+  #   EMAIL_BACKEND=smtp
+  #   SMTP_HOST=mailpit
+  #   SMTP_PORT=1025
+  #   SMTP_USE_TLS=false
+  #
+  # Read what was "sent" at http://localhost:8025 — nothing leaves the machine.
+  #
+  # This is the only way to exercise the admin bootstrap locally: it refuses to
+  # run with EMAIL_BACKEND=console, because that backend delivers by writing the
+  # message body to the log and the generated password must never land there.
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: [mail]
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"   # web UI
+      - "${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP, for tools outside Compose
+
 volumes:
   pgdata:

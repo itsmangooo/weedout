@@ -34,11 +34,16 @@ demo-app  /home/you/demo-app/package-lock.json
 
   1 exploited  ·  1 critical
 
-  ! log4j@2.14.0        CVE-2021-44228  → 2.17.1
-  • lodash@4.17.15      CVE-2020-8203   → 4.17.21
+  ! systeminformation@5.0.0  CVE-2021-21315  → 5.3.1
+  • minimist@1.2.5           CVE-2021-44906  → 1.2.6
 
   https://weedout.dev/targets/12
 ```
+
+`!` is on CISA's exploited list; `•` cleared the bar on severity alone. The
+"filtered out as noise" count is the number of real advisories that matched your
+versions and were deliberately *not* shown — browsable on the dashboard with the
+reason attached for each.
 
 Create an API key in **Settings** on your dashboard. Keys belong to a single
 project, so one leaked from a build log can only push results for the
@@ -63,7 +68,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm ci
-      - uses: weedout/weedout/.github@v1
+      - uses: itsmangooo/weedout/.github@v1
         with:
           api-key: ${{ secrets.WEEDOUT_API_KEY }}
 
@@ -129,7 +134,13 @@ weedout init [PATH] [--api-key KEY] [--url URL] [--force]
 
 `--url` and `WEEDOUT_URL` point the CLI at a self-hosted instance.
 
+Symbols degrade to ASCII (`->`, `*`, `-`) when the terminal's encoding cannot
+represent them, so a default Windows console shows a plain report rather than
+crashing mid-print.
+
 ## Links
 
 - [Documentation](https://weedout.dev/docs)
+- [Scanning your project](https://weedout.dev/docs/scanning-your-project)
 - [Gate your pipeline](https://weedout.dev/docs/gate-your-pipeline)
+- [Source](https://github.com/itsmangooo/weedout)

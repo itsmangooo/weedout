@@ -23,7 +23,9 @@ __all__ = [
     "create_page",
     "get_published",
     "list_public",
+    "reseed_starter_pages",
     "seed_starter_pages",
+    "starter_page_drift",
     "update_page",
 ]
 
@@ -211,6 +213,80 @@ async def retire_superseded_pages(db: AsyncSession) -> int:
     return retired
 
 
+async def starter_page_drift(db: AsyncSession) -> list[tuple[str, bool]]:
+    """Which starter pages differ from the content this release would seed.
+
+    Seeding is idempotent by slug and deliberately never overwrites, so an
+    improvement to the starter copy does not reach a deployment that already has
+    the page. That is the right default — an administrator's edits are theirs —
+    but it means "the docs were improved" and "the docs on the site improved"
+    are two different statements.
+
+    Returns `(slug, exists)` for every page whose stored content is not byte-for
+    byte what `STARTER_PAGES` now holds.
+    """
+    rows = {
+        page.slug: page
+        for page in (await db.scalars(select(DocPage).where(DocPage.slug.in_(STARTER_SLUGS)))).all()
+    }
+
+    drifted: list[tuple[str, bool]] = []
+    for page in STARTER_PAGES:
+        stored = rows.get(page["slug"])
+        if stored is None:
+            drifted.append((page["slug"], False))
+        elif stored.content.strip() != page["content"].strip():
+            drifted.append((page["slug"], True))
+    return drifted
+
+
+async def reseed_starter_pages(db: AsyncSession) -> list[str]:
+    """Overwrite the starter pages with this release's content.
+
+    Destructive by design and never called automatically — an administrator may
+    have rewritten a page, and silently replacing their words on deploy would be
+    worse than shipping slightly stale docs. Exposed as
+    `python -m app.manage reseed-docs --force` so the decision is a person's.
+
+    Title, summary and body are replaced; `position` and `published` are left
+    alone, because those are ordering and visibility choices rather than copy.
+    """
+    rows = {
+        page.slug: page
+        for page in (await db.scalars(select(DocPage).where(DocPage.slug.in_(STARTER_SLUGS)))).all()
+    }
+
+    updated: list[str] = []
+    for position, page in enumerate(STARTER_PAGES, start=1):
+        stored = rows.get(page["slug"])
+        if stored is None:
+            db.add(
+                DocPage(
+                    slug=page["slug"],
+                    title=page["title"],
+                    summary=page["summary"],
+                    content=page["content"].strip(),
+                    published=True,
+                    position=position,
+                )
+            )
+            updated.append(page["slug"])
+            continue
+
+        if stored.content.strip() == page["content"].strip():
+            continue
+
+        stored.title = page["title"]
+        stored.summary = page["summary"]
+        stored.content = page["content"].strip()
+        updated.append(page["slug"])
+
+    if updated:
+        await db.flush()
+        log.info("docs.starter_pages_reseeded", pages=len(updated))
+    return updated
+
+
 async def seed_starter_pages(db: AsyncSession) -> int:
     """Create the starter documentation if it is absent.
 
@@ -256,57 +332,99 @@ STARTER_PAGES: list[dict[str, str]] = [
     {
         "slug": "getting-started",
         "title": "Getting started",
-        "summary": "Add your first project and read your first scan, in about a minute.",
+        "summary": "One command from your project directory to your first scan.",
         "content": """
-Weedout watches your dependency manifests and tells you about two kinds of
-vulnerability: the ones attackers are actively exploiting right now, and the
-ones that are severe and reachable in the code you actually ship. Everything
-else is recorded, counted, and left alone.
+Weedout watches your dependencies and tells you about two kinds of
+vulnerability: the ones attackers are exploiting right now, and the ones that
+are severe and reachable in the code you actually ship. Everything else is
+recorded, counted, and left alone — visible, with the reason attached, but not
+in your way.
 
 ## 1. Create an account
 
-Sign up with an email address and a password of at least 10 characters. The
-free plan tracks one project, checks it daily, and sends email alerts. No card
-is required.
+Sign up with an email address and a password of at least 10 characters. The free
+plan tracks one project, checks it daily, and sends email alerts. No card.
 
-## 2. Add a project
+## 2. Add the project
 
-Go to **Add a project** and either upload a manifest file or paste its
-contents. Four formats are supported:
+Adding a project is what creates the thing an API key can push to. Either:
+
+- **Run the CLI** (below), which creates nothing on its own — so add the project
+  in the browser first, then point a key at it. One upload or paste of any
+  supported file is enough to get started.
+- Or paste the contents on **Add a project** if you would rather not install
+  anything yet.
 
 | File | Ecosystem | Versions |
 |---|---|---|
-| `package.json` | npm | Ranges — resolved to a floor |
 | `package-lock.json` | npm | Exact |
+| `package.json` | npm | Ranges — resolved to a floor |
 | `requirements.txt` | PyPI | Exact when pinned with `==` |
 | `go.mod` | Go | Exact |
 
-**Scan a lockfile if you have one.** See *Scanning your project* for why it
-matters, and for how to run the same scan from your terminal or your pipeline
-with one command instead of a browser.
+## 3. Create an API key
 
-## 3. Read the first scan
+**Settings → API keys → Create key.** Pick the project it belongs to.
 
-The scan runs immediately — you do not wait for a schedule. When it finishes
-you will see two numbers:
+The key is shown once and stored only as a hash, so copy it now. Each key works
+for a single project: one leaked from a build log can only push results for the
+repository that build was for, which is why there is no account-wide key.
 
-- **Open** — findings that cleared the alerting bar and are worth your time.
-- **Filtered** — advisories that genuinely affect your versions but were
-  deliberately not surfaced, each with the reason attached.
+## 4. Scan from your terminal
 
-The filtered number is usually the larger one. That is the point of the
-product, and the tab is there so you can check the reasoning rather than take
-it on trust.
+```bash
+pip install weedout-cli
+export WEEDOUT_API_KEY=wo_...
+weedout scan
+```
 
-## 4. What happens next
+`weedout scan` finds the right file in the current directory, checks it, and
+prints what came back:
 
-Your project is re-checked on a schedule — daily on Free, every four hours on
-Pro. You get **one digest email per scan**, covering only findings that are
-new. A finding you have already seen is never emailed twice, and a finding you
-dismiss stays dismissed.
+```
+demo-app  ./package-lock.json
+412 dependencies scanned · 33 filtered out as noise
 
-If you upgrade a dependency past the fix, the next scan marks the finding
-resolved rather than deleting it, so the history survives.
+  1 exploited  ·  1 critical
+
+  ! systeminformation@5.0.0  CVE-2021-21315  → 5.3.1
+  • minimist@1.2.5           CVE-2021-44906  → 1.2.6
+
+  https://weedout.dev/targets/12
+```
+
+Two numbers matter on that first line. **Dependencies scanned** is the size of
+the problem; **filtered out as noise** is how much of it Weedout decided not to
+interrupt you about. The second number is usually much larger than the list
+above it — that is the product working, and every filtered advisory is one click
+away with its reason.
+
+`weedout init` writes the key to a `.weedout` file so you can stop exporting it.
+**Add that file to `.gitignore`** — it holds a credential.
+
+## 5. Wire it into CI
+
+```bash
+weedout scan --ci
+```
+
+`--ci` exits non-zero when something critical or actively exploited turns up.
+Without it, findings are reported and the command still succeeds — so you can
+add the step today and decide about gating later. See
+*Gate your pipeline* for a complete workflow.
+
+## What happens after that
+
+Your stored manifest is re-checked on a schedule — daily on Free, every four
+hours on Pro — so you get alerted about advisories published *after* your last
+scan without doing anything.
+
+You get **one digest email per scan**, covering only findings that are new. A
+finding you have already seen is never emailed twice, a finding you dismiss
+stays dismissed, and a scan you ran yourself never also arrives by email.
+
+Upgrade a dependency past the fix and the next scan marks the finding resolved
+rather than deleting it, so the history survives.
 """,
     },
     {
@@ -464,6 +582,23 @@ publisher's qualitative label is used — folding vocabularies like GitHub's
 When there is neither, the severity is **unknown**, which sits below every
 threshold. An unrated advisory only surfaces if it is on the KEV list.
 
+## What `--ci` fails on
+
+The three rules above decide what appears on your dashboard and in your email.
+`weedout scan --ci` uses a **narrower** rule for failing a build: rules 1 and 2
+only.
+
+| | Dashboard + email | Fails `--ci` |
+|---|---|---|
+| Exploited in the wild | yes | **yes** |
+| Critical, ships to production | yes | **yes** |
+| High severity, direct dependency | yes | no |
+
+High-severity findings are worth reading this week. They are not worth blocking
+a deploy at 6pm, and a gate that fires often is a gate people learn to route
+around. If your team wants those blocking too, fail on the count yourself — the
+scan API returns severity counts as JSON.
+
 ## What "reachable" means here
 
 Weedout reads manifests. It does **not** analyse your source code, and it
@@ -471,6 +606,10 @@ will never claim to know whether you call the vulnerable function. What it does
 know is whether a package ships to production or only builds and tests your
 project, and whether you declared it yourself or inherited it. Those two facts
 remove most of the noise on their own.
+
+This is also why a lockfile is worth more than a manifest here: the same two
+facts are only as good as the versions they are applied to. See
+*Scanning your project*.
 """,
     },
     {
@@ -509,21 +648,56 @@ jobs:
       - run: npm ci
 
       - name: Scan dependencies
-        uses: weedout/weedout/.github@v1
+        uses: itsmangooo/weedout/.github@v1
         with:
           api-key: ${{ secrets.WEEDOUT_API_KEY }}
 
-  deploy:
+  # Both of these wait for the scan. `needs:` is the entire mechanism: without
+  # it the jobs run in parallel and the deploy ships regardless of what the scan
+  # found, which is a notification, not a gate.
+  build:
     needs: security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  deploy:
+    needs: [security-scan, build]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
       - run: echo "Deploying"
 ```
 
-`needs: security-scan` is the part that makes this a gate rather than a
-notification. Without it the two jobs run in parallel and the deploy goes out
-regardless of what the scan found.
+Three things about that shape are deliberate.
+
+**`needs:` is the gate.** A failing job that nothing depends on is a red cross
+next to a successful deploy. Every job that produces or ships an artefact has to
+name `security-scan`, or it is not gated.
+
+**`deploy` lists both.** `needs: [security-scan, build]` is not redundant with
+`build`'s own `needs`. GitHub does propagate skips through the chain, but naming
+the scan directly means the dependency survives someone later reorganising
+`build` — and reading `deploy` tells you what it waited for without tracing the
+graph.
+
+**The scan runs after `npm ci`.** Before the install, the lockfile is whatever
+was committed; after it, it is what actually resolved. Scanning the resolved
+tree is the difference between an exact answer and an assumed one.
 
 ## Without the action
 

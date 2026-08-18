@@ -169,6 +169,16 @@ class Settings(BaseSettings):
     resend_api_key: str | None = None
     resend_api_url: str = "https://api.resend.com/emails"
 
+    #: The provider the in-stack Postfix relay hands mail to.
+    #:
+    #: The app never uses this — it belongs to the `mail` service — and it is
+    #: read here only so that startup can warn when it is empty. Without a
+    #: relayhost Postfix delivers straight from the host, and mail from a VPS
+    #: address is spam-foldered or rejected without a bounce anyone notices.
+    #: The web process is the only thing that prints a configuration summary at
+    #: boot, so this is where the warning has to live.
+    mail_relayhost: str | None = None
+
     # ---- Dodo Payments -----------------------------------------------------
     dodo_enabled: bool = False
     dodo_environment: Literal["test", "live"] = "test"
@@ -185,6 +195,18 @@ class Settings(BaseSettings):
     #: and no credential in the codebase. Unset means nobody is auto-promoted;
     #: `python -m app.manage promote-admin <email>` still works.
     admin_email: str | None = None
+
+    #: Where the one-time bootstrap password is sent, if the first admin has to
+    #: be created from scratch on deploy.
+    #:
+    #: Deliberately *not* the admin account's own address: at the moment the
+    #: account is created, nobody can sign in to read mail sent to it, and if
+    #: `ADMIN_EMAIL` were mistyped the credential would be delivered to whoever
+    #: owns the typo. This is the operator's own mailbox.
+    #:
+    #: No default. Bootstrap is off until this is set, because a default here
+    #: would mean a generated password is mailed somewhere nobody chose.
+    admin_bootstrap_notify_email: str | None = None
 
     #: Link target for actions the panel deliberately does not reimplement
     #: (refunds, disputes, invoice edits).
@@ -321,6 +343,13 @@ class Settings(BaseSettings):
             warnings.append(
                 "ADMIN_EMAIL is unset; nobody will be auto-promoted to admin. "
                 "Use `python -m app.manage promote-admin <email>`."
+            )
+        if self.email_backend == "smtp" and not self.mail_relayhost:
+            warnings.append(
+                "MAIL_RELAYHOST is unset, so the mail relay will try to deliver directly "
+                "from this host. A VPS address has no sending reputation and most are "
+                "blocklisted by default, so password-reset mail will be spam-foldered or "
+                "rejected. Point it at a provider — see DEPLOY.md."
             )
         return warnings
 

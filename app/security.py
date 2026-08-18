@@ -28,6 +28,7 @@ __all__ = [
     "api_key_prefix",
     "check_password_strength",
     "generate_api_key",
+    "generate_password",
     "generate_reset_token",
     "generate_session_token",
     "hash_api_key",
@@ -148,6 +149,22 @@ def hash_opaque_token(token: str) -> str:
 def hash_session_token(token: str) -> str:
     """Lookup key for a session cookie token."""
     return hash_opaque_token(token)
+
+
+#: Bytes of entropy in a generated bootstrap password. 24 urlsafe bytes is 32
+#: characters and ~192 bits — far beyond anything Argon2id needs to protect, and
+#: short enough to survive being copied out of an email by hand.
+BOOTSTRAP_PASSWORD_BYTES = 24
+
+
+def generate_password() -> str:
+    """A random password for an account nobody has chosen one for yet.
+
+    Used only by the admin bootstrap. Deliberately not "memorable": the operator
+    is expected to sign in once and change it, and a human-shaped generated
+    password is weaker for no benefit when it is going to be pasted anyway.
+    """
+    return secrets.token_urlsafe(BOOTSTRAP_PASSWORD_BYTES)
 
 
 def generate_reset_token() -> str:

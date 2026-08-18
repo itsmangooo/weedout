@@ -58,18 +58,52 @@ x-app-env: &app-env
   # trusted proxy path configured for production.
   TRUSTED_CLIENT_IP_HEADER: ${TRUSTED_CLIENT_IP_HEADER:-cf-connecting-ip}
 
-  EMAIL_BACKEND: ${EMAIL_BACKEND:-console}
+  # Mail goes to the `mail` service below — an in-stack Postfix relay — rather
+  # than straight to a provider. Two reasons:
+  #
+  #   * `send_email` failing means a lost password reset. Postfix accepts the
+  #     message and retries for days, so a provider blip is invisible to users.
+  #   * Provider credentials live in one container instead of in the app.
+  #
+  # No TLS and no auth on this hop because it never leaves the Compose network.
+  # The relay does use TLS for the hop that does (RELAYHOST_TLS_LEVEL).
+  EMAIL_BACKEND: ${EMAIL_BACKEND:-smtp}
   EMAIL_FROM: ${EMAIL_FROM:-Weedout <alerts@weedout.dev>}
 
-  SMTP_HOST: ${SMTP_HOST:-}
-  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_HOST: ${SMTP_HOST:-mail}
+  SMTP_PORT: ${SMTP_PORT:-25}
   SMTP_USERNAME: ${SMTP_USERNAME:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-  SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+  SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
 
+  # Alternative to the relay: talk to Resend's HTTP API directly. Set
+  # EMAIL_BACKEND=resend to use it. Loses the queue-and-retry above.
   RESEND_API_KEY: ${RESEND_API_KEY:-}
 
+  # Not used by the app — passed in only so startup can warn when the relay has
+  # no provider configured. See Settings.mail_relayhost.
+  MAIL_RELAYHOST: ${MAIL_RELAYHOST:-}
+
   ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+
+  # Where the one-time bootstrap password goes if this deployment has no admin
+  # yet. Empty disables bootstrap. See .env.prod.example.
+  ADMIN_BOOTSTRAP_NOTIFY_EMAIL: ${ADMIN_BOOTSTRAP_NOTIFY_EMAIL:-}
+
+  # Backups. The worker dumps the database on this interval, prunes to
+  # BACKUP_KEEP locally, and pushes a copy off-box when the S3 block is filled
+  # in. A dump on the same disk as the database it came from survives a bad
+  # migration and nothing else, so treat the S3 values as strongly recommended
+  # rather than optional. See DEPLOY.md.
+  BACKUP_ENABLED: ${BACKUP_ENABLED:-true}
+  BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+  BACKUP_KEEP: ${BACKUP_KEEP:-7}
+  BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+  BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+  BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
+  BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
+  BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-weedout}
+  BACKUP_S3_REGION: ${BACKUP_S3_REGION:-auto}
 
   DODO_ENABLED: ${DODO_ENABLED:-true}
   DODO_ENVIRONMENT: ${DODO_ENVIRONMENT:-live}
@@ -113,6 +147,63 @@ services:
       retries: 10
       start_period: 20s
 
+  # ---------------------------------------------------------------------------
+  # Outbound mail relay
+  # ---------------------------------------------------------------------------
+  # Postfix, reachable only inside the Compose network. The app hands messages
+  # here; this hands them to a real provider.
+  #
+  # It is deliberately NOT a mail server that delivers to the internet itself.
+  # A VPS address has no sending reputation, most cloud ranges sit on blocklists
+  # by default, providers commonly block outbound port 25, and since 2024
+  # Gmail and Yahoo enforce SPF+DKIM+DMARC strictly. Direct delivery from here
+  # would spam-folder password resets. Set MAIL_RELAYHOST and let somebody with
+  # an IP reputation do the last mile.
+  mail:
+    # Pinned rather than `latest`: this handles credentials and queued mail, so
+    # it should change when you decide to, not when a tag moves.
+    image: boky/postfix:v4.4.0
+    restart: unless-stopped
+    logging: *logging
+
+    environment:
+      # Refused as a relay for anything else, so a bug elsewhere in the stack
+      # cannot turn this into an open relay for arbitrary senders.
+      ALLOWED_SENDER_DOMAINS: ${MAIL_SENDER_DOMAIN:?set MAIL_SENDER_DOMAIN to the domain you send from, e.g. weedout.dev}
+
+      # Announced in HELO. Some providers reject a HELO that is not a FQDN.
+      POSTFIX_myhostname: ${MAIL_HOSTNAME:-mail.weedout.dev}
+
+      # The provider. Empty means Postfix attempts direct delivery, which is
+      # the thing the comment above warns about — see DEPLOY.md.
+      #   Resend:  [smtp.resend.com]:587
+      #   Mailgun: [smtp.mailgun.org]:587
+      #   SES:     [email-smtp.eu-west-1.amazonaws.com]:587
+      RELAYHOST: ${MAIL_RELAYHOST:-}
+      RELAYHOST_USERNAME: ${MAIL_RELAYHOST_USERNAME:-}
+      RELAYHOST_PASSWORD: ${MAIL_RELAYHOST_PASSWORD:-}
+      # `encrypt` refuses to hand credentials over an unencrypted connection.
+      RELAYHOST_TLS_LEVEL: ${MAIL_RELAYHOST_TLS_LEVEL:-encrypt}
+
+    # Deliberately no `ports:`. Nothing outside the Compose network should be
+    # able to submit mail here.
+
+    # The queue is the whole point of running this: without persistence, a
+    # container replacement during a provider outage discards mail that Postfix
+    # had promised to retry.
+    volumes:
+      - mailqueue:/var/spool/postfix
+
+    healthcheck:
+      test: ["CMD-SHELL", "postfix status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    security_opt:
+      - no-new-privileges:true
+
   web:
     build:
       context: .
@@ -147,9 +238,14 @@ services:
     expose:
       - "8000"
 
+    volumes:
+      - backups:/var/backups/weedout
+
     depends_on:
       db:
         condition: service_healthy
+      mail:
+        condition: service_started
 
     security_opt:
       - no-new-privileges:true
@@ -168,6 +264,13 @@ services:
     environment:
       <<: *app-env
 
+    # A named volume rather than a bind mount: Docker seeds a named volume's
+    # ownership from the image, where this directory is already chowned to the
+    # unprivileged user. A host bind mount would be created as root and the
+    # container could not write into it.
+    volumes:
+      - backups:/var/backups/weedout
+
     # The Dockerfile healthcheck probes /healthz, which only exists on the web
     # process. The worker therefore disables the inherited image healthcheck.
     healthcheck:
@@ -182,8 +285,13 @@ services:
       web:
         condition: service_started
 
+      mail:
+        condition: service_started
+
     security_opt:
       - no-new-privileges:true
 
 volumes:
   pgdata:
+  backups:
+  mailqueue:

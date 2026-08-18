@@ -514,3 +514,136 @@ class TestStarterSeed:
         assert page is not None
         assert page.published is False
         assert page.content == "Mine."
+
+
+class TestStarterContentUpdates:
+    """Getting improved starter copy onto a deployment that already has it.
+
+    Seeding never overwrites, which is right — an administrator's edits are
+    theirs. The consequence is that "the docs were improved" and "the docs on
+    the site improved" are different statements, and closing that gap has to be
+    a deliberate act rather than a side effect of deploying.
+    """
+
+    async def test_a_fresh_deployment_reports_every_page_as_missing(self, db):
+        from app.services.docs_service import starter_page_drift
+
+        drift = await starter_page_drift(db)
+
+        assert len(drift) == 4
+        assert all(exists is False for _, exists in drift)
+
+    async def test_a_freshly_seeded_deployment_has_no_drift(self, db):
+        from app.services.docs_service import starter_page_drift
+
+        await seed_starter_pages(db)
+
+        assert await starter_page_drift(db) == []
+
+    async def test_an_edited_page_shows_as_drifted(self, db):
+        from app.services.docs_service import starter_page_drift
+
+        await seed_starter_pages(db)
+        page = await get_published(db, "getting-started")
+        page.content = "My own words."
+        await db.flush()
+
+        drift = dict(await starter_page_drift(db))
+        assert drift == {"getting-started": True}
+
+    async def test_reseeding_replaces_the_content(self, db):
+        from app.services.docs_service import reseed_starter_pages, starter_page_drift
+
+        await seed_starter_pages(db)
+        page = await get_published(db, "getting-started")
+        page.content = "Stale."
+        await db.flush()
+
+        updated = await reseed_starter_pages(db)
+
+        assert updated == ["getting-started"]
+        await db.refresh(page)
+        assert page.content != "Stale."
+        assert await starter_page_drift(db) == []
+
+    async def test_reseeding_touches_only_what_differs(self, db):
+        from app.services.docs_service import reseed_starter_pages
+
+        await seed_starter_pages(db)
+        page = await get_published(db, "gate-your-pipeline")
+        page.content = "Changed."
+        await db.flush()
+
+        assert await reseed_starter_pages(db) == ["gate-your-pipeline"]
+
+    async def test_reseeding_is_idempotent(self, db):
+        from app.services.docs_service import reseed_starter_pages
+
+        await seed_starter_pages(db)
+
+        assert await reseed_starter_pages(db) == []
+
+    async def test_reseeding_preserves_publication_and_order(self, db):
+        """Copy is ours; visibility and ordering are the administrator's."""
+        from app.services.docs_service import reseed_starter_pages
+
+        await seed_starter_pages(db)
+        page = await db.scalar(select(DocPage).where(DocPage.slug == "getting-started"))
+        page.content = "Stale."
+        page.published = False
+        page.position = 99
+        await db.flush()
+
+        await reseed_starter_pages(db)
+        await db.refresh(page)
+
+        assert page.published is False
+        assert page.position == 99
+        assert page.content != "Stale."
+
+    async def test_reseeding_recreates_a_deleted_page(self, db):
+        from app.services.docs_service import delete_page, reseed_starter_pages
+
+        await seed_starter_pages(db)
+        page = await get_published(db, "getting-started")
+        await delete_page(db, page)
+        await db.flush()
+
+        assert "getting-started" in await reseed_starter_pages(db)
+        assert await get_published(db, "getting-started") is not None
+
+
+class TestStarterContentIsCliFirst:
+    """The CLI is the primary flow now, so the docs have to lead with it."""
+
+    async def test_getting_started_leads_with_the_command(self, db, client):
+        await seed_starter_pages(db)
+
+        response = await client.get("/docs/getting-started")
+        body = response.text
+
+        assert "pip install weedout-cli" in body
+        assert "weedout scan" in body
+
+    async def test_getting_started_still_offers_the_browser_path(self, db, client):
+        """Not everyone wants to install something to evaluate a product."""
+        await seed_starter_pages(db)
+
+        assert "Add a project" in (await client.get("/docs/getting-started")).text
+
+    async def test_the_gating_example_makes_the_scan_a_dependency(self, db, client):
+        """`needs:` is the entire mechanism. Without it the example would show a
+        red cross beside a successful deploy."""
+        await seed_starter_pages(db)
+
+        body = (await client.get("/docs/gate-your-pipeline")).text
+        assert "needs: security-scan" in body
+        assert "needs: [security-scan, build]" in body
+
+    async def test_the_severity_page_explains_what_ci_fails_on(self, db, client):
+        """The alerting bar and the gating bar are deliberately different, and
+        somebody wiring up a gate needs to know which one they get."""
+        await seed_starter_pages(db)
+
+        body = (await client.get("/docs/understanding-severity-tiers")).text
+        assert "--ci" in body

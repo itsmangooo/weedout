@@ -11,6 +11,8 @@ the process accepts its first request.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -166,7 +168,11 @@ class TestProductionWarnings:
     def test_a_fully_configured_deployment_warns_about_nothing(self):
         settings = build(
             email_backend="smtp",
-            smtp_host="smtp.example.com",
+            smtp_host="mail",
+            # "Fully configured" includes a provider for the relay to hand off
+            # to. Without one, mail is sent from the host itself and quietly
+            # spam-foldered, which is exactly what the warning list is for.
+            mail_relayhost="[smtp.resend.com]:587",
             log_level="INFO",
             trusted_client_ip_header="cf-connecting-ip",
             admin_email="founder@weedout.dev",
@@ -210,3 +216,122 @@ class TestPlaceholderDetection:
     )
     def test_real_keys_are_accepted(self, value):
         assert _is_placeholder_secret(value) is False
+
+
+class TestMailWiring:
+    """The stack ships its own SMTP relay; these check it is wired up and that
+    the ways it can be silently wrong are announced."""
+
+    def test_a_missing_relay_provider_is_warned_about(self):
+        """An unset relayhost means Postfix tries to deliver from the host
+        itself, which is spam-foldered or rejected without a bounce anyone
+        notices. Legal, so it warns rather than refusing."""
+        warnings = build(email_backend="smtp", smtp_host="mail", mail_relayhost=None)
+        assert any("MAIL_RELAYHOST" in w for w in warnings.production_warnings)
+
+    def test_a_configured_relay_warns_about_nothing(self):
+        warnings = build(
+            email_backend="smtp",
+            smtp_host="mail",
+            mail_relayhost="[smtp.resend.com]:587",
+            admin_email="founder@weedout.dev",
+            trusted_client_ip_header="cf-connecting-ip",
+            log_level="INFO",
+        ).production_warnings
+        assert warnings == []
+
+    def test_the_resend_backend_does_not_warn_about_a_relay_it_does_not_use(self):
+        """`EMAIL_BACKEND=resend` bypasses the relay entirely, so a warning
+        about the relay's configuration would be noise."""
+        warnings = build(
+            email_backend="resend", resend_api_key="re_x", mail_relayhost=None
+        ).production_warnings
+        assert not any("MAIL_RELAYHOST" in w for w in warnings)
+
+
+class TestComposeMailService:
+    """Assertions against the compose files themselves.
+
+    The relay is infrastructure rather than code, so the things that make it
+    safe — no published port, a persisted queue, a pinned image — are only
+    checkable here.
+    """
+
+    def _prod(self) -> str:
+        path = Path(__file__).resolve().parents[1] / "docker-compose.prod.yml"
+        if not path.is_file():
+            pytest.skip("repo root not present (running inside the app image)")
+        return path.read_text(encoding="utf-8")
+
+    def _parsed(self) -> dict:
+        import yaml
+
+        return yaml.safe_load(self._prod())
+
+    def test_the_relay_is_part_of_the_stack(self):
+        assert "mail" in self._parsed()["services"]
+
+    def test_the_app_points_at_the_relay_by_default(self):
+        prod = self._prod()
+        assert "SMTP_HOST: ${SMTP_HOST:-mail}" in prod
+        assert "EMAIL_BACKEND: ${EMAIL_BACKEND:-smtp}" in prod
+
+    def test_the_relay_publishes_no_port(self):
+        """Anything reachable from outside the Compose network is a relay
+        somebody else can use."""
+        assert "ports" not in self._parsed()["services"]["mail"]
+
+    def test_the_relay_refuses_unknown_sender_domains(self):
+        """Without this the relay would forward for any sender, which is the
+        definition of an open relay."""
+        env = self._parsed()["services"]["mail"]["environment"]
+        assert "ALLOWED_SENDER_DOMAINS" in env
+
+    def test_the_queue_is_persisted(self):
+        """The queue is the reason for running this at all. Losing it on a
+        container replacement discards mail Postfix promised to retry."""
+        volumes = self._parsed()["services"]["mail"]["volumes"]
+        assert any("/var/spool/postfix" in v for v in volumes)
+        assert "mailqueue" in self._parsed()["volumes"]
+
+    def test_the_image_is_pinned(self):
+        """It handles credentials and queued mail; it should change when you
+        decide to, not when a tag moves."""
+        image = self._parsed()["services"]["mail"]["image"]
+        assert ":" in image
+        assert not image.endswith(":latest")
+
+    def test_credentials_are_not_sent_in_the_clear(self):
+        env = self._parsed()["services"]["mail"]["environment"]
+        assert "encrypt" in env["RELAYHOST_TLS_LEVEL"]
+
+    def test_the_app_waits_for_the_relay(self):
+        services = self._parsed()["services"]
+        assert "mail" in services["web"]["depends_on"]
+        assert "mail" in services["worker"]["depends_on"]
+
+
+class TestLocalMailCatcher:
+    def _dev(self) -> dict:
+        import yaml
+
+        path = Path(__file__).resolve().parents[1] / "docker-compose.yml"
+        if not path.is_file():
+            pytest.skip("repo root not present (running inside the app image)")
+        return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    def test_a_mail_catcher_is_available_locally(self):
+        """Needed to exercise the admin bootstrap at all: it refuses the console
+        backend, because that one delivers by writing the body to the log."""
+        assert "mailpit" in self._dev()["services"]
+
+    def test_it_does_not_start_with_a_plain_compose_up(self):
+        """`docker compose up` should be unchanged for anyone who does not want
+        it — hence the profile."""
+        assert self._dev()["services"]["mailpit"]["profiles"] == ["mail"]
+
+    def test_development_still_defaults_to_the_console_backend(self):
+        """So no test message can escape to a real address by accident."""
+        dev = self._dev()["services"]
+        assert dev["web"]["environment"]["EMAIL_BACKEND"] == "console"
+        assert dev["worker"]["environment"]["EMAIL_BACKEND"] == "console"

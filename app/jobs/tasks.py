@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.types import Tier
 from app.db import session_scope
 from app.feeds.kev import KevFeedError
@@ -27,6 +28,7 @@ from app.models import User, utcnow
 from app.services.admin_service import PAYING_STATUSES
 from app.services.alert_service import send_new_match_digest
 from app.services.auth_service import purge_expired_sessions
+from app.services.backup_service import BackupError, record_outcome, run_backup
 from app.services.feed_service import refresh_kev_catalog
 from app.services.mirror_service import sync_all_ecosystems
 from app.services.password_reset_service import purge_expired_reset_tokens
@@ -36,6 +38,7 @@ from app.services.scan_service import due_targets, scan_target
 log = get_logger(__name__)
 
 __all__ = [
+    "backup_task",
     "expire_subscriptions_task",
     "refresh_feeds_task",
     "run_scan_cycle",
@@ -46,6 +49,7 @@ __all__ = [
 # Arbitrary but fixed 64-bit keys; they only need to be unique within the database.
 LOCK_SCAN_CYCLE = 0x4E4F495345_01
 LOCK_FEED_REFRESH = 0x4E4F495345_02
+LOCK_BACKUP = 0x4E4F495345_03
 
 
 @asynccontextmanager
@@ -110,6 +114,70 @@ async def sync_mirror_task() -> dict[str, int]:
     except Exception as exc:
         log.exception("job.mirror_sync_crashed", error=str(exc))
         stats["failed"] += 1
+        return stats
+
+
+async def backup_task() -> dict[str, int]:
+    """Take a database dump, prune old ones, and push a copy off-box.
+
+    Holds its own advisory lock: two replicas dumping simultaneously would
+    double the load on the database at exactly the moment it is least wanted,
+    and the second dump would add nothing.
+
+    Like every other scheduled task this returns rather than raising, so a
+    failed backup does not take the scheduler down with it — but unlike most of
+    them it logs at ERROR, because nobody finds out a backup stopped working
+    until they need one.
+    """
+    stats = {"ok": 0, "failed": 0, "bytes": 0, "uploaded": 0}
+    settings = get_settings()
+
+    if not settings.backup_enabled:
+        return stats
+
+    try:
+        async with session_scope() as db:
+            async with advisory_lock(db, LOCK_BACKUP) as acquired:
+                if not acquired:
+                    log.debug("backup.skipped_locked")
+                    return stats
+
+                try:
+                    result = await run_backup(settings)
+                except BackupError as exc:
+                    log.error("backup.failed", error=str(exc))
+                    await record_outcome(db, success=False, error=str(exc))
+                    stats["failed"] = 1
+                    return stats
+
+                stats["ok"] = 1
+                stats["bytes"] = result.size_bytes
+                stats["uploaded"] = int(result.uploaded)
+
+                if settings.backup_s3_bucket and not result.uploaded:
+                    # The dump exists but never left the machine. Recorded as an
+                    # error as well as logged, so the admin health board does not
+                    # read green: a local-only backup does not survive the
+                    # failure it is most needed for.
+                    message = (
+                        "dump written but the off-box copy failed; "
+                        "this backup exists only on the database host"
+                    )
+                    log.error("backup.upload_failed", path=str(result.path))
+                    await record_outcome(
+                        db, success=True, size_bytes=result.size_bytes, error=message
+                    )
+                else:
+                    log.info(
+                        "backup.completed",
+                        bytes=result.size_bytes,
+                        off_box=result.uploaded,
+                    )
+                    await record_outcome(db, success=True, size_bytes=result.size_bytes)
+                return stats
+    except Exception as exc:
+        log.exception("job.backup_crashed", error=str(exc))
+        stats["failed"] = 1
         return stats
 
 

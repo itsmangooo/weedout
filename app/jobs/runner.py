@@ -25,6 +25,7 @@ from app.config import get_settings
 from app.db import configure_event_loop_policy, dispose_engine, run_async
 from app.jobs.scheduler import build_scheduler
 from app.jobs.tasks import (
+    backup_task,
     refresh_feeds_task,
     run_scan_cycle,
     sweep_sessions_task,
@@ -44,6 +45,11 @@ async def _run_once(command: str, limit: int | None) -> int:
     if command == "sync-mirror":
         stats = await sync_mirror_task()
         log.info("runner.mirror_finished", **stats)
+        return 1 if stats["failed"] else 0
+
+    if command == "backup":
+        stats = await backup_task()
+        log.info("runner.backup_finished", **stats)
         return 1 if stats["failed"] else 0
 
     if command == "refresh-kev":
@@ -107,10 +113,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="weedout-scan", description="Weedout background jobs")
     parser.add_argument(
         "command",
-        choices=["scan", "sync-mirror", "refresh-kev", "sweep", "loop"],
+        choices=["scan", "sync-mirror", "refresh-kev", "backup", "sweep", "loop"],
         help="scan: one sweep; sync-mirror: pull OSV advisories into the local "
-        "mirror; refresh-kev: pull the KEV catalog; sweep: purge expired "
-        "sessions; loop: run the scheduler",
+        "mirror; refresh-kev: pull the KEV catalog; backup: dump the database "
+        "now; sweep: purge expired sessions; loop: run the scheduler",
     )
     parser.add_argument(
         "--limit", type=int, default=None, help="maximum targets to scan in this sweep"

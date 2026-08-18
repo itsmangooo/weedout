@@ -1,10 +1,10 @@
 # A composite action, referenced from a workflow as:
 #
-#     uses: weedout/weedout/.github@v1
+#     uses: itsmangooo/weedout/.github@v1
 #
 # The path suffix is required because GitHub resolves a bare `owner/repo@ref`
 # to an `action.yml` at the *repository root*. Moving this file there is the
-# only thing needed to shorten it to `uses: weedout/weedout@v1`; the docs and
+# only thing needed to shorten it to `uses: itsmangooo/weedout@v1`; the docs and
 # README use the path-qualified form so that what is written matches where the
 # file actually is.
 

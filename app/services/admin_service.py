@@ -585,15 +585,34 @@ async def feed_health(db: AsyncSession) -> list[FeedHealth]:
 
     rows = {row.name: row for row in (await db.scalars(select(FeedSync))).all()}
 
+    settings = get_settings()
+
     definitions = [(KEV_FEED_NAME, "CISA KEV", 24)]
     definitions += [
         (
             mirror_feed_name(ecosystem),
             f"OSV advisories — {ecosystem}",
-            get_settings().mirror_stale_after_hours,
+            settings.mirror_stale_after_hours,
         )
         for ecosystem in MIRRORED_ECOSYSTEMS
     ]
+
+    # Backups are not a feed, but they are a recurring job whose failure is
+    # equally silent — and this board is where someone looks to find out that
+    # something stopped running weeks ago. Listed only when enabled, so a
+    # development machine does not show a permanently red row for a job it was
+    # never asked to run.
+    if settings.backup_enabled:
+        from app.services.backup_service import BACKUP_FEED_NAME
+
+        definitions.append(
+            (
+                BACKUP_FEED_NAME,
+                "Database backup",
+                # One missed run is a blip; two is a pattern worth showing.
+                settings.backup_interval_hours * 2 + 1,
+            )
+        )
 
     health: list[FeedHealth] = []
     for name, label, stale_hours in definitions:

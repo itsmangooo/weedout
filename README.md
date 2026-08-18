@@ -341,7 +341,7 @@ override the key the pipeline was configured with — authenticating as the wron
 account is worse than failing to authenticate at all.
 
 A composite GitHub Action is in `.github/action.yml`, referenced as
-`uses: weedout/weedout/.github@v1`. The path suffix is required from that
+`uses: itsmangooo/weedout/.github@v1`. The path suffix is required from that
 location — GitHub resolves a bare `owner/repo@ref` to an `action.yml` at the
 repository root, so moving the file there is all it takes to shorten it.
 
@@ -642,6 +642,63 @@ generated a migration for.
 
 Logs are structured via `structlog` — human-readable locally, JSON in production
 (`LOG_FORMAT=json`), with a request ID bound to every line within a request.
+
+### Email
+
+The production stack runs its own SMTP server — a Postfix **relay**, not a mail
+server that delivers to the internet itself. The app hands messages to it over
+the Compose network; it hands them to a provider.
+
+Direct delivery from a VPS does not work in practice: cloud address ranges are
+blocklisted by default, most hosts block outbound port 25, and Gmail and Yahoo
+have required SPF+DKIM+DMARC since 2024. Password-reset mail would be
+spam-foldered without a bounce anyone notices.
+
+The local Postfix still earns its keep. `send_email` failing loses a password
+reset; Postfix accepts the message and retries for days, so a provider outage is
+invisible to users. It publishes no port and refuses to relay for any sender
+domain but its own, so it cannot become an open relay.
+
+```bash
+# Verify delivery without triggering a real password reset.
+docker compose --env-file .env.prod -f docker-compose.prod.yml   exec web python -m app.manage test-email you@example.com
+```
+
+Locally, `EMAIL_BACKEND=console` logs messages instead of sending them. To read
+one — or to exercise the admin bootstrap, which refuses the console backend
+because it would log the generated password — start the catcher:
+
+```bash
+docker compose --profile mail up -d mailpit   # then http://localhost:8025
+```
+
+Provider setup and the DNS records are in [DEPLOY.md](DEPLOY.md#email).
+
+### Backups
+
+The worker takes a compressed `pg_dump` daily (`scripts/backup.sh`), prunes to
+`BACKUP_KEEP`, and pushes a copy to any S3-compatible bucket when one is
+configured. Signed with SigV4 from the standard library — no AWS SDK in the
+image. On by default in `docker-compose.prod.yml`, off elsewhere.
+
+Two things are deliberate. A dump is written under a temporary name and only
+renamed once `pg_dump`'s completion marker and a gzip integrity check both pass,
+because a truncated dump is indistinguishable from a good one until the day you
+need it. And a dump that could not be copied off-box shows as **failing** on the
+admin health board rather than green: a backup on the same disk as the database
+survives a bad migration and nothing else.
+
+Take one by hand before a risky migration:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml \
+  exec worker python -m app.jobs.runner backup
+```
+
+The restore procedure — including a safe scratch-database rehearsal — is in
+[DEPLOY.md](DEPLOY.md#restoring). `tests/test_backup.py` dumps, restores into a
+scratch database and reads the rows back, so "it restores" is asserted rather
+than assumed.
 
 ---
 

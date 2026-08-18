@@ -17,6 +17,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import Settings
 from app.jobs.tasks import (
+    backup_task,
     expire_subscriptions_task,
     refresh_feeds_task,
     run_scan_cycle,
@@ -75,6 +76,15 @@ def build_scheduler(settings: Settings) -> AsyncIOScheduler:
         replace_existing=True,
     )
 
+    if settings.backup_enabled:
+        scheduler.add_job(
+            backup_task,
+            trigger=IntervalTrigger(hours=settings.backup_interval_hours),
+            id="backup",
+            name="Back up the database",
+            replace_existing=True,
+        )
+
     scheduler.add_job(
         expire_subscriptions_task,
         trigger=IntervalTrigger(hours=1),
@@ -87,5 +97,6 @@ def build_scheduler(settings: Settings) -> AsyncIOScheduler:
         "scheduler.configured",
         kev_refresh_hours=settings.kev_refresh_hours,
         scan_tick_minutes=settings.scan_tick_minutes,
+        backups=settings.backup_enabled,
     )
     return scheduler
