@@ -2211,6 +2211,10 @@ kbd {
 
 .cli-section {
   margin-block: var(--space-8);
+  /* The app bar is sticky, so an anchor jump would otherwise land with the
+     heading hidden behind it -- following a link and not seeing what you were
+     sent to reads as a broken link. */
+  scroll-margin-top: calc(52px + var(--space-5));
 }
 
 .cli-section__title {
@@ -2383,7 +2387,11 @@ kbd {
   border-radius: var(--radius);
   box-shadow: var(--elevation-1);
   overflow-x: auto;
-  white-space: pre;
+  /* Wrap rather than clip. The longest line in these examples is the failure
+     message, which is the whole point of the third one -- hiding it behind a
+     horizontal scrollbar buries the punchline. A real terminal wraps too. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .terminal__prompt { color: var(--accent); }
@@ -2669,8 +2677,33 @@ a.metric:hover .metric__value {
 
   .appbar__menu {
     display: inline-flex;
-    position: relative;
+  }
+
+  /* The collapse chevron is meaningless here: there is no icon rail at this
+     width, only the drawer. Leaving it would be a control that does nothing
+     visible, sitting next to one that does. */
+  .sidebar__collapse {
+    display: none;
+  }
+
+  /* And the brand has to start clear of the close button, which is now
+     painted over the panel. */
+  .is-drawer-open .sidebar__head {
+    padding-inline-start: 2.5rem;
+  }
+
+  /* The panel covers the app bar, and a z-index on the button cannot lift it
+     clear: .appbar is `position: sticky; z-index: 20`, which makes it a
+     stacking context, so its children are trapped below the panel at 40 no
+     matter what they ask for. Raising the bar itself is what keeps the
+     morphing cross tappable — otherwise the only way out of the menu is the
+     scrim, and the cross is decoration that lies about what it does. */
+  .is-drawer-open .appbar {
     z-index: 45;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom-color: transparent;
   }
 
   .appbar {
