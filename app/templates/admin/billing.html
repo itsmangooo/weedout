@@ -46,7 +46,7 @@
   </div>
 
   {% if snapshot.untracked_paid_count %}
-    <div class="notice notice--info" style="margin-top:1.25rem">
+    <div class="notice notice--info u-mt-4">
       <p>
         {{ snapshot.untracked_paid_count }}
         {{ snapshot.untracked_paid_count | pluralize('account is', 'accounts are') }}
@@ -58,11 +58,11 @@
   {% endif %}
 </section>
 
-<section style="margin-top:2.5rem" aria-labelledby="subs-heading">
+<section class="u-mt-7" aria-labelledby="subs-heading">
   <div class="card card--flush">
     <div class="card__head">
       <h2 id="subs-heading">Subscribers</h2>
-      <span class="mono dim" style="font-size:0.75rem">{{ subscribers | length }}</span>
+      <span class="mono dim u-text-xs">{{ subscribers | length }}</span>
     </div>
 
     {% if subscribers %}
@@ -78,18 +78,18 @@
               <tr>
                 <td><a href="/admin/users/{{ sub.id }}" class="mono">{{ sub.email }}</a></td>
                 <td>
-                  <span class="badge {% if sub.tier.value == 'pro' %}badge--pro{% endif %}">
+                  <span class="pill {% if sub.tier.value == 'pro' %}pill--calm{% else %}pill--plain{% endif %}">
                     {{ sub.tier.label }}
                   </span>
                 </td>
                 <td>
                   {% set status = (sub.subscription_status or 'unknown') %}
                   {% if status in ('active', 'trialing') %}
-                    <span class="badge badge--calm">{{ status }}</span>
+                    <span class="pill pill--calm">{{ status }}</span>
                   {% elif status == 'on_hold' %}
-                    <span class="badge sev-high">on hold</span>
+                    <span class="pill pill--high">on hold</span>
                   {% else %}
-                    <span class="badge">{{ status }}</span>
+                    <span class="pill pill--plain">{{ status }}</span>
                   {% endif %}
                 </td>
                 <td class="mono">

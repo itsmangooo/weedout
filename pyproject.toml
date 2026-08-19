@@ -5,6 +5,10 @@ description = "Reachable-CVE watchlist for small dev teams. Alerts only on what 
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
+    # Pure-Python QR encoder, no transitive dependencies and no C extension.
+    # Emits inline SVG, which is what lets the 2FA QR render under a CSP that
+    # allows no external images and no inline script.
+    "segno>=1.6",
     "uvicorn[standard]>=0.32",
     "jinja2>=3.1.4",
     "python-multipart>=0.0.20",

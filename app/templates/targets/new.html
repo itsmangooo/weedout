@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>Add a project</h1>
-    <p>Upload a manifest or paste its contents. The first scan runs right away.</p>
+    <p>Name it and pick its ecosystem. The manifest can come later.</p>
   </div>
 </div>
 
@@ -19,30 +19,48 @@
   </div>
 {% endif %}
 
-<div class="card" style="max-width:640px">
-  <form method="post" action="/targets" enctype="multipart/form-data" class="stack">
+<div class="card u-wide">
+  <form method="post" action="/targets" enctype="multipart/form-data" class="stack"
+        data-toast="Project created">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
     <div class="field">
-      <label for="name">Project name <span class="dim">(optional)</span></label>
+      <label for="name">Project name</label>
       <input class="input" type="text" id="name" name="name" maxlength="200"
-             placeholder="Leave blank to use the name in the manifest">
+             placeholder="acme-storefront">
+      <p class="field__hint">
+        Optional if you attach a manifest below — we'll use the name inside it.
+        Required otherwise.
+      </p>
+    </div>
+
+    {# Required when there is no file to infer it from, and harmless when there
+       is: an uploaded manifest whose ecosystem disagrees is refused rather than
+       silently reinterpreting the project. #}
+    <div class="field">
+      <label for="ecosystem">Ecosystem</label>
+      <select class="input" id="ecosystem" name="ecosystem">
+        <option value="">Detect from the manifest</option>
+        <option value="npm">npm — package.json, package-lock.json</option>
+        <option value="PyPI">PyPI — requirements.txt</option>
+        <option value="Go">Go — go.mod</option>
+      </select>
+      <p class="field__hint">Required if you're not attaching a manifest now.</p>
     </div>
 
     <div class="field">
-      <label for="manifest">Manifest file</label>
+      <label for="manifest">Manifest file <span class="dim">(optional)</span></label>
       <input class="input" type="file" id="manifest" name="manifest"
              accept=".json,.txt,.mod,application/json,text/plain">
       <p class="field__hint">
-        <code>package.json</code>, <code>package-lock.json</code>,
-        <code>requirements.txt</code> or <code>go.mod</code>.
-        A lockfile gives exact versions and the most accurate results.
+        Attach one to scan straight away. Leave it out and connect from CI
+        instead — you'll get an API key for this project once it exists.
       </p>
     </div>
 
     <details>
-      <summary class="label" style="cursor:pointer">Or paste the contents instead</summary>
-      <div class="field" style="margin-top:0.875rem">
+      <summary class="label" >Or paste the contents instead</summary>
+      <div class="field u-mt-3">
         <label for="filename">File name</label>
         <input class="input" type="text" id="filename" name="filename"
                placeholder="package.json" maxlength="255">
@@ -64,10 +82,11 @@
   </form>
 </div>
 
-<div class="prose" style="margin-top:2rem;font-size:0.875rem">
+<div class="prose u-mt-6 u-text-sm">
   <p>
-    Your manifest is stored so it can be re-checked on a schedule without you
-    re-uploading it. It lists package names and versions — nothing from your source code.
+    A manifest you attach is stored so it can be re-checked on a schedule without
+    you re-uploading it. It lists package names and versions — nothing from your
+    source code.
   </p>
 </div>
 {% endblock %}

@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 
+{% block breadcrumbs %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="/dashboard">Dashboard</a>
+  <span class="crumbs__sep" aria-hidden="true">/</span>
+  <a href="/alerts">Alerts</a>
+  <span class="crumbs__sep" aria-hidden="true">/</span>
+  <span class="crumbs__here" aria-current="page">{{ match.package_name }}</span>
+</nav>
+{% endblock %}
+
 {% set record = match.vulnerability %}
 {% set cve = (record.cve_ids[0] if record and record.cve_ids else match.vulnerability_id) %}
 
@@ -7,15 +17,15 @@
 <div class="page-head">
   <div>
     <p class="eyebrow">
-      {% if target %}<a href="/targets/{{ target.id }}" style="color:inherit">{{ target.name }}</a> · {% endif %}{{ cve }}
+      {% if target %}<a href="/targets/{{ target.id }}" >{{ target.name }}</a> · {% endif %}{{ cve }}
     </p>
-    <h1 class="mono" style="font-size:var(--step-3)">{{ match.package_name }} <span class="dim">{{ match.package_version }}</span></h1>
-    <div class="btn-row" style="margin-top:0.75rem">
-      <span class="badge {{ match.severity|severity_class }}">{{ match.severity.label }}</span>
-      {% if match.is_kev %}<span class="badge badge--kev">Exploited in the wild</span>{% endif %}
-      {% if match.verdict.value == 'suppressed' %}<span class="badge">Filtered</span>{% endif %}
-      {% if match.status.value == 'dismissed' %}<span class="badge">Dismissed</span>{% endif %}
-      {% if match.status.value == 'resolved' %}<span class="badge badge--calm">Resolved</span>{% endif %}
+    <h1 class="mono" >{{ match.package_name }} <span class="dim">{{ match.package_version }}</span></h1>
+    <div class="btn-row u-mt-3">
+      <span class="pill pill--{{ match.severity.value }}">{{ match.severity.label }}</span>
+      {% if match.is_kev %}<span class="pill pill--exploited">Exploited in the wild</span>{% endif %}
+      {% if match.verdict.value == 'suppressed' %}<span class="pill pill--plain">Filtered</span>{% endif %}
+      {% if match.status.value == 'dismissed' %}<span class="pill pill--plain">Dismissed</span>{% endif %}
+      {% if match.status.value == 'resolved' %}<span class="pill pill--calm">Resolved</span>{% endif %}
     </div>
   </div>
 
@@ -66,7 +76,7 @@
       <section class="explain">
         <h2>CISA exploitation record</h2>
         <p>{{ kev_entry.short_description }}</p>
-        <dl class="datalist" style="margin-top:1rem">
+        <dl class="datalist u-mt-4">
           <dt>Required action</dt><dd>{{ kev_entry.required_action }}</dd>
           {% if kev_entry.date_added %}<dt>Added</dt><dd>{{ kev_entry.date_added }}</dd>{% endif %}
           {% if kev_entry.due_date %}<dt>Federal due date</dt><dd>{{ kev_entry.due_date }}</dd>{% endif %}
@@ -79,7 +89,7 @@
     {% if record and record.details %}
       <section class="explain">
         <h2>Full advisory</h2>
-        <p style="white-space:pre-wrap;color:var(--text-muted);font-size:0.875rem">{{ record.details[:3000] }}</p>
+        <p class="u-prewrap muted u-text-sm">{{ record.details[:3000] }}</p>
       </section>
     {% endif %}
   </div>
@@ -110,12 +120,12 @@
       </dl>
 
       {% if record and record.cvss_vector %}
-        <p class="mono dim" style="margin:1rem 0 0;font-size:0.6875rem;overflow-wrap:anywhere">{{ record.cvss_vector }}</p>
+        <p class="mono dim u-mt-4 u-text-xxs u-wrap-anywhere">{{ record.cvss_vector }}</p>
       {% endif %}
     </div>
 
     {% if record and record.references %}
-      <div class="card" style="margin-top:1rem">
+      <div class="card u-mt-4">
         <h2 class="eyebrow">References</h2>
         <ul class="reference-list">
           {% for url in record.references[:8] %}
@@ -126,14 +136,14 @@
     {% endif %}
 
     {% if delivery %}
-      <div class="card" style="margin-top:1rem">
+      <div class="card u-mt-4">
         <h2 class="eyebrow">Notifications</h2>
         <ul class="reference-list">
           {% for alert in delivery %}
             <li>
-              <span class="mono dim" style="font-size:0.6875rem">{{ alert.channel }}</span>
+              <span class="mono dim u-text-xxs">{{ alert.channel }}</span>
               — {{ alert.status }}{% if alert.sent_at %}, {{ alert.sent_at|relative_time }}{% endif %}
-              {% if alert.error %}<br><span class="dim" style="font-size:0.75rem">{{ alert.error[:120] }}</span>{% endif %}
+              {% if alert.error %}<br><span class="dim u-text-xs">{{ alert.error[:120] }}</span>{% endif %}
             </li>
           {% endfor %}
         </ul>

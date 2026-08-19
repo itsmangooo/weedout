@@ -17,22 +17,47 @@
 
 <div class="card card--flush">
   {% if matches %}
-    <ul class="findings">
+    <div class="table-filter">
+      <input class="table-filter__input" type="search" data-filters="alerts-list"
+             data-count="alerts-count" aria-label="Filter findings"
+             placeholder="Filter by package, CVE or project…">
+      <span class="table-filter__count" id="alerts-count" aria-live="polite">
+        {{ matches|length }} {{ matches|length|pluralize('finding') }}
+      </span>
+    </div>
+    <ul class="findings" id="alerts-list">
       {% for match in matches %}
         {% include "partials/_finding.html" %}
       {% endfor %}
     </ul>
   {% else %}
     <div class="empty">
-      <span class="empty__mark" aria-hidden="true"><i style="height:10px"></i><i style="height:22px"></i><i style="height:15px"></i></span>
-      <h2>Nothing here</h2>
-      <p>
-        {% if selected == 'open' %}
-          No advisory has cleared the alerting bar. Check the Filtered tab to see what was set aside.
-        {% else %}
-          Nothing in this state yet.
-        {% endif %}
-      </p>
+      <span class="empty__mark" aria-hidden="true"><i ></i><i ></i><i ></i></span>
+      {% if selected == 'open' %}
+        <h2>Nothing needs you right now</h2>
+        <p>No advisory has cleared the alerting bar. What matched and didn't clear it is on the Filtered tab, with the reason on each row.</p>
+        <div class="btn-row btn-row--center">
+          <a href="?show=filtered" class="btn">See what was filtered</a>
+        </div>
+      {% elif selected == 'filtered' %}
+        <h2>Nothing has been filtered yet</h2>
+        <p>When an advisory matches your dependencies but doesn't clear the bar, it lands here with the reason it was set aside.</p>
+        <div class="btn-row btn-row--center">
+          <a href="/targets/new" class="btn">Add a project</a>
+        </div>
+      {% elif selected == 'dismissed' %}
+        <h2>Nothing dismissed</h2>
+        <p>Findings you dismiss move here and stop appearing on your dashboard. Nothing has been dismissed yet.</p>
+        <div class="btn-row btn-row--center">
+          <a href="?show=open" class="btn">Back to open findings</a>
+        </div>
+      {% else %}
+        <h2>Nothing resolved yet</h2>
+        <p>A finding moves here once a scan confirms the affected version is gone — you don't have to mark it yourself.</p>
+        <div class="btn-row btn-row--center">
+          <a href="?show=open" class="btn">Back to open findings</a>
+        </div>
+      {% endif %}
     </div>
   {% endif %}
 </div>

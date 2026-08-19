@@ -32,6 +32,7 @@ __all__ = [
     "IssuedKey",
     "authenticate_api_key",
     "issue_api_key",
+    "keys_for_target",
     "keys_for_user",
     "revoke_api_key",
 ]
@@ -132,6 +133,19 @@ async def keys_for_user(db: AsyncSession, user: User) -> list[ApiKey]:
     )
 
 
+async def keys_for_target(db: AsyncSession, target_id: int) -> list[ApiKey]:
+    """Every key issued for one project, live ones first."""
+    return list(
+        (
+            await db.scalars(
+                select(ApiKey)
+                .where(ApiKey.target_id == target_id)
+                .order_by(ApiKey.revoked_at.is_(None).desc(), ApiKey.created_at.desc())
+            )
+        ).all()
+    )
+
+
 async def authenticate_api_key(db: AsyncSession, token: str | None) -> ApiKey | None:
     """Resolve a bearer token to a live key, or None.
 
@@ -158,6 +172,12 @@ async def authenticate_api_key(db: AsyncSession, token: str | None) -> ApiKey | 
         return None
     if record.target is None:
         return None
+
+    # The call count is exact and unthrottled; the timestamp keeps its write
+    # throttle. Counting every call is one integer increment on a row already
+    # loaded, and a count that skipped writes would understate CI activity by
+    # exactly the amount the throttle saved.
+    record.call_count = (record.call_count or 0) + 1
 
     now = utcnow()
     if record.last_used_at is None or now - record.last_used_at > LAST_USED_THROTTLE:

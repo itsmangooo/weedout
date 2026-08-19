@@ -4,11 +4,69 @@
 
 {% block admin_content %}
 
-{# Feed health leads the page. A silently broken feed doesn't break any screen —
-   scans still succeed, dashboards still render — it just makes every answer
-   wrong. So it is the first thing shown, not a footnote. #}
-<section aria-labelledby="feeds-heading">
-  <h2 id="feeds-heading" class="eyebrow">Feed health</h2>
+{# Feed health leads the page, as a single state rather than a row of cards.
+   A silently broken feed doesn't break any screen — scans still succeed,
+   dashboards still render — it just makes every answer wrong. So it is the
+   first thing shown, stated as one word, and the per-feed detail follows. #}
+{% set broken = feeds | selectattr('last_success_at', 'none') | list %}
+{% set stale = feeds | selectattr('is_stale') | selectattr('last_success_at') | list %}
+{% set unhealthy = broken + stale %}
+
+<section class="status-hero {% if broken %}status-hero--exploited{% elif stale %}status-hero--open{% endif %}"
+         aria-labelledby="feeds-heading">
+  <h2 id="feeds-heading" class="visually-hidden">Feed health</h2>
+
+  <div class="status-hero__inner">
+    <div>
+      <span class="status-hero__state">
+        <span class="status-hero__mark" aria-hidden="true">
+          <i class="{% if broken %}is-lit{% endif %}"></i>
+          <i class="{% if unhealthy %}is-lit{% endif %}"></i>
+          <i class="is-lit"></i>
+        </span>
+        {% if broken %}Feed never synced
+        {% elif stale %}Feed stale
+        {% else %}Feeds healthy{% endif %}
+      </span>
+
+      {% if unhealthy %}
+        <span class="status-hero__value">{{ unhealthy | length }}</span>
+        <p class="status-hero__note">
+          {{ 'feed is' if unhealthy|length == 1 else 'feeds are' }} not current, so
+          matching is running against data we know is out of date. Every alert and
+          every all-clear below is suspect until this is fixed.
+        </p>
+      {% else %}
+        <span class="status-hero__word">All feeds current</span>
+        <p class="status-hero__note">
+          {{ feeds | length }} {{ 'source' if feeds|length == 1 else 'sources' }}
+          synced within their freshness window. Matching is running against
+          current advisory data.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="metrics">
+    {% for feed in feeds %}
+      <div class="metric metric--text is-active
+                  {% if not feed.last_success_at %}metric--exploited
+                  {% elif feed.is_stale %}metric--signal
+                  {% else %}metric--calm{% endif %}">
+        <span class="metric__value">
+          <span class="metric__dot" aria-hidden="true"></span>
+          {{ feed.last_success_at | relative_time if feed.last_success_at else 'never' }}
+        </span>
+        <span class="metric__label">{{ feed.label }}</span>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+{# Per-feed detail. Only worth reading once the state above says something is
+   wrong, so it sits below rather than leading. #}
+<section class="section-gap" aria-labelledby="feed-detail-heading">
+  <h2 id="feed-detail-heading" class="eyebrow">Sources</h2>
   <div class="feed-grid">
     {% for feed in feeds %}
       <div class="feed feed--{{ feed.status | replace(' ', '-') }}">
@@ -25,7 +83,7 @@
           {% endif %}
           {% if feed.record_count %}
             <dt>Records</dt>
-            <dd class="mono">{{ feed.record_count }}</dd>
+            <dd class="num">{{ feed.record_count }}</dd>
           {% endif %}
           {% if feed.catalog_version %}
             <dt>Version</dt>
@@ -50,7 +108,7 @@
   </div>
 </section>
 
-<section style="margin-top:2.5rem" aria-labelledby="metrics-heading">
+<section class="section-gap" aria-labelledby="metrics-heading">
   <h2 id="metrics-heading" class="eyebrow">Platform</h2>
   <div class="stat-grid">
     <div class="stat">
@@ -93,12 +151,12 @@
   </div>
 </section>
 
-<section style="margin-top:2.5rem" aria-labelledby="signups-heading">
+<section class="section-gap" aria-labelledby="signups-heading">
   <div class="card">
     <div class="chart-head">
       <div>
-        <h2 id="signups-heading" style="font-size:0.9375rem">Total accounts</h2>
-        <p class="muted" style="font-size:0.8125rem;margin:0.25rem 0 0">
+        <h2 id="signups-heading" class="panel__title u-mb-0">Total accounts</h2>
+        <p class="muted u-text-xs u-mt-2">
           Cumulative, last {{ chart_days }} days.
         </p>
       </div>
@@ -112,7 +170,7 @@
     </div>
 
     {% if chart.empty %}
-      <p class="muted" style="font-size:0.875rem;margin:1.5rem 0 0">
+      <p class="muted u-text-sm u-mt-5">
         No accounts yet. The chart appears after the first signup.
       </p>
     {% else %}
@@ -156,7 +214,7 @@
       {# The table view the chart is an alternative to, not a replacement for. #}
       <details class="chart-table">
         <summary>View as table</summary>
-        <div class="table-scroll" style="max-height:280px;overflow-y:auto">
+        <div class="table-scroll u-scroll-y">
           <table class="table">
             <thead><tr><th>Day</th><th>New</th><th>Total</th></tr></thead>
             <tbody>

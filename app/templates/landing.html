@@ -94,11 +94,11 @@
           </span>
           <span class="flagged__badges">
             {% if finding.is_kev %}
-              <span class="badge badge--kev">Exploited</span>
+              <span class="pill pill--exploited">Exploited</span>
             {% else %}
-              <span class="badge {{ finding.severity|severity_class }}">{{ finding.severity_label }}</span>
+              <span class="pill pill--sm pill--{{ finding.severity }}">{{ finding.severity_label }}</span>
             {% endif %}
-            <span class="badge">{{ finding.ecosystem }}</span>
+            <span class="pill pill--plain">{{ finding.ecosystem }}</span>
           </span>
           <span class="flagged__summary">{{ finding.summary or 'Advisory published for this version.' }}</span>
           <span class="flagged__fix mono">
@@ -150,9 +150,9 @@
                 <span class="trend__label mono">{{ cve.cve_id }}</span>
                 <span class="trend__badges">
                   {% if cve.is_kev %}
-                    <span class="badge badge--kev">Exploited</span>
+                    <span class="pill pill--exploited">Exploited</span>
                   {% else %}
-                    <span class="badge {{ cve.severity|severity_class }}">{{ cve.severity_label }}</span>
+                    <span class="pill pill--sm pill--{{ cve.severity }}">{{ cve.severity_label }}</span>
                   {% endif %}
                 </span>
                 <span class="trend__count mono">
@@ -176,7 +176,7 @@
               <li class="trend__row">
                 <span class="trend__label mono">{{ package.name }}</span>
                 <span class="trend__badges">
-                  <span class="badge">{{ package.ecosystem }}</span>
+                  <span class="pill pill--plain">{{ package.ecosystem }}</span>
                 </span>
                 <span class="trend__count mono">
                   {{ package.project_count }} project{{ '' if package.project_count == 1 else 's' }}
@@ -324,7 +324,7 @@
       more projects — it does not show you a different set of vulnerabilities.
     </p>
 
-    <div class="plans" style="margin-top:2.5rem">
+    <div class="plans u-mt-7">
       {% for tier, plan in PLANS.items() %}
         <div class="plan reveal {% if tier.value == 'pro' %}plan--featured{% endif %}">
           <div class="plan__name">{{ plan.display_name }}</div>
@@ -379,7 +379,7 @@
     <p class="prose">
       Free, no card, and the first scan runs the moment you upload a manifest.
     </p>
-    <div class="btn-row" style="margin-top:2rem">
+    <div class="btn-row u-mt-6">
       <a href="/signup" class="btn btn--primary">Add your first project</a>
       <a href="/docs" class="btn">Read the docs</a>
     </div>

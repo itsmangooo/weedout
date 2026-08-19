@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.manifests import ManifestParseError, detect_manifest_kind, parse_manifest
-from app.core.types import AlertStatus, Severity, Verdict
+from app.core.types import AlertStatus, Ecosystem, Severity, Verdict
 from app.logging_config import get_logger
 from app.models import CVEMatch, TrackedTarget, User, utcnow
 from app.security import content_hash
@@ -20,6 +20,7 @@ __all__ = [
     "TargetError",
     "TargetLimitReached",
     "UnsupportedManifest",
+    "create_empty_target",
     "create_target",
     "delete_target",
     "get_target_for_user",
@@ -56,6 +57,49 @@ async def count_targets(db: AsyncSession, user_id: int) -> int:
             select(func.count(TrackedTarget.id)).where(TrackedTarget.user_id == user_id)
         )
     ) or 0
+
+
+async def create_empty_target(
+    db: AsyncSession,
+    user: User,
+    name: str,
+    ecosystem: Ecosystem,
+) -> TrackedTarget:
+    """Create a project with no manifest yet.
+
+    The file does not have to come first. A project has to exist before an API
+    key can be scoped to it, and scoping keys to projects is what lets a CI
+    runner push a scan — so requiring an upload at creation forced everyone
+    through the browser once before they could use the CLI at all.
+
+    The result is deliberately *not* a scanned project with no findings. It has
+    no `manifest_content` and no `last_scanned_at`, so it reads as "no manifest
+    yet" everywhere rather than as a clean bill of health.
+    """
+    current = await count_targets(db, user.id)
+    if not can_add_target(user.tier, current):
+        raise TargetLimitReached(target_limit_message(user.tier))
+
+    clean = name.strip()
+    if not clean:
+        raise UnsupportedManifest("Give the project a name.")
+
+    target = TrackedTarget(
+        user_id=user.id,
+        name=clean[:200],
+        ecosystem=ecosystem,
+        manifest_kind=None,
+        manifest_content=None,
+        content_hash=None,
+        dependency_count=0,
+        # Nothing to scan, so nothing to schedule. Set when a manifest arrives.
+        next_scan_at=None,
+    )
+    db.add(target)
+    await db.flush()
+
+    log.info("target.created_empty", target_id=target.id, user_id=user.id, ecosystem=str(ecosystem))
+    return target
 
 
 async def create_target(
@@ -133,6 +177,10 @@ async def replace_manifest(
     `package-lock.json` from CI is the same project with better data, and
     forcing the new file through the old parser would reject it as malformed.
     Without a filename the existing kind stands.
+
+    Also the path a project created without a manifest takes when its first one
+    arrives — there is no existing kind to fall back on then, so a filename is
+    required.
     """
     digest = content_hash(content)
     if digest == target.content_hash:
@@ -147,6 +195,15 @@ async def replace_manifest(
                 "package-lock.json, requirements.txt and go.mod."
             )
         kind = detected
+
+    if kind is None:
+        # First manifest for a project created without one, and nothing said
+        # what it is. Guessing from the contents alone would pick the wrong
+        # parser for files that are all valid JSON.
+        raise UnsupportedManifest(
+            "Name the file so its format can be identified — package.json, "
+            "package-lock.json, requirements.txt or go.mod."
+        )
 
     try:
         parsed = parse_manifest(kind, content)

@@ -79,6 +79,61 @@ def severity_class(severity: Severity | str | None) -> str:
     return f"sev-{value}"
 
 
+def device_name(user_agent: str | None) -> str:
+    """A readable name for the thing a session was started from.
+
+    Deliberately coarse. A user agent string cannot identify a device
+    reliably, and pretending otherwise ("MacBook Pro, Chrome 139") invites
+    people to trust a guess. Browser and platform are enough to answer the only
+    question this list exists for: is one of these not me?
+    """
+    if not user_agent:
+        return "Unknown device"
+
+    ua = user_agent
+    lowered = ua.lower()
+
+    # Order matters: Edge and Opera both carry "chrome", and Chrome carries
+    # "safari", so the more specific names have to be tested first.
+    browser = next(
+        (
+            name
+            for token, name in (
+                ("edg/", "Edge"),
+                ("opr/", "Opera"),
+                ("firefox/", "Firefox"),
+                ("chrome/", "Chrome"),
+                ("safari/", "Safari"),
+                ("curl/", "curl"),
+                ("python-httpx", "httpx"),
+                ("weedout-cli", "Weedout CLI"),
+            )
+            if token in lowered
+        ),
+        "Unknown browser",
+    )
+
+    platform = next(
+        (
+            name
+            for token, name in (
+                ("windows", "Windows"),
+                ("android", "Android"),
+                ("iphone", "iPhone"),
+                ("ipad", "iPad"),
+                ("mac os x", "macOS"),
+                ("macintosh", "macOS"),
+                ("cros", "ChromeOS"),
+                ("linux", "Linux"),
+            )
+            if token in lowered
+        ),
+        "",
+    )
+
+    return f"{browser} on {platform}" if platform else browser
+
+
 def pluralize(count: int, singular: str, plural: str | None = None) -> str:
     return singular if count == 1 else (plural or f"{singular}s")
 
@@ -86,6 +141,7 @@ def pluralize(count: int, singular: str, plural: str | None = None) -> str:
 templates.env.filters["relative_time"] = relative_time
 templates.env.filters["absolute_time"] = absolute_time
 templates.env.filters["severity_class"] = severity_class
+templates.env.filters["device_name"] = device_name
 templates.env.filters["pluralize"] = pluralize
 
 # Explanation helpers, so the alert views call one function instead of

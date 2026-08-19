@@ -24,6 +24,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -145,7 +146,25 @@ class User(TimestampMixin, Base):
 
     last_login_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
 
+    #: Base32 TOTP shared secret. Present as soon as setup begins, which is not
+    #: the same as 2FA being on — `totp_confirmed_at` is what gates the login
+    #: flow. Keeping them separate means an abandoned setup cannot lock anyone
+    #: out of their own account.
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_confirmed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    #: The last TOTP counter accepted for this user. A code stays valid for its
+    #: whole 30-second step, so without this the same six digits can be
+    #: replayed until the step rolls over.
+    totp_last_counter: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    @property
+    def two_factor_enabled(self) -> bool:
+        return self.totp_confirmed_at is not None
+
     targets: Mapped[list[TrackedTarget]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+    backup_codes: Mapped[list[BackupCode]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
     sessions: Mapped[list[Session]] = relationship(
@@ -268,6 +287,10 @@ class ApiKey(Base):
     #: Throttled to one write per minute; an exact timestamp is not worth a
     #: database write on every CI run.
     last_used_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    #: Total authenticated calls. Incremented on the same statement that stamps
+    #: `last_used_at`, so the two can never disagree about whether a key has
+    #: ever been used.
+    call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     revoked_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
 
     user: Mapped[User] = relationship()
@@ -318,6 +341,33 @@ class Session(Base):
         return self.revoked_at is None and self.expires_at > utcnow()
 
 
+class BackupCode(Base):
+    """One single-use recovery code for an account with 2FA on.
+
+    Only the hash is stored, and a used code is marked rather than deleted so
+    the Settings page can honestly show how many are left without implying the
+    used ones might still work.
+    """
+
+    __tablename__ = "backup_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, server_default=func.now(), default=utcnow
+    )
+    used_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+
+    user: Mapped[User] = relationship(back_populates="backup_codes")
+
+    @property
+    def is_used(self) -> bool:
+        return self.used_at is not None
+
+
 # ---------------------------------------------------------------------------
 # Tracked targets and their dependencies
 # ---------------------------------------------------------------------------
@@ -339,9 +389,16 @@ class TrackedTarget(TimestampMixin, Base):
     )
 
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    manifest_kind: Mapped[ManifestKind] = mapped_column(
-        enum_column(ManifestKind, "manifest_kind"), nullable=False
+
+    #: Null until a manifest arrives. A project can be created with a name and
+    #: an ecosystem alone, so that an API key can be issued for it and CI can
+    #: push the first scan — the file does not have to come first.
+    manifest_kind: Mapped[ManifestKind | None] = mapped_column(
+        enum_column(ManifestKind, "manifest_kind"), nullable=True
     )
+    #: Chosen at creation and never inferred away. An uploaded file whose
+    #: ecosystem disagrees is refused rather than silently reinterpreting every
+    #: finding already recorded against this project.
     ecosystem: Mapped[Ecosystem] = mapped_column(
         enum_column(Ecosystem, "ecosystem"), nullable=False
     )
@@ -350,9 +407,9 @@ class TrackedTarget(TimestampMixin, Base):
     #: sign-in; uploads and CLI scans both leave it null.
     repo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    manifest_content: Mapped[str] = mapped_column(Text, nullable=False)
+    manifest_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     #: SHA-256 of the manifest, so a re-upload of identical content is a no-op.
-    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
@@ -381,6 +438,33 @@ class TrackedTarget(TimestampMixin, Base):
     api_keys: Mapped[list[ApiKey]] = relationship(
         back_populates="target", cascade="all, delete-orphan", passive_deletes=True
     )
+
+    @property
+    def has_manifest(self) -> bool:
+        """Has anything been uploaded or pushed for this project yet?"""
+        return bool(self.manifest_content)
+
+    @property
+    def has_been_scanned(self) -> bool:
+        """Distinct from `has_manifest`.
+
+        A manifest can be present and unscanned — the first scan runs inline and
+        can fail, for instance against an empty advisory mirror. Conflating the
+        two would report "no findings" for a project that was never checked,
+        which is the reassuring-but-false answer this product exists to avoid.
+        """
+        return self.last_scanned_at is not None
+
+    @property
+    def status_label(self) -> str:
+        """One phrase for where this project is in its lifecycle."""
+        if not self.has_manifest:
+            return "No manifest yet"
+        if not self.has_been_scanned:
+            return "Not scanned yet"
+        if self.last_scan_error:
+            return "Last check failed"
+        return "Watching"
 
     def __repr__(self) -> str:
         return f"<TrackedTarget id={self.id} name={self.name!r}>"

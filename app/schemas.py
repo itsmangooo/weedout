@@ -10,11 +10,35 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
-from app.core.types import AlertStatus, Tier
+from app.core.types import AlertStatus, Ecosystem, Tier
 
 MAX_NAME_LENGTH = 200
+
+
+def first_error(exc: ValidationError) -> str:
+    """The first validation failure, phrased for a person rather than a library.
+
+    Pydantic prefixes messages raised by a field validator with "Value error, ",
+    which is noise on a page. Model-level errors have no field location, and
+    prefixing those with a made-up field name produces "Input: Those passwords
+    don't match" — worse than the sentence on its own.
+    """
+    error = exc.errors()[0]
+    message = error["msg"].removeprefix("Value error, ")
+    if not error["loc"]:
+        return message
+    field = str(error["loc"][0])
+    return f"{field.replace('_', ' ').capitalize()}: {message}"
 
 
 class SignupForm(BaseModel):
@@ -92,6 +116,49 @@ class ResetPasswordForm(BaseModel):
         if self.password != self.password_confirm:
             raise ValueError("Those passwords don't match.")
         return self
+
+
+class NewProjectForm(BaseModel):
+    """Creating a project with no manifest — a name and an ecosystem.
+
+    The ecosystem is required and never guessed. It decides which advisories a
+    later upload is matched against, and a project that silently changed
+    ecosystem would reinterpret every finding recorded against it.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    # No min_length: it would fire before _require_a_real_name and surface
+    # "String should have at least 1 character" instead of the sentence below.
+    name: Annotated[str, Field(max_length=MAX_NAME_LENGTH)]
+    ecosystem: Ecosystem
+
+    @field_validator("name")
+    @classmethod
+    def _require_a_real_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Give the project a name.")
+        return value.strip()
+
+    @field_validator("ecosystem", mode="before")
+    @classmethod
+    def _require_an_ecosystem(cls, value: object) -> object:
+        if value in ("", None):
+            raise ValueError("Choose which ecosystem this project uses.")
+        return value
+
+
+class RenameProjectForm(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: Annotated[str, Field(max_length=MAX_NAME_LENGTH)]
+
+    @field_validator("name")
+    @classmethod
+    def _require_a_real_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Give the project a name.")
+        return value.strip()
 
 
 class TargetCreateForm(BaseModel):

@@ -230,9 +230,12 @@ class TestAuthRoutes:
         assert response.headers["location"] == "/login?next=/dashboard"
 
     async def test_signed_in_user_reaches_the_dashboard(self, auth_client):
+        # The noise ledger only renders once something has matched, so this
+        # asserts on the state readout the dashboard always shows instead.
         response = await auth_client.get("/dashboard")
         assert response.status_code == 200
-        assert "Signal" in response.text
+        assert "Dashboard" in response.text
+        assert "All clear" in response.text
 
 
 class TestApiKeySettings:

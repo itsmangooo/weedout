@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+{# Second step of a sign-in. The password was accepted; what exists at this
+   point is a five-minute signed challenge cookie, not a session — no page in
+   the app is reachable with it. #}
+<div class="card auth-card">
+  <h1>Two-factor</h1>
+  <p class="muted u-text-sm u-mb-5">
+    Enter the code from your authenticator app.
+  </p>
+
+  {% if error %}<div class="notice notice--error" role="alert">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/login/2fa" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ next }}">
+
+    <div class="field">
+      <label for="code">Code</label>
+      <input class="input" type="text" id="code" name="code" required autofocus
+             inputmode="numeric" autocomplete="one-time-code" maxlength="14"
+             placeholder="000000">
+      <p class="field__hint">Lost your phone? A recovery code works here too.</p>
+    </div>
+
+    <button type="submit" class="btn btn--primary btn--block">Continue</button>
+  </form>
+
+  <p class="muted u-text-xs u-mt-5 u-center">
+    <a href="/login">Start over</a>
+  </p>
+</div>
+{% endblock %}

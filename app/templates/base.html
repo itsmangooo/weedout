@@ -6,58 +6,204 @@
   <title>{% if page_title %}{{ page_title }} · Weedout{% else %}Weedout — weed out the noise in your CVE alerts{% endif %}</title>
   <meta name="description" content="Weedout watches your dependency manifests and only tells you about vulnerabilities that are actually exploited in the wild or actually reachable in what you ship.">
   <meta name="color-scheme" content="dark light">
-  <link rel="stylesheet" href="/static/css/weedout.css">
+  {# Synchronous and separate rather than inline: it must run before the
+     first paint, and `script-src 'self'` has no room for an inline block. #}
+  <script src="/static/js/theme.js?v={{ request.app.version }}"></script>
+  {# Versioned so a deploy doesn't leave people on a cached stylesheet from the
+     previous one — a half-updated UI is worse than either version of it. #}
+  <link rel="stylesheet" href="/static/css/weedout.css?v={{ request.app.version }}">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   {% block head %}{% endblock %}
 </head>
-<body>
+{# `has-sidebar` switches the page from the marketing top-bar layout to the
+   application shell. Signed-out pages keep the top bar: there is nothing to
+   navigate between yet, and a sidebar holding two links is furniture. #}
+<body{% if user %} class="has-sidebar"{% endif %}>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <header class="topbar">
-    <div class="wrap topbar__inner">
-      <a class="brand" href="{% if user %}/dashboard{% else %}/{% endif %}">
-        <span class="brand__mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        Weedout
-      </a>
+  {% if user %}
+    {# Drawer scrim, only in play at phone widths. With JavaScript off the
+       sidebar is simply always open, which is the useful default. #}
+    <button class="scrim" type="button" data-close-drawer hidden aria-label="Close navigation"></button>
 
-      <nav class="nav" aria-label="Main">
-        {% if user %}
-          <a href="/dashboard" {% if request.url.path == '/dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
-          <a href="/alerts" {% if request.url.path.startswith('/alerts') %}aria-current="page"{% endif %}>Alerts</a>
-          <a href="/targets/new" {% if request.url.path.startswith('/targets') %}aria-current="page"{% endif %}>Projects</a>
-          <span class="nav__sep" aria-hidden="true"></span>
-          {% if user.is_admin %}
-            {# Convenience only. The access control is `require_admin` on the
-               router — hiding this link protects nothing by itself. #}
-            <a href="/admin" {% if request.url.path.startswith('/admin') %}aria-current="page"{% endif %}>Admin</a>
-          {% endif %}
-          <a href="/settings" {% if request.url.path == '/settings' %}aria-current="page"{% endif %}>Settings</a>
-          <form method="post" action="/logout" style="display:contents">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="btn btn--ghost btn--sm">Sign out</button>
-          </form>
-        {% else %}
+    <aside class="sidebar" id="sidebar" aria-label="Sections">
+      <div class="sidebar__head">
+        <a class="brand" href="/dashboard">
+          <span class="brand__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="brand__word">Weedout</span>
+        </a>
+        <button class="sidebar__collapse" type="button" data-toggle-sidebar
+                aria-controls="sidebar" aria-label="Collapse sidebar">
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>
+        </button>
+      </div>
+
+      <button class="cmdk-trigger" type="button" data-open-palette>
+        <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+        <span class="cmdk-trigger__label">Search</span>
+        <kbd class="cmdk-trigger__key" data-cmdk-key>Ctrl K</kbd>
+      </button>
+
+      <nav class="sidenav">
+        <a class="sidenav__item" href="/dashboard" data-jump="Dashboard"
+           {% if request.url.path == '/dashboard' %}aria-current="page"{% endif %}>
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><path d="M2 9.5 8 3l6 6.5"/><path d="M3.75 8.5V13h8.5V8.5"/></svg>
+          <span class="sidenav__label">Dashboard</span>
+        </a>
+        <a class="sidenav__item" href="/targets/new" data-jump="Add a project"
+           {% if request.url.path.startswith('/targets') %}aria-current="page"{% endif %}>
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><rect x="2.5" y="3.5" width="11" height="9" rx="1.5"/><path d="M2.5 6.5h11"/></svg>
+          <span class="sidenav__label">Projects</span>
+        </a>
+        <a class="sidenav__item" href="/alerts" data-jump="Alerts"
+           {% if request.url.path.startswith('/alerts') %}aria-current="page"{% endif %}>
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><path d="M8 2.5a4 4 0 0 0-4 4c0 3-1.25 4-1.25 4h10.5S12 9.5 12 6.5a4 4 0 0 0-4-4Z"/><path d="M6.75 13a1.5 1.5 0 0 0 2.5 0"/></svg>
+          <span class="sidenav__label">Alerts</span>
+        </a>
+        <a class="sidenav__item" href="/settings" data-jump="Settings"
+           {% if request.url.path == '/settings' %}aria-current="page"{% endif %}>
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><circle cx="8" cy="8" r="2.25"/><path d="M8 1.5v1.75M8 12.75v1.75M14.5 8h-1.75M3.25 8H1.5M12.6 3.4l-1.25 1.25M4.65 11.35 3.4 12.6M12.6 12.6l-1.25-1.25M4.65 4.65 3.4 3.4"/></svg>
+          <span class="sidenav__label">Settings</span>
+        </a>
+
+        {% if user.is_admin %}
+          {# Convenience only. The access control is `require_admin` on the
+             router — hiding this link protects nothing by itself. #}
+          <div class="sidenav__divider" role="presentation"></div>
+          <a class="sidenav__item" href="/admin" data-jump="Admin"
+             {% if request.url.path.startswith('/admin') %}aria-current="page"{% endif %}>
+            <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><path d="M8 1.75 13.25 4v4c0 3.25-2.4 5.4-5.25 6.25C5.15 13.4 2.75 11.25 2.75 8V4Z"/></svg>
+            <span class="sidenav__label">Admin</span>
+          </a>
+        {% endif %}
+      </nav>
+
+      <div class="sidebar__foot">
+        {# Three states, not two: "System" is a real choice and the default, so
+           it needs to be selectable rather than only being what you get before
+           you touch anything. #}
+        <div class="themer" role="group" aria-label="Colour theme">
+          <button class="themer__option" type="button" data-theme-set="light" aria-pressed="false" title="Light">
+            <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M14.5 8H13M3 8H1.5M12.6 3.4l-1 1M4.4 11.6l-1 1M12.6 12.6l-1-1M4.4 4.4l-1-1"/></svg>
+            <span class="visually-hidden">Light</span>
+          </button>
+          <button class="themer__option" type="button" data-theme-set="system" aria-pressed="false" title="Match system">
+            <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><rect x="2" y="3" width="12" height="8" rx="1.5"/><path d="M6 13.5h4"/></svg>
+            <span class="visually-hidden">Match system</span>
+          </button>
+          <button class="themer__option" type="button" data-theme-set="dark" aria-pressed="false" title="Dark">
+            <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/></svg>
+            <span class="visually-hidden">Dark</span>
+          </button>
+        </div>
+
+        <div class="sidebar__who" title="{{ user.email }}">
+          <span class="avatar" aria-hidden="true">{{ user.email[0]|upper }}</span>
+          <span class="sidebar__email">{{ user.email }}</span>
+        </div>
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="sidenav__item sidenav__item--button">
+            <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><path d="M6.5 13.5h-3v-11h3"/><path d="M10 10.5 12.5 8 10 5.5"/><path d="M12.5 8h-7"/></svg>
+            <span class="sidenav__label">Sign out</span>
+          </button>
+        </form>
+      </div>
+    </aside>
+  {% else %}
+    <header class="topbar">
+      <div class="wrap topbar__inner">
+        <a class="brand" href="/">
+          <span class="brand__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          Weedout
+        </a>
+
+        <nav class="nav" aria-label="Main">
           <a href="/docs" {% if request.url.path.startswith('/docs') %}aria-current="page"{% endif %}>Docs</a>
           <a href="/pricing" {% if request.url.path == '/pricing' %}aria-current="page"{% endif %}>Pricing</a>
           <a href="/login">Sign in</a>
           <a href="/signup" class="btn btn--primary btn--sm">Start free</a>
-        {% endif %}
-      </nav>
-    </div>
-  </header>
-
-  <main id="main">
-    {# Pages render their own `error`/`success` notices, positioned where they
-       belong — inside the card on auth screens, above the tabs in admin. A
-       generic copy here would render every one of them a second time. #}
-    {% block body %}
-      <div class="wrap page">
-        {% block content %}{% endblock %}
+        </nav>
       </div>
-    {% endblock %}
-  </main>
+    </header>
+  {% endif %}
 
-  <script src="/static/js/app.js" defer></script>
+  <div class="{% if user %}shell{% else %}contents{% endif %}">
+    {% if user %}
+      <header class="appbar">
+        <button class="appbar__menu" type="button" data-open-drawer aria-controls="sidebar"
+                aria-expanded="false" aria-label="Open navigation">
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>
+        </button>
+        {# One search entry point, and it lives in the sidebar. The app bar used
+           to carry a second magnifying glass that opened the same palette;
+           two triggers for one overlay is two things to explain. On a phone
+           the sidebar is a drawer, so the path is hamburger then Search —
+           one tap further, still the only trigger. #}
+        {% block breadcrumbs %}{% endblock %}
+      </header>
+    {% endif %}
+
+    <main id="main">
+      {# Pages render their own `error`/`success` notices, positioned where they
+         belong — inside the card on auth screens, above the tabs in admin. A
+         generic copy here would render every one of them a second time. #}
+      {% block body %}
+        <div class="wrap page">
+          {% block content %}{% endblock %}
+        </div>
+      {% endblock %}
+    </main>
+  </div>
+
+  {% if user %}
+    {# Command palette. A native <dialog>, so focus trapping, Esc and the
+       backdrop come from the platform rather than from script. Its index is
+       built from the links already on the page — there is no new endpoint and
+       nothing to fetch. #}
+    <dialog class="palette" id="palette" aria-label="Search and jump to">
+      <div class="palette__field">
+        <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+        <input class="palette__input" type="text" id="palette-input" autocomplete="off"
+               placeholder="Jump to a project, a finding, or a page…"
+               role="combobox" aria-expanded="true" aria-controls="palette-results"
+               aria-autocomplete="list">
+        <kbd class="palette__esc">Esc</kbd>
+      </div>
+      <ul class="palette__results" id="palette-results" role="listbox" aria-label="Results"></ul>
+      <p class="palette__empty" id="palette-empty" hidden>Nothing matches that.</p>
+    </dialog>
+  {% endif %}
+
+  {% if user %}
+    {# Shortcut reference, opened with `?`. Every row here is a shortcut that
+       actually exists — a help sheet that lists aspirations is worse than none. #}
+    <dialog class="sheet" id="shortcuts" aria-label="Keyboard shortcuts">
+      <div class="sheet__head">
+        <h2 class="sheet__title">Keyboard shortcuts</h2>
+        <button class="sheet__close" type="button" data-close-modal aria-label="Close">&times;</button>
+      </div>
+      <dl class="shortcuts">
+        <dt><kbd>Ctrl</kbd><kbd>K</kbd></dt><dd>Open the command palette</dd>
+        <dt><kbd>?</kbd></dt><dd>This list</dd>
+        <dt><kbd>G</kbd> <span class="shortcuts__then">then</span> <kbd>D</kbd></dt><dd>Go to Dashboard</dd>
+        <dt><kbd>G</kbd> <span class="shortcuts__then">then</span> <kbd>A</kbd></dt><dd>Go to Alerts</dd>
+        <dt><kbd>G</kbd> <span class="shortcuts__then">then</span> <kbd>P</kbd></dt><dd>Go to Projects</dd>
+        <dt><kbd>G</kbd> <span class="shortcuts__then">then</span> <kbd>S</kbd></dt><dd>Go to Settings</dd>
+        <dt><kbd>[</kbd></dt><dd>Collapse or expand the sidebar</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Close whatever is open</dd>
+      </dl>
+      <p class="sheet__foot">
+        Shortcuts are ignored while you are typing in a field.
+      </p>
+    </dialog>
+  {% endif %}
+
+  {# Toasts are announced, not just shown: a live region means a screen reader
+     hears "Project created" at the same moment everyone else sees it. #}
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <script src="/static/js/app.js?v={{ request.app.version }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

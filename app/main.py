@@ -23,7 +23,18 @@ from app.config import Settings, get_settings
 from app.db import configure_event_loop_policy, dispose_engine
 from app.deps import RedirectToLogin
 from app.logging_config import configure_logging, get_logger
-from app.routes import admin, alerts, api, auth, billing, docs, health, pages, targets
+from app.routes import (
+    admin,
+    alerts,
+    api,
+    auth,
+    billing,
+    docs,
+    events,
+    health,
+    pages,
+    targets,
+)
 from app.templating import render
 
 log = get_logger(__name__)
@@ -148,6 +159,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(docs.router)
     app.include_router(admin.router)
     app.include_router(api.router)
+    app.include_router(events.router)
 
     _register_middleware(app)
     _register_error_handlers(app)

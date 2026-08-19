@@ -29,6 +29,9 @@ from app.schemas import (
     TierChangeForm,
     UserListQuery,
 )
+from app.schemas import (
+    first_error as _first_error,
+)
 from app.services.admin_service import (
     AdminActionError,
     change_user_tier,
@@ -497,15 +500,6 @@ def _docs_edit_with_error(request: Request, page, values: dict, message: str):
         },
         status_code=400,
     )
-
-
-def _first_error(exc: ValidationError) -> str:
-    error = exc.errors()[0]
-    message = error["msg"].removeprefix("Value error, ")
-    if not error["loc"]:
-        return message
-    field = str(error["loc"][0])
-    return f"{field.replace('_', ' ').capitalize()}: {message}"
 
 
 # ---------------------------------------------------------------------------

@@ -2,7 +2,15 @@
 
    The reason it cleared (or didn't clear) the filter leads the row, because that
    is what tells the reader whether to stop what they're doing. Expects `match`
-   in scope, and optionally `target_names` to label which project it came from. #}
+   in scope, and optionally `target_names` to label which project it came from.
+
+   Severity and KEV are stated with the shared `.pill` component — the same one
+   the admin tables and the alert detail use — so a tier looks identical
+   wherever it appears. Each pill carries its word as well as its colour.
+
+   The copy buttons are siblings of the link, not children of it: a button
+   inside an anchor is invalid, unreachable by keyboard in the order you would
+   expect, and ambiguous to assistive technology. #}
 
 {% set record = match.vulnerability %}
 {% set cve = (record.cve_ids[0] if record and record.cve_ids else match.vulnerability_id) %}
@@ -22,8 +30,8 @@
     <span class="finding__title">
       <span class="finding__pkg">{{ match.package_name }}</span>
       <span class="finding__version">{{ match.package_version }}</span>
-      <span class="badge {{ match.severity|severity_class }}">{{ match.severity.label }}</span>
-      {% if match.is_kev %}<span class="badge badge--kev">KEV</span>{% endif %}
+      <span class="pill pill--{{ match.severity.value }}">{{ match.severity.label }}</span>
+      {% if match.is_kev %}<span class="pill pill--exploited">KEV</span>{% endif %}
       <span class="finding__cve">{{ cve }}</span>
     </span>
 
@@ -45,4 +53,17 @@
       {% if not match.version_exact %}<span>Version assumed from range</span>{% endif %}
     </span>
   </a>
+
+  <div class="finding__actions">
+    {# `name@version` is what you actually paste into a shell, so that is what
+       the button hands over — not the package name on its own. #}
+    <button class="copy" type="button"
+            data-copy="{{ match.package_name }}@{{ match.package_version }}"
+            aria-label="Copy {{ match.package_name }}@{{ match.package_version }}">
+      <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5V9a1.5 1.5 0 0 0 1.5 1.5h1"/></svg>
+    </button>
+    <button class="copy" type="button" data-copy="{{ cve }}" aria-label="Copy {{ cve }}">
+      <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5V9a1.5 1.5 0 0 0 1.5 1.5h1"/></svg>
+    </button>
+  </div>
 </li>

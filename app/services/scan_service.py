@@ -44,6 +44,15 @@ log = get_logger(__name__)
 __all__ = ["MirrorUnavailable", "ScanOutcome", "scan_target"]
 
 
+class NoManifest(RuntimeError):
+    """The project has nothing to scan yet.
+
+    Not an error in the usual sense — it is the normal state of a project that
+    was created before its first upload. Callers report it as a state rather
+    than a failure.
+    """
+
+
 class MirrorUnavailable(RuntimeError):
     """The local advisory mirror is empty, so no scan can be trusted."""
 
@@ -86,6 +95,18 @@ async def scan_target(
 
     try:
         result = await _run_pipeline(db, target, policy)
+    except NoManifest as exc:
+        # Not a failure: this is what a project looks like between being created
+        # and receiving its first file. The run row is discarded rather than
+        # recorded, so "Recent checks" does not fill with entries for checks
+        # that never had anything to check — and `last_scanned_at` stays null,
+        # which is what keeps the project out of the "scanned, clean" state.
+        message = str(exc)
+        log.info("scan.skipped_no_manifest", target_id=target.id)
+        await db.delete(run)
+        _schedule_next_scan(target, tier)
+        outcome.errors.append(message)
+        return outcome
     except ManifestParseError as exc:
         message = f"Could not parse manifest: {exc}"
         log.warning("scan.parse_failed", target_id=target.id, error=str(exc))
@@ -158,6 +179,14 @@ async def _run_pipeline(
     maintains, so a scan is bounded by database latency rather than by OSV's,
     and an OSV outage cannot fail or delay a CI pipeline waiting on this.
     """
+    if not target.has_manifest or target.manifest_kind is None:
+        # A project created without a file. Nothing to scan, and refusing here
+        # keeps it out of the "scanned, clean" state it has not earned.
+        raise NoManifest(
+            "This project has no manifest yet. Upload one, or push a scan with "
+            "the CLI using an API key for this project."
+        )
+
     parsed = parse_manifest(target.manifest_kind, target.manifest_content)
     dependencies = parsed.dependencies
     target.parse_warnings = parsed.warnings[:50]

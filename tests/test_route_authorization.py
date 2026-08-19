@@ -28,6 +28,11 @@ PUBLIC_ROUTES: dict[str, str] = {
     "/healthz": "liveness probe",
     "/readyz": "readiness probe",
     "/login": "sign-in form and submission",
+    "/login/2fa": (
+        "second step of signing in; the caller has no session yet by definition. "
+        "Guarded instead by a short-lived signed challenge cookie naming the "
+        "account, which is checked before any code is even looked at."
+    ),
     "/signup": "sign-up form and submission",
     "/logout": "ends a session; harmless without one",
     "/forgot-password": "reset request; identical response either way",

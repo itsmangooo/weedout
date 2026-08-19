@@ -241,6 +241,57 @@ async def revoke_all_sessions(db: AsyncSession, user_id: int) -> None:
     )
 
 
+async def active_sessions(db: AsyncSession, user: User) -> list[Session]:
+    """Every session that could still be used to act as this user.
+
+    Expired and revoked rows are left out rather than shown greyed: the list
+    exists so somebody can spot a session they do not recognise, and padding it
+    with dead ones makes that harder, not easier.
+    """
+    rows = await db.scalars(
+        select(Session)
+        .where(
+            Session.user_id == user.id,
+            Session.revoked_at.is_(None),
+            Session.expires_at > utcnow(),
+        )
+        .order_by(Session.last_seen_at.desc())
+    )
+    return list(rows.all())
+
+
+async def revoke_session_by_id(db: AsyncSession, user: User, session_id: int) -> Session | None:
+    """Revoke one session, scoped to its owner.
+
+    Scoped by `user_id` as well as `id` so a guessed identifier from another
+    account is a 404 rather than someone else being signed out.
+    """
+    session = await db.scalar(
+        select(Session).where(Session.id == session_id, Session.user_id == user.id)
+    )
+    if session is None:
+        return None
+    if session.revoked_at is None:
+        session.revoked_at = utcnow()
+        log.info("session.revoked", user_id=user.id, session_id=session.id)
+    return session
+
+
+async def revoke_sessions_except(db: AsyncSession, user: User, except_hash: str | None) -> int:
+    """Sign out everywhere but here. Returns how many were ended."""
+    query = update(Session).where(
+        Session.user_id == user.id,
+        Session.revoked_at.is_(None),
+    )
+    if except_hash:
+        query = query.where(Session.token_hash != except_hash)
+
+    result = await db.execute(query.values(revoked_at=utcnow()))
+    count = result.rowcount or 0
+    log.info("session.revoked_others", user_id=user.id, count=count)
+    return count
+
+
 async def purge_expired_sessions(db: AsyncSession, older_than_days: int = 30) -> int:
     """Delete long-dead session rows. Run from the scheduler."""
     cutoff = utcnow() - timedelta(days=older_than_days)

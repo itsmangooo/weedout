@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="card auth-card" style="text-align:center">
+<div class="card auth-card u-center">
   <h1>Payment received</h1>
   {% if already_upgraded %}
     <p class="muted">Your account is on Pro. Unlimited projects, checked every 4 hours.</p>
-    <div class="btn-row" style="justify-content:center;margin-top:1.5rem">
+    <div class="btn-row btn-row--center">
       <a href="/targets/new" class="btn btn--primary">Add another project</a>
     </div>
   {% else %}
@@ -15,7 +15,7 @@
       Dodo has your payment. Your plan updates as soon as their confirmation reaches us,
       usually within a minute. Refresh this page or check your settings.
     </p>
-    <div class="btn-row" style="justify-content:center;margin-top:1.5rem">
+    <div class="btn-row btn-row--center">
       <a href="/settings" class="btn">Check plan status</a>
       <a href="/dashboard" class="btn btn--ghost">Back to dashboard</a>
     </div>

@@ -1,0 +1,199 @@
+{# Project settings: rename, keys, schedule, delete. Same card/field/panel
+   patterns as the account Settings page, so nothing new to learn. Spacing
+   between panels comes from the `.panels` grid rather than a margin on each
+   card, so adding or reordering one cannot get it wrong. #}
+
+<div class="panels">
+<div class="card">
+  <h2 class="panel__title">Name</h2>
+  <form method="post" action="/targets/{{ target.id }}/rename" class="stack"
+        data-toast="Project renamed">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="project_name">Project name</label>
+      <input class="input" type="text" id="project_name" name="name" maxlength="200"
+             value="{{ target.name }}" required>
+      <p class="field__hint">Only a label. Findings and history are unaffected.</p>
+    </div>
+    <button type="submit" class="btn">Save</button>
+  </form>
+</div>
+
+{# Keys are scoped to a project, not an account (see the ApiKey model), so this
+   panel belongs here rather than on the account page: a key leaked from a build
+   log can only push scans for the one repository that build was for. #}
+<div class="card">
+  <h2 class="panel__title">API keys</h2>
+  <p class="panel__intro">
+    For pushing scans from CI with <code>weedout scan</code>. These keys work for
+    <strong>{{ target.name }}</strong> and nothing else.
+  </p>
+
+  {# Whether CI is actually reaching this project. A key that has never been
+     used usually means the secret was never set on the runner, and that is
+     worth being able to see rather than guess. #}
+  {% set live_keys = api_keys | selectattr('is_active') | list %}
+  {% if live_keys %}
+    {% set used = live_keys | selectattr('last_used_at') | list %}
+    <div class="usage {% if not used %}usage--idle{% endif %}">
+      <span class="usage__figure">
+        <span class="usage__value">
+          {% if used %}{{ used | map(attribute='last_used_at') | max | relative_time }}
+          {% else %}Never{% endif %}
+        </span>
+        <span class="usage__label">Last call</span>
+      </span>
+      <span class="usage__figure">
+        <span class="usage__value">{{ live_keys | sum(attribute='call_count') }}</span>
+        <span class="usage__label">Calls total</span>
+      </span>
+      <span class="usage__figure">
+        <span class="usage__value">{{ live_keys | length }}</span>
+        <span class="usage__label">Active {{ live_keys | length | pluralize('key') }}</span>
+      </span>
+    </div>
+    {% if not used %}
+      <p class="field__hint">
+        No CI run has used a key for this project yet. Set
+        <code>WEEDOUT_API_KEY</code> on your runner.
+      </p>
+    {% endif %}
+  {% endif %}
+
+  {% if new_api_key %}
+    <div class="keyreveal" role="status">
+      <p class="keyreveal__head">Your new key for <strong>{{ target.name }}</strong></p>
+      <span class="keyreveal__row copy-host" data-copy-source="{{ new_api_key }}">
+        <code class="keyreveal__value mono">{{ new_api_key }}</code>
+        <button class="copy" type="button" data-copy="{{ new_api_key }}"
+                aria-label="Copy API key">
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5V9a1.5 1.5 0 0 0 1.5 1.5h1"/></svg>
+        </button>
+      </span>
+      <p class="keyreveal__note">
+        Copy it now. Only a hash is stored, so this is the last time it can be
+        shown — if you lose it, revoke the key and create another.
+      </p>
+    </div>
+  {% endif %}
+
+  <form method="post" action="/targets/{{ target.id }}/keys" data-toast="API key created">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="key_name">Label <span class="dim">(optional)</span></label>
+      <input class="input" type="text" id="key_name" name="name" maxlength="120"
+             placeholder="github-actions" autocomplete="off">
+      <p class="field__hint">Only so you can tell your keys apart later.</p>
+    </div>
+    <button type="submit" class="btn">Create key</button>
+  </form>
+
+  {% if api_keys %}
+    <table class="keytable u-mt-5">
+      <thead>
+        <tr>
+          <th scope="col">Key</th>
+          <th scope="col">Last used</th>
+          <th scope="col">Calls</th>
+          <th scope="col"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key in api_keys %}
+          <tr{% if not key.is_active %} class="keytable__row--revoked"{% endif %}>
+            <td>
+              <span class="mono">{{ key.prefix }}…</span>
+              {% if key.name %}<span class="dim">{{ key.name }}</span>{% endif %}
+            </td>
+            <td class="dim">
+              {% if not key.is_active %}
+                Revoked {{ key.revoked_at|relative_time }}
+              {% elif key.last_used_at %}
+                {{ key.last_used_at|relative_time }}
+              {% else %}
+                Never
+              {% endif %}
+            </td>
+            <td class="dim num">
+              {{ key.call_count or '—' }}
+            </td>
+            <td class="u-right">
+              {% if key.is_active %}
+                <form method="post" action="/targets/{{ target.id }}/keys/{{ key.id }}/revoke"
+                      data-toast="Key revoked">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn--ghost btn--sm">Revoke</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+{# Read-only: the interval comes from the plan, not from a per-project setting,
+   so offering a control here would imply a choice that does not exist. #}
+<div class="card">
+  <h2 class="panel__title">Schedule</h2>
+  <dl class="datalist">
+    <dt>Checked</dt><dd>{{ limits.scan_frequency_label }}</dd>
+    <dt>Plan</dt><dd>{{ limits.display_name }}</dd>
+    <dt>Next check</dt>
+    <dd>
+      {% if target.next_scan_at %}{{ target.next_scan_at|relative_time }}
+      {% elif target.has_manifest %}<span class="dim">On the next sweep</span>
+      {% else %}<span class="dim">Nothing to check yet</span>{% endif %}
+    </dd>
+  </dl>
+  <p class="panel__intro u-mb-0">
+    Set by your plan rather than per project.
+    {% if limits.tier.value == 'free' %}<a href="/pricing">Pro</a> checks every four hours.{% endif %}
+    {# "Check now" only exists once there is a manifest to check. Offering it
+       here on an empty project would point at a button that isn't there. #}
+    {% if target.has_manifest %}
+      You can always use <strong>Check now</strong>, or push a scan from CI.
+    {% else %}
+      Checks begin once this project has a manifest.
+    {% endif %}
+  </p>
+</div>
+
+{# Replacing the manifest, for a project that already has one. The first upload
+   happens on Overview, where the empty state explains itself. #}
+{% if target.has_manifest %}
+  <div class="card">
+    <h2 class="panel__title">Manifest</h2>
+    <p class="panel__intro">
+      Currently <code>{{ target.manifest_kind.value if target.manifest_kind else '—' }}</code>.
+      Uploading a new one replaces it and re-checks immediately. It must still be
+      {{ target.ecosystem.label }} — a different ecosystem is a different project.
+    </p>
+    <form method="post" action="/targets/{{ target.id }}/manifest"
+          enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="replace_manifest">Replace manifest</label>
+        <input class="input" type="file" id="replace_manifest" name="manifest"
+               accept=".json,.txt,.mod,application/json,text/plain">
+      </div>
+      <button type="submit" class="btn" data-busy-text="Checking…">Upload and check</button>
+    </form>
+  </div>
+{% endif %}
+
+<div class="card card--danger">
+  <h2 class="panel__title">Delete this project</h2>
+  <p class="panel__intro">
+    Removes <strong>{{ target.name }}</strong> along with every finding, its scan
+    history, its stored manifest and its API keys. Dismissals and resolved
+    findings go too. This cannot be undone.
+  </p>
+  <form method="post" action="/targets/{{ target.id }}/delete" data-toast="Project deleted"
+        data-confirm="Delete {{ target.name }}? Every finding, check and API key for it is removed. This can't be undone.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="btn btn--danger">Delete project</button>
+  </form>
+</div>
+</div>

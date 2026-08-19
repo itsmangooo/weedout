@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import time
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Form, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse, Response
 from pydantic import ValidationError
 
 from app.config import get_settings
+from app.core.totp import provisioning_uri
 from app.deps import (
     CsrfProtected,
     CurrentUser,
@@ -18,6 +22,7 @@ from app.deps import (
     redirect,
 )
 from app.logging_config import get_logger
+from app.models import User
 from app.schemas import (
     AlertPreferencesForm,
     ApiKeyForm,
@@ -27,6 +32,10 @@ from app.schemas import (
     ResetPasswordForm,
     SignupForm,
 )
+from app.schemas import (
+    first_error as _first_error,
+)
+from app.security import hash_session_token, verify_password
 from app.services.api_key_service import (
     ApiKeyError,
     issue_api_key,
@@ -38,11 +47,14 @@ from app.services.auth_service import (
     EmailAlreadyRegistered,
     InvalidCredentials,
     WeakPassword,
+    active_sessions,
     authenticate,
     change_password,
     create_session,
     register_user,
     revoke_session,
+    revoke_session_by_id,
+    revoke_sessions_except,
 )
 from app.services.password_reset_service import (
     InvalidResetToken,
@@ -57,11 +69,100 @@ from app.services.rate_limit_service import (
     record_attempt,
 )
 from app.services.target_service import get_target_for_user, list_targets
+from app.services.twofactor_service import ISSUER as TOTP_ISSUER
+from app.services.twofactor_service import (
+    SetupOffer,
+    TwoFactorError,
+    backup_code_status,
+    begin_setup,
+    confirm_setup,
+    qr_svg,
+    regenerate_backup_codes,
+)
+from app.services.twofactor_service import disable as disable_two_factor_for
+from app.services.twofactor_service import verify_code as verify_second_factor
 from app.templating import render
 
 log = get_logger(__name__)
 
 router = APIRouter(tags=["auth"])
+
+
+#: How long the gap between password and code may be. Long enough to open an
+#: authenticator and wait out a rollover, short enough that a challenge left on
+#: a shared machine is not useful later.
+CHALLENGE_TTL_SECONDS = 300
+
+_CHALLENGE_COOKIE = "weedout_mfa"
+
+
+def _sign_challenge(user_id: int, expires_at: int) -> str:
+    """`{user_id}.{expires}.{hmac}`, keyed on SECRET_KEY.
+
+    A signed value rather than a database row because it is not a session and
+    should not look like one: nothing to revoke, nothing to clean up, and it
+    stops meaning anything the moment it expires. The signature covers both
+    fields, so neither the account nor the expiry can be edited.
+    """
+    payload = f"{user_id}.{expires_at}"
+    digest = hmac.new(
+        get_settings().secret_key.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return f"{payload}.{digest}"
+
+
+def _read_challenge(request: Request) -> int | None:
+    """The user id from a valid, unexpired challenge cookie, or None."""
+    raw = request.cookies.get(_CHALLENGE_COOKIE)
+    if not raw:
+        return None
+
+    parts = raw.split(".")
+    if len(parts) != 3:
+        return None
+
+    user_id_raw, expires_raw, _ = parts
+    try:
+        user_id = int(user_id_raw)
+        expires_at = int(expires_raw)
+    except ValueError:
+        return None
+
+    # Constant-time, and recomputed from the claimed fields rather than trusted.
+    if not hmac.compare_digest(_sign_challenge(user_id, expires_at), raw):
+        return None
+    if expires_at < int(time.time()):
+        return None
+    return user_id
+
+
+def _set_challenge_cookie(response: Response, user) -> None:
+    settings = get_settings()
+    expires_at = int(time.time()) + CHALLENGE_TTL_SECONDS
+    response.set_cookie(
+        _CHALLENGE_COOKIE,
+        _sign_challenge(user.id, expires_at),
+        max_age=CHALLENGE_TTL_SECONDS,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.session_cookie_samesite,
+        path="/",
+    )
+
+
+def _clear_challenge_cookie(response: Response) -> None:
+    response.delete_cookie(_CHALLENGE_COOKIE, path="/")
+
+
+def _session_hash_from_request(request: Request) -> str | None:
+    """The stored hash of the session this request arrived on.
+
+    Used to mark "this device" in the list and to avoid signing yourself out
+    when you meant to sign out everything else. Hashing here rather than
+    comparing raw tokens keeps the plaintext out of the template context.
+    """
+    token = request.cookies.get(get_settings().session_cookie_name)
+    return hash_session_token(token) if token else None
 
 
 def _set_session_cookie(response: RedirectResponse, token: str) -> None:
@@ -232,11 +333,98 @@ async def login_submit(
             status_code=401,
         )
 
+    # The password was right, but it is not a session yet. An account with 2FA
+    # on gets a short-lived challenge instead: a signed cookie naming the user
+    # and an expiry, and nothing else. It is not a session — it cannot be used
+    # to reach any page — so a stolen one is worth only the remaining minutes
+    # of a second-factor prompt.
+    if user.two_factor_enabled:
+        await db.commit()
+        response = render(
+            request,
+            "auth/two_factor.html",
+            {"page_title": "Two-factor", "next": form.next},
+        )
+        _set_challenge_cookie(response, user)
+        log.info("auth.login_awaiting_second_factor", user_id=user.id)
+        return response
+
     token = await create_session(db, user, request.headers.get("user-agent"), _client_ip(request))
     await db.commit()
 
     response = redirect(form.next)
     _set_session_cookie(response, token)
+    return response
+
+
+@router.post("/login/2fa", dependencies=[CsrfProtected])
+async def login_second_factor(
+    request: Request,
+    db: DbSession,
+    code: Annotated[str, Form()] = "",
+    next: Annotated[str, Form()] = "/dashboard",
+):
+    """Second step of a login for an account with 2FA on."""
+    settings = get_settings()
+    page = {"page_title": "Two-factor", "next": next}
+
+    user_id = _read_challenge(request)
+    if user_id is None:
+        return render(
+            request,
+            "auth/login.html",
+            {
+                "page_title": "Sign in",
+                "next": next,
+                "error": "That took too long. Sign in again.",
+            },
+            status_code=400,
+        )
+
+    # Rate limited on the same buckets as a password attempt: six digits is a
+    # small space and an unlimited prompt is a brute-force target.
+    window = timedelta(minutes=settings.login_rate_limit_window_minutes)
+    ip_bucket = bucket_for("login", "ip", client_ip(request, settings))
+    account_bucket = bucket_for("login", "account", str(user_id))
+    for bucket, limit in (
+        (ip_bucket, settings.login_rate_limit_per_ip),
+        (account_bucket, settings.login_rate_limit_per_account),
+    ):
+        decision = await check_rate_limit(db, bucket, limit, window)
+        if not decision.allowed:
+            log.warning("auth.second_factor_rate_limited", used=decision.used)
+            return _rate_limited(
+                request, "auth/two_factor.html", page, decision, "Too many attempts."
+            )
+
+    user = await db.get(User, user_id)
+    if user is None or not user.two_factor_enabled:
+        return render(
+            request,
+            "auth/login.html",
+            {"page_title": "Sign in", "next": next, "error": "Sign in again."},
+            status_code=400,
+        )
+
+    if not await verify_second_factor(db, user, code):
+        await record_attempt(db, ip_bucket)
+        await record_attempt(db, account_bucket)
+        await db.commit()
+        log.info("auth.second_factor_failed", user_id=user.id)
+        return render(
+            request,
+            "auth/two_factor.html",
+            {**page, "error": "That code isn't right. Try the one showing now."},
+            status_code=401,
+        )
+
+    token = await create_session(db, user, request.headers.get("user-agent"), _client_ip(request))
+    await db.commit()
+
+    log.info("auth.login_second_factor_ok", user_id=user.id)
+    response = redirect(next if next.startswith("/") else "/dashboard")
+    _set_session_cookie(response, token)
+    _clear_challenge_cookie(response)
     return response
 
 
@@ -411,13 +599,14 @@ async def reset_password_submit(
 # ---------------------------------------------------------------------------
 
 
-async def _settings_context(db, user, **extra) -> dict:
+async def _settings_context(request, db, user, **extra) -> dict:
     """Everything the settings page needs, in one place.
 
     Built by a helper because the page is re-rendered from six handlers, and a
     context assembled inline in each of them is a context that ends up
     different in each of them.
     """
+    unused_codes, total_codes = await backup_code_status(db, user)
     context = {
         "page_title": "Settings",
         "api_keys": await keys_for_user(db, user),
@@ -425,6 +614,11 @@ async def _settings_context(db, user, **extra) -> dict:
         # key form only needs to name a project, so the targets are unwrapped
         # here rather than making the template reach through a wrapper.
         "targets": [summary.target for summary in await list_targets(db, user.id)],
+        "sessions": await active_sessions(db, user),
+        "current_session_hash": _session_hash_from_request(request),
+        "two_factor_enabled": user.two_factor_enabled,
+        "backup_codes_unused": unused_codes,
+        "backup_codes_total": total_codes,
     }
     context.update(extra)
     return context
@@ -432,7 +626,7 @@ async def _settings_context(db, user, **extra) -> dict:
 
 @router.get("/settings")
 async def settings_page(request: Request, db: DbSession, user: CurrentUser):
-    return render(request, "settings.html", await _settings_context(db, user))
+    return render(request, "settings.html", await _settings_context(request, db, user))
 
 
 @router.post("/settings/alerts", dependencies=[CsrfProtected])
@@ -449,7 +643,191 @@ async def update_alert_preferences(
     return render(
         request,
         "settings.html",
-        await _settings_context(db, user, success="Alert preferences saved."),
+        await _settings_context(request, db, user, success="Alert preferences saved."),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Two-factor authentication
+#
+# Setup is two-phase on purpose: a secret exists from the moment you start, but
+# 2FA is only in force once a working code has been produced from it. Someone
+# who scans the QR and closes the tab is not locked out of their own account.
+# ---------------------------------------------------------------------------
+
+
+@router.post("/settings/2fa/start", dependencies=[CsrfProtected])
+async def start_two_factor(request: Request, db: DbSession, user: CurrentUser):
+    try:
+        offer = await begin_setup(db, user)
+    except TwoFactorError as exc:
+        return render(
+            request,
+            "settings.html",
+            await _settings_context(request, db, user, error=str(exc)),
+            status_code=400,
+        )
+    await db.commit()
+
+    # The secret and its QR live in this response only. They are not put in the
+    # session, not redirected to, and not logged.
+    return render(
+        request,
+        "settings.html",
+        await _settings_context(
+            request,
+            db,
+            user,
+            totp_setup=offer,
+            totp_qr=qr_svg(offer.uri),
+        ),
+    )
+
+
+@router.post("/settings/2fa/confirm", dependencies=[CsrfProtected])
+async def confirm_two_factor(
+    request: Request,
+    db: DbSession,
+    user: CurrentUser,
+    code: Annotated[str, Form()] = "",
+):
+    try:
+        issued = await confirm_setup(db, user, code)
+    except TwoFactorError as exc:
+        # Re-offer the same secret rather than generating a new one: making the
+        # user re-scan because they fat-fingered six digits is a bad trade.
+        offer = None
+        qr = None
+        if user.totp_secret and not user.two_factor_enabled:
+            offer = SetupOffer(
+                secret=user.totp_secret,
+                uri=provisioning_uri(user.totp_secret, account=user.email, issuer=TOTP_ISSUER),
+            )
+            qr = qr_svg(offer.uri)
+        return render(
+            request,
+            "settings.html",
+            await _settings_context(
+                request, db, user, error=str(exc), totp_setup=offer, totp_qr=qr
+            ),
+            status_code=400,
+        )
+
+    await db.commit()
+    return render(
+        request,
+        "settings.html",
+        await _settings_context(
+            request,
+            db,
+            user,
+            success="Two-factor authentication is on.",
+            new_backup_codes=issued.codes,
+        ),
+    )
+
+
+@router.post("/settings/2fa/codes", dependencies=[CsrfProtected])
+async def regenerate_codes(request: Request, db: DbSession, user: CurrentUser):
+    if not user.two_factor_enabled:
+        raise HTTPException(status_code=404, detail="Two-factor authentication isn't on.")
+
+    issued = await regenerate_backup_codes(db, user)
+    await db.commit()
+    return render(
+        request,
+        "settings.html",
+        await _settings_context(
+            request,
+            db,
+            user,
+            success="New recovery codes issued. The old ones no longer work.",
+            new_backup_codes=issued.codes,
+        ),
+    )
+
+
+@router.post("/settings/2fa/disable", dependencies=[CsrfProtected])
+async def disable_two_factor(
+    request: Request,
+    db: DbSession,
+    user: CurrentUser,
+    password: Annotated[str, Form()] = "",
+):
+    """Turning 2FA off is re-authenticated.
+
+    Otherwise a borrowed, already-authenticated session is enough to strip the
+    second factor from the account — which is exactly the situation the second
+    factor exists for.
+    """
+    if not user.password_hash or not verify_password(password, user.password_hash):
+        return render(
+            request,
+            "settings.html",
+            await _settings_context(
+                request, db, user, error="That password isn't right. Two-factor is still on."
+            ),
+            status_code=400,
+        )
+
+    await disable_two_factor_for(db, user)
+    await db.commit()
+    return render(
+        request,
+        "settings.html",
+        await _settings_context(request, db, user, success="Two-factor authentication is off."),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sessions
+# ---------------------------------------------------------------------------
+
+
+@router.post("/settings/sessions/{session_id}/revoke", dependencies=[CsrfProtected])
+async def revoke_one_session(request: Request, db: DbSession, user: CurrentUser, session_id: int):
+    """Revoke a single session.
+
+    Sessions are validated by a row lookup on every request, so this takes
+    effect on that session's very next request — there is no token still
+    floating around that remains self-validating.
+    """
+    revoked = await revoke_session_by_id(db, user, session_id)
+    if not revoked:
+        raise HTTPException(status_code=404, detail="No such session.")
+    await db.commit()
+
+    # Revoking the session you are sitting in is a sign-out, and pretending
+    # otherwise would leave the page working until the next click.
+    if revoked.token_hash == _session_hash_from_request(request):
+        response = redirect("/login")
+        _clear_session_cookie(response)
+        return response
+
+    return render(
+        request,
+        "settings.html",
+        await _settings_context(request, db, user, success="That session was signed out."),
+    )
+
+
+@router.post("/settings/sessions/revoke-others", dependencies=[CsrfProtected])
+async def revoke_other_sessions(request: Request, db: DbSession, user: CurrentUser):
+    count = await revoke_sessions_except(db, user, _session_hash_from_request(request))
+    await db.commit()
+    return render(
+        request,
+        "settings.html",
+        await _settings_context(
+            request,
+            db,
+            user,
+            success=(
+                "Signed out everywhere else."
+                if count
+                else "There were no other sessions to sign out."
+            ),
+        ),
     )
 
 
@@ -477,7 +855,7 @@ async def create_api_key(
         return render(
             request,
             "settings.html",
-            await _settings_context(db, user, error=_first_error(exc)),
+            await _settings_context(request, db, user, error=_first_error(exc)),
             status_code=400,
         )
 
@@ -486,7 +864,7 @@ async def create_api_key(
         return render(
             request,
             "settings.html",
-            await _settings_context(db, user, error="That project could not be found."),
+            await _settings_context(request, db, user, error="That project could not be found."),
             status_code=404,
         )
 
@@ -496,7 +874,7 @@ async def create_api_key(
         return render(
             request,
             "settings.html",
-            await _settings_context(db, user, error=str(exc)),
+            await _settings_context(request, db, user, error=str(exc)),
             status_code=400,
         )
 
@@ -506,6 +884,7 @@ async def create_api_key(
         request,
         "settings.html",
         await _settings_context(
+            request,
             db,
             user,
             new_api_key=issued.token,
@@ -521,7 +900,7 @@ async def revoke_key(request: Request, db: DbSession, user: CurrentUser, key_id:
         return render(
             request,
             "settings.html",
-            await _settings_context(db, user, error="That key could not be found."),
+            await _settings_context(request, db, user, error="That key could not be found."),
             status_code=404,
         )
     await db.commit()
@@ -564,21 +943,6 @@ async def update_password(
     response = redirect("/settings")
     _set_session_cookie(response, token)
     return response
-
-
-def _first_error(exc: ValidationError) -> str:
-    error = exc.errors()[0]
-    message = error["msg"].removeprefix("Value error, ")
-
-    # Model-level errors (a cross-field check like "passwords must match") have
-    # no field location. Prefixing those with a made-up field name produces
-    # "Input: Those passwords don't match", which is worse than the sentence on
-    # its own.
-    if not error["loc"]:
-        return message
-
-    field = str(error["loc"][0])
-    return f"{field.replace('_', ' ').capitalize()}: {message}"
 
 
 def _rate_limited(request: Request, template: str, context: dict, decision, headline: str):

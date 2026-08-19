@@ -5,117 +5,442 @@
    urgency. This product's claim is the opposite, so the interface is a reading
    surface, not a monitoring surface. Quiet, spacious, mostly empty.
 
-   Two accents, each with one job and no decorative use:
-     --signal    warm amber — "this is worth reading"
-     --exploited clay       — reserved exclusively for CISA KEV findings
-   Filtered noise recedes into slate. Nothing else is allowed to be loud.
+   The instrument-cluster refinement: a car's display doesn't show you five
+   equal gauges, it shows you the one state you're in, large, and keeps the rest
+   quiet until they matter. So each page leads with a single status readout that
+   changes with the state it reports — exploited, open, or all-clear — and the
+   supporting figures sit smaller beneath it. A clean result is stated as
+   plainly as a bad one; the hero never inflates a number to look busy.
 
-   Monospace carries the identity. Package names, versions, CVE IDs and the
-   reason labels are all code-adjacent facts, so they are set in mono; prose is
-   set in sans. That split is the page's texture.
+   The interface is set in a sans-serif and reads as an application. Monospace
+   is reserved for content that is literally code — package names, versions,
+   CVE and GHSA ids, commands, keys, manifest filenames. Everything that is
+   chrome rather than content is sans. Figures are tabular-lined so a number
+   never jitters as it changes.
+
+   Separation is done with space, not lines. Cards are near-borderless and sit
+   on the page by elevation; a rule is drawn only where two things genuinely
+   need dividing.
+
+   One accent, and a reserved ladder of tier colours beneath it. See TOKENS.
+   ========================================================================== */
+
+/* ==========================================================================
+   TOKENS — the single source of truth.
+
+   Everything below this block reads from these variables. No component and no
+   template declares a raw hex value; if a colour is needed that is not here,
+   the answer is a new token, not a one-off.
+
+   Themes are selected on <html>:
+
+     (no attribute)        follow the system
+     data-theme="light"    light
+     data-theme="dark"     dark, in whichever preset data-dark names
+     data-dark="midnight"  cool blue-black    (dark presets; absent = carbon)
+     data-dark="ash"       warm grey-black
+
+   Source order matters here. The dark presets are `:root[data-dark=…]`, and the
+   light rules that must override them are written afterwards at equal or
+   greater specificity — otherwise a preset chosen once would leak into light
+   mode and win on specificity alone.
    ========================================================================== */
 
 :root {
-  color-scheme: dark light;
+  color-scheme: dark;
 
-  --bg: #0f1115;
-  --surface: #161920;
-  --surface-2: #1d212a;
-  --surface-3: #232833;
-  --border: #262b36;
-  --border-strong: #333a48;
-
-  --text: #e6e8ec;
-  --text-muted: #8b93a3;
-  --text-dim: #5a6272;
-
-  --signal: #e3b341;
-  --signal-dim: #6b5423;
-  --exploited: #e06c4f;
-  --exploited-dim: #6d3427;
-  --calm: #5fa88a;
-  --calm-dim: #2b4a3d;
-
-  --sev-critical: #e06c4f;
-  --sev-high: #e3b341;
-  --sev-medium: #7d94b8;
-  --sev-low: #6b7385;
-  --sev-unknown: #545b6b;
-
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+  /* ---- Type ------------------------------------------------------------
+     The interface is set in a sans-serif. Monospace is reserved for content
+     that is literally code — package names, versions, CVE and GHSA ids,
+     commands, keys, manifest filenames — where character-level precision is
+     the point and a fixed advance width lets you compare two strings. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono",
     "Roboto Mono", Menlo, Consolas, monospace;
 
-  --radius: 6px;
-  --radius-lg: 10px;
-  --measure: 68ch;
-  --page-max: 1080px;
+  /* ---- Elevation layers — Carbon, the default dark preset --------------
+     A real dark theme is a stack, not one grey. The base is near-black and
+     each raised plane is a measured step lighter, so depth is legible without
+     anything looking washed out.
 
+       0  the page itself
+       1  content cards, tables, the app bar
+       2  raised within a card: inputs, hover fills, pills
+       3  raised again: active fills, key reveals
+       4  floating over everything: modals, the palette, toasts, drawers
+  */
+  --level-0: #08080b;
+  --level-1: #101015;
+  --level-2: #17171e;
+  --level-3: #1e1e27;
+  --level-4: #24242f;
+
+  --bg: var(--level-0);
+  --surface: var(--level-1);
+  --surface-2: var(--level-2);
+  --surface-3: var(--level-3);
+  --surface-4: var(--level-4);
+
+  --border: #1c1c24;
+  --border-strong: #2e2e3a;
+  --hairline: rgb(255 255 255 / 0.08);
+
+  /* ---- Glass -----------------------------------------------------------
+     Frosted surfaces are for things that float over content: the sidebar, the
+     app bar, the command palette, modals, toasts. The blur sells it; the
+     hairline catches the light at the edge.
+
+     Content cards get a lighter treatment because text on a heavily blurred
+     translucent plane is harder to read, and the cards are where the reading
+     happens. */
+  --glass-float: rgb(20 20 26 / 0.72);
+  --glass-solid: rgb(16 16 21 / 0.86);
+  --glass-border: rgb(255 255 255 / 0.09);
+  --glass-border-strong: rgb(255 255 255 / 0.14);
+  --glass-blur: blur(20px) saturate(150%);
+  --glass-blur-soft: blur(12px) saturate(130%);
+
+  /* ---- Ink -------------------------------------------------------------
+     Never pure white. Each step is measured against --level-4, the lightest
+     backing any of them sits on, so all three clear AA everywhere. */
+  --text: #f0f0f5;
+  --text-muted: #a4a4b4;
+  --text-dim: #8f8fa4;
+
+  /* ---- Accent ----------------------------------------------------------
+     One accent for the whole interface: buttons, active navigation, links,
+     focus rings, and the "this is fine" states (resolved, published, healthy,
+     all-clear).
+
+     Violet, and deliberately outside the severity range. Amber is HIGH
+     severity; an amber primary button beside an amber HIGH pill makes one
+     colour mean two things, and the entire point of the severity set below is
+     that a colour means exactly one thing. */
+  --accent: #9179ff;
+  --accent-strong: #a795ff;
+  --accent-quiet: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-ink: #0b0a12;
+
+  /* ======================================================================
+     SEVERITY — its own set, and nothing else may use it.
+
+     This is the car-dashboard layer: the tiers have to be readable across the
+     room, in the order they matter, before any of the text is. So they are not
+     one hue ramp at one saturation — the two tiers that mean "act now" are
+     *filled*, and the rest are tinted. Fill versus tint is a difference you
+     see before you see hue, which is what makes the top of the ladder
+     unmistakable in both themes and in monochrome.
+
+       exploited  filled, hot red     actively exploited in the wild
+       critical   filled, deep rose   critical severity, ships to production
+       high       tinted, hot amber   high severity, direct dependency
+       medium     tinted, steel blue  present, below the alerting bar
+       low        tinted, grey        present, quiet
+       digest     tinted, grey        matched and filtered out
+
+     Each `-fill` is the background of a filled pill and `-on-fill` the text
+     that sits on it; both are chosen per theme rather than derived, because a
+     derived pair passes on average and fails at the ends.
+     ====================================================================== */
+  --exploited: #ff6f5e;
+  --critical: #f65e7c;
+  --high: #ffb224;
+  --medium: #96a3bd;
+  --low: #8e97a5;
+  --unknown: #8e97a5;
+  --digest: #8a8a9e;
+
+  --exploited-fill: #d42d20;
+  --exploited-on-fill: #fff5f3;
+  --critical-fill: #d42a55;
+  --critical-on-fill: #fff4f6;
+
+  /* Tinted backings. 18% rather than the 12% this replaced: at 12% the tint
+     was invisible and a HIGH pill read as plain text with a dot. */
+  --exploited-dim: color-mix(in srgb, var(--exploited) 18%, transparent);
+  --critical-dim: color-mix(in srgb, var(--critical) 18%, transparent);
+  --high-dim: color-mix(in srgb, var(--high) 18%, transparent);
+  --digest-dim: color-mix(in srgb, var(--digest) 15%, transparent);
+
+  /* "Checked and clear" is the accent, not a severity: it is the absence of
+     one. Aliased so the many `--calm` references keep working. */
+  --calm: var(--accent);
+  --calm-dim: var(--accent-quiet);
+
+  /* Aliases, so rules written against the old names keep meaning what they
+     meant. New code should use the names above.
+
+     `--signal` is the UI accent and nothing else. Anything reporting a
+     severity uses the tier tokens directly, so a primary button and a
+     high-severity finding can never end up the same colour. */
+  --signal: var(--accent);
+  --signal-dim: var(--accent-quiet);
+  --sev-critical: var(--critical);
+  --sev-high: var(--high);
+  --sev-medium: var(--medium);
+  --sev-low: var(--low);
+  --sev-unknown: var(--unknown);
+
+  /* ---- Space ------------------------------------------------------------ */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* ---- Radius ----------------------------------------------------------- */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* ---- Type scale ------------------------------------------------------- */
+  --step-000: 0.6875rem;
+  --step-00: 0.75rem;
   --step-0: 0.9375rem;
   --step-1: 1.0625rem;
   --step-2: 1.375rem;
   --step-3: 1.875rem;
   --step-4: 2.5rem;
   --step-5: 3.75rem;
+  --step-6: 5rem;
 
+  /* ---- Shadow ----------------------------------------------------------
+     In dark mode the lighter layer does most of the depth work and shadow is
+     a supporting contact edge. In light mode that inverts: there is no
+     lighter layer to be had on white, so shadow carries all of it. */
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+  --elevation-1: 0 1px 0 rgb(255 255 255 / 0.04) inset,
+    0 1px 2px rgb(0 0 0 / 0.45), 0 8px 24px -16px rgb(0 0 0 / 0.75);
+  --elevation-2: 0 1px 0 rgb(255 255 255 / 0.05) inset,
+    0 2px 6px rgb(0 0 0 / 0.5), 0 20px 40px -24px rgb(0 0 0 / 0.85);
+  --elevation-3: 0 1px 0 rgb(255 255 255 / 0.06) inset,
+    0 8px 20px rgb(0 0 0 / 0.55), 0 40px 80px -32px rgb(0 0 0 / 0.95);
+
+  /* ---- Layout ----------------------------------------------------------- */
+  --measure: 68ch;
+  --page-max: 1180px;
+  --sidebar-w: 236px;
+  --sidebar-w-collapsed: 68px;
+
+  /* ---- Motion ----------------------------------------------------------- */
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration: 0.2s;
+  --duration-slow: 0.44s;
+  --duration-shell: 0.24s;
 }
 
-/* Light mode is a genuine inversion, not a washed-out dark theme: the same two
-   accents, re-tuned for contrast on paper-white. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #fbfbfa;
-    --surface: #ffffff;
-    --surface-2: #f4f4f2;
-    --surface-3: #ebebe8;
-    --border: #e2e2de;
-    --border-strong: #cfcfca;
+/* --------------------------------------------------------------------------
+   Dark preset: Midnight — cool, blue-black.
 
-    --text: #16181d;
-    --text-muted: #5f6572;
-    --text-dim: #8b909c;
+   Only the neutrals move. The accent and the whole severity set are held
+   fixed across presets on purpose: a preset is a change of room lighting, not
+   a change of what the warning lights mean.
+   -------------------------------------------------------------------------- */
+:root[data-theme="dark"][data-dark="midnight"] {
+  --level-0: #060811;
+  --level-1: #0d1220;
+  --level-2: #131a2b;
+  --level-3: #1a2338;
+  --level-4: #1c2539;
 
-    --signal: #9a6f0d;
-    --signal-dim: #f5e6bd;
-    --exploited: #b4432a;
-    --exploited-dim: #f7ddd5;
-    --calm: #2f6f56;
-    --calm-dim: #d8ebe2;
+  --border: #172033;
+  --border-strong: #2b3850;
 
-    --sev-critical: #b4432a;
-    --sev-high: #9a6f0d;
-    --sev-medium: #3f5a7d;
-    --sev-low: #6b7385;
-    --sev-unknown: #8b909c;
+  --glass-float: rgb(16 22 38 / 0.72);
+  --glass-solid: rgb(13 18 32 / 0.86);
 
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -16px rgb(0 0 0 / 0.15);
-  }
+  --text: #eef1f8;
+  --text-muted: #a2acc2;
+  --text-dim: #8d97ae;}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])[data-dark="midnight"] {
+  --level-0: #060811;
+  --level-1: #0d1220;
+  --level-2: #131a2b;
+  --level-3: #1a2338;
+  --level-4: #1c2539;
+
+  --border: #172033;
+  --border-strong: #2b3850;
+
+  --glass-float: rgb(16 22 38 / 0.72);
+  --glass-solid: rgb(13 18 32 / 0.86);
+
+  --text: #eef1f8;
+  --text-muted: #a2acc2;
+  --text-dim: #8d97ae;}
 }
 
+
+/* --------------------------------------------------------------------------
+   Dark preset: Ash — warm, grey-black.
+   -------------------------------------------------------------------------- */
+:root[data-theme="dark"][data-dark="ash"] {
+  --level-0: #0b0908;
+  --level-1: #151211;
+  --level-2: #1d1917;
+  --level-3: #252020;
+  --level-4: #272120;
+
+  --border: #221d1c;
+  --border-strong: #3a3230;
+
+  --glass-float: rgb(27 23 22 / 0.72);
+  --glass-solid: rgb(21 18 17 / 0.86);
+
+  --text: #f4f1ef;
+  --text-muted: #b0a7a2;
+  --text-dim: #9a908b;}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])[data-dark="ash"] {
+  --level-0: #0b0908;
+  --level-1: #151211;
+  --level-2: #1d1917;
+  --level-3: #252020;
+  --level-4: #272120;
+
+  --border: #221d1c;
+  --border-strong: #3a3230;
+
+  --glass-float: rgb(27 23 22 / 0.72);
+  --glass-solid: rgb(21 18 17 / 0.86);
+
+  --text: #f4f1ef;
+  --text-muted: #b0a7a2;
+  --text-dim: #9a908b;}
+}
+
+
+/* --------------------------------------------------------------------------
+   Light theme.
+
+   Not an inversion. Dark separates planes by making each one lighter than the
+   page; on paper-white there is nowhere lighter to go, so light separates them
+   with a genuinely recessed ground and real shadow. The previous ground was
+   #f6f7f9 against white cards — a 3% step that made every card invisible and
+   the whole app read as one flat sheet. It is now a proper step down.
+
+   Severity is re-chosen rather than derived. Darkening the dark-mode values
+   produces the muted tan that made a HIGH finding look like a footnote; these
+   are saturated shades picked to carry the same urgency on white.
+
+   Written after the dark presets, at equal specificity, so it wins.
+   -------------------------------------------------------------------------- */
 :root[data-theme="light"] {
-  --bg: #fbfbfa;
-  --surface: #ffffff;
-  --surface-2: #f4f4f2;
-  --surface-3: #ebebe8;
-  --border: #e2e2de;
-  --border-strong: #cfcfca;
-  --text: #16181d;
-  --text-muted: #5f6572;
-  --text-dim: #8b909c;
-  --signal: #9a6f0d;
-  --signal-dim: #f5e6bd;
-  --exploited: #b4432a;
-  --exploited-dim: #f7ddd5;
-  --calm: #2f6f56;
-  --calm-dim: #d8ebe2;
-  --sev-critical: #b4432a;
-  --sev-high: #9a6f0d;
-  --sev-medium: #3f5a7d;
-  --sev-low: #6b7385;
-  --sev-unknown: #8b909c;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -16px rgb(0 0 0 / 0.15);
+  color-scheme: light;
+
+  --level-0: #e9eaf0;
+  --level-1: #ffffff;
+  --level-2: #f4f5f9;
+  --level-3: #e7e9f0;
+  --level-4: #ffffff;
+
+  --border: #dfe1ea;
+  --border-strong: #bcc0cf;
+  --hairline: rgb(15 15 40 / 0.12);
+
+  --glass-float: rgb(255 255 255 / 0.82);
+  --glass-solid: rgb(255 255 255 / 0.92);
+  --glass-border: rgb(15 15 40 / 0.12);
+  --glass-border-strong: rgb(15 15 40 / 0.18);
+
+  --text: #14141c;
+  --text-muted: #52525f;
+  --text-dim: #63636f;
+
+  --accent: #5b3fd1;
+  --accent-strong: #4a31b4;
+  --accent-quiet: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-ink: #ffffff;
+
+  --exploited: #c62a17;
+  --critical: #bd1747;
+  --high: #a05a00;
+  --medium: #3d5f86;
+  --low: #565664;
+  --unknown: #565664;
+  --digest: #5c5c6b;
+
+  --exploited-fill: #c62a17;
+  --exploited-on-fill: #fff6f4;
+  --critical-fill: #bd1747;
+  --critical-on-fill: #fff4f7;
+
+  --exploited-dim: color-mix(in srgb, var(--exploited) 12%, transparent);
+  --critical-dim: color-mix(in srgb, var(--critical) 12%, transparent);
+  --high-dim: color-mix(in srgb, var(--high) 16%, transparent);
+  --digest-dim: color-mix(in srgb, var(--digest) 10%, transparent);
+
+  --shadow: 0 1px 2px rgb(15 15 40 / 0.06), 0 8px 24px -16px rgb(15 15 40 / 0.2);
+  --elevation-1: 0 1px 2px rgb(15 15 40 / 0.07), 0 4px 12px -6px rgb(15 15 40 / 0.12);
+  --elevation-2: 0 2px 6px rgb(15 15 40 / 0.09), 0 14px 28px -12px rgb(15 15 40 / 0.18);
+  --elevation-3: 0 8px 20px rgb(15 15 40 / 0.12), 0 40px 80px -32px rgb(15 15 40 / 0.3);
+}
+
+/* First visit, no saved choice: follow the system. Excludes both explicit
+   values so a chosen theme wins in either direction, and sits at higher
+   specificity than the dark presets so a previously chosen preset cannot leak
+   into system-light. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    color-scheme: light;
+
+    --level-0: #e9eaf0;
+    --level-1: #ffffff;
+    --level-2: #f4f5f9;
+    --level-3: #e7e9f0;
+    --level-4: #ffffff;
+
+    --border: #dfe1ea;
+    --border-strong: #bcc0cf;
+    --hairline: rgb(15 15 40 / 0.12);
+
+    --glass-float: rgb(255 255 255 / 0.82);
+    --glass-solid: rgb(255 255 255 / 0.92);
+    --glass-border: rgb(15 15 40 / 0.12);
+    --glass-border-strong: rgb(15 15 40 / 0.18);
+
+    --text: #14141c;
+    --text-muted: #52525f;
+    --text-dim: #63636f;
+
+    --accent: #5b3fd1;
+    --accent-strong: #4a31b4;
+    --accent-quiet: color-mix(in srgb, var(--accent) 12%, transparent);
+    --accent-ink: #ffffff;
+
+    --exploited: #c62a17;
+    --critical: #bd1747;
+    --high: #a05a00;
+    --medium: #3d5f86;
+    --low: #565664;
+    --unknown: #565664;
+    --digest: #5c5c6b;
+
+    --exploited-fill: #c62a17;
+    --exploited-on-fill: #fff6f4;
+    --critical-fill: #bd1747;
+    --critical-on-fill: #fff4f7;
+
+    --exploited-dim: color-mix(in srgb, var(--exploited) 12%, transparent);
+    --critical-dim: color-mix(in srgb, var(--critical) 12%, transparent);
+    --high-dim: color-mix(in srgb, var(--high) 16%, transparent);
+    --digest-dim: color-mix(in srgb, var(--digest) 10%, transparent);
+
+    --shadow: 0 1px 2px rgb(15 15 40 / 0.06), 0 8px 24px -16px rgb(15 15 40 / 0.2);
+    --elevation-1: 0 1px 2px rgb(15 15 40 / 0.07), 0 4px 12px -6px rgb(15 15 40 / 0.12);
+    --elevation-2: 0 2px 6px rgb(15 15 40 / 0.09), 0 14px 28px -12px rgb(15 15 40 / 0.18);
+    --elevation-3: 0 8px 20px rgb(15 15 40 / 0.12), 0 40px 80px -32px rgb(15 15 40 / 0.3);
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -132,6 +457,13 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Any component that sets its own `display` outranks the user-agent rule for
+   [hidden], which silently turns `el.hidden = true` into a no-op. Stating it
+   once here means a component can never accidentally opt out of it. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -143,14 +475,47 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* One heading scale for the whole app. Dashboard, admin and project pages were
+   each setting their own sizes inline, so an <h2> meant something different on
+   every screen. Sizes are declared here and overridden nowhere. */
 h1,
 h2,
 h3,
 h4 {
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.15;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--step-3);
+}
+
+h2 {
+  font-size: var(--step-2);
+}
+
+h3 {
+  font-size: var(--step-1);
+}
+
+h4 {
+  font-size: var(--step-0);
+}
+
+/* Figures are lined and tabular so a count doesn't shift its neighbours when it
+   changes width — the difference between a readout and a text field. */
+.mono,
+.stat b,
+.ledger__ratio,
+.status-hero__value,
+.metric__value,
+.project__count b,
+table.table td.mono {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
 p {
@@ -203,7 +568,17 @@ hr {
 }
 
 .page {
-  padding-block: 2.5rem 6rem;
+  padding-block: var(--space-6) var(--space-8);
+}
+
+/* Inside the application shell the page has already been inset by the sidebar,
+   so it centres on what is left rather than on the viewport. */
+.has-sidebar .wrap {
+  padding-inline: var(--space-6);
+}
+
+.has-sidebar .page {
+  padding-block: var(--space-6) var(--space-8);
 }
 
 .stack > * + * {
@@ -223,6 +598,1479 @@ hr {
 
 .skip-link:focus {
   left: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Application shell — sidebar, app bar, breadcrumbs.
+
+   A sidebar rather than a top bar because the app now has enough places to be
+   that "where am I" is a real question: the current section stays lit at all
+   times instead of being inferred from the page title. It collapses to icons
+   for people who want the width back, and becomes a drawer on phones.
+
+   The collapsed and drawer states are both driven by one attribute on <body>,
+   so there is no second layout to keep in sync.
+   -------------------------------------------------------------------------- */
+
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.has-sidebar {
+  --gutter: var(--sidebar-w);
+}
+
+.has-sidebar.is-collapsed {
+  --gutter: var(--sidebar-w-collapsed);
+}
+
+.sidebar {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 40;
+  width: var(--gutter, var(--sidebar-w));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  background: var(--glass-float);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-inline-end: 1px solid var(--glass-border);
+  /* Both properties are animated on the same curve and duration as the
+     content's margin, so the rail and the page it displaces move as one thing
+     rather than as two that happen to end up agreeing. */
+  transition: width var(--duration-shell) var(--ease-out),
+    transform var(--duration-shell) var(--ease-out);
+  will-change: width;
+}
+
+/* No backdrop-filter (older Firefox, or the user has disabled it): fall back
+   to the opaque layer, which is what the glass is standing in for. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sidebar,
+  .appbar,
+  .palette,
+  .toast,
+  dialog {
+    background: var(--surface);
+  }
+}
+
+.shell {
+  margin-inline-start: var(--gutter, var(--sidebar-w));
+  min-height: 100vh;
+  transition: margin-inline-start var(--duration-shell) var(--ease-out);
+}
+
+.sidebar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) 0;
+  min-height: 32px;
+}
+
+.sidebar__collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background var(--duration) var(--ease),
+    color var(--duration) var(--ease), transform var(--duration) var(--ease);
+}
+
+.sidebar__collapse:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.is-collapsed .sidebar__collapse {
+  transform: rotate(180deg);
+}
+
+/* ---- Search trigger ------------------------------------------------------
+   A control, not an input: it opens the palette. Styling it as a field would
+   promise typing in place, which is not what happens. */
+.cmdk-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-size: var(--step-00);
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: start;
+  transition: background var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+.cmdk-trigger:hover {
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+.cmdk-trigger__label {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.cmdk-trigger__key {
+  font: inherit;
+  font-size: var(--step-000);
+  color: var(--text-dim);
+  background: var(--surface-3);
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  white-space: nowrap;
+}
+
+/* ---- Nav ---------------------------------------------------------------- */
+
+.sidenav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.sidenav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--step-0);
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+.sidenav__item--button {
+  width: 100%;
+  font: inherit;
+  font-size: var(--step-0);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+}
+
+.sidenav__item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* The current section, marked by weight and a lit rail as well as colour. */
+.sidenav__item[aria-current="page"] {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.sidenav__item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 20%;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.sidenav__item[aria-current="page"] .icon {
+  color: var(--accent);
+}
+
+.sidenav__divider {
+  height: 1px;
+  margin: var(--space-2) var(--space-3);
+  background: var(--hairline);
+}
+
+/* ---- Footer ------------------------------------------------------------- */
+
+.sidebar__foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline);
+}
+
+.sidebar__who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: var(--step-000);
+  font-weight: 600;
+}
+
+.sidebar__email {
+  font-size: var(--step-00);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Collapsed ----------------------------------------------------------
+   Labels are removed from the accessibility tree along with the layout, and
+   the title attribute carries the name instead, so an icon-only rail is still
+   navigable by pointer and by screen reader. */
+/* The labels animate out rather than vanishing: opacity for the fade, and a
+   max-width collapse so the text stops reserving space as the rail narrows.
+   `display: none` cannot be transitioned, which is why the old version
+   snapped. Visibility flips at the end of the fade so the text is not a
+   click target while it is invisible. */
+.brand__word,
+.sidenav__label,
+.cmdk-trigger__label,
+.cmdk-trigger__key,
+.sidebar__email {
+  max-width: 12rem;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.12s var(--ease-out),
+    max-width var(--duration-shell) var(--ease-out);
+}
+
+.is-collapsed .brand__word,
+.is-collapsed .sidenav__label,
+.is-collapsed .cmdk-trigger__label,
+.is-collapsed .cmdk-trigger__key,
+.is-collapsed .sidebar__email {
+  max-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.1s var(--ease-out),
+    max-width var(--duration-shell) var(--ease-out),
+    visibility 0s linear var(--duration-shell);
+}
+
+.is-collapsed .sidebar__head {
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.is-collapsed .sidenav__item,
+.is-collapsed .cmdk-trigger,
+.is-collapsed .sidebar__who {
+  justify-content: center;
+  padding-inline: 0;
+  gap: 0;
+}
+
+.sidenav__item,
+.cmdk-trigger,
+.sidebar__who {
+  transition: background var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    padding var(--duration-shell) var(--ease-out),
+    gap var(--duration-shell) var(--ease-out);
+}
+
+/* ---- App bar ------------------------------------------------------------ */
+
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding-inline: var(--space-5);
+  background: var(--glass-float);
+  -webkit-backdrop-filter: var(--glass-blur-soft);
+  backdrop-filter: var(--glass-blur-soft);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.appbar__menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+.appbar__menu:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.appbar__menu {
+  display: none;
+}
+
+/* ---- Breadcrumbs --------------------------------------------------------
+   Location, not history: every crumb is a real ancestor you can click, and the
+   last one is the page you are on and so is not a link. */
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--step-00);
+  color: var(--text-dim);
+  overflow: hidden;
+}
+
+.crumbs a {
+  color: var(--text-dim);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--duration) var(--ease);
+}
+
+.crumbs a:hover {
+  color: var(--text);
+}
+
+.crumbs__sep {
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+.crumbs__here {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Drawer scrim ------------------------------------------------------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  border: 0;
+  padding: 0;
+  background: rgb(0 0 0 / 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  animation: fade-in var(--duration) var(--ease);
+}
+
+.scrim[hidden] {
+  display: none;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Command palette
+   -------------------------------------------------------------------------- */
+
+.palette {
+  width: min(560px, calc(100vw - 2rem));
+  max-height: min(420px, 70vh);
+  margin: 12vh auto auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--glass-float);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  color: var(--text);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-3);
+}
+
+.palette::backdrop {
+  background: rgb(0 0 0 / 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.palette[open] {
+  animation: palette-in 0.16s var(--ease);
+}
+
+.palette[open]::backdrop {
+  animation: fade-in 0.16s var(--ease);
+}
+
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+.palette__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--hairline);
+  color: var(--text-dim);
+}
+
+.palette__input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--step-1);
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.palette__input::placeholder {
+  color: var(--text-dim);
+}
+
+.palette__esc {
+  font: inherit;
+  font-size: var(--step-000);
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+}
+
+.palette__results {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.palette__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.palette__option[aria-selected="true"] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.palette__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The matched characters, so it is obvious why a result is in the list. */
+.palette__name mark {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.palette__kind {
+  font-size: var(--step-000);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  flex: none;
+}
+
+.palette__empty {
+  margin: 0;
+  padding: var(--space-6) var(--space-5);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: var(--step-0);
+}
+
+/* --------------------------------------------------------------------------
+   Toasts
+   -------------------------------------------------------------------------- */
+
+.toasts {
+  position: fixed;
+  z-index: 60;
+  inset-block-end: var(--space-5);
+  inset-inline-end: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 240px;
+  max-width: min(380px, calc(100vw - 2rem));
+  padding: var(--space-3) var(--space-4);
+  background: var(--glass-float);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--elevation-2);
+  color: var(--text);
+  font-size: var(--step-0);
+  pointer-events: auto;
+  animation: toast-in 0.24s var(--ease);
+}
+
+.toast.is-leaving {
+  animation: toast-out 0.18s var(--ease) forwards;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.toast__dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--calm);
+}
+
+.toast--error .toast__dot {
+  background: var(--critical);
+}
+
+.toast__text {
+  flex: 1;
+}
+
+.toast__close {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  line-height: 1;
+  font-size: var(--step-1);
+}
+
+.toast__close:hover {
+  color: var(--text);
+}
+
+/* --------------------------------------------------------------------------
+   Skeletons — the shape of the answer, while the answer loads.
+
+   Shown only for content that is genuinely being fetched or recomputed. A
+   skeleton standing in for something that already loaded would be a lie about
+   how fast the page is.
+   -------------------------------------------------------------------------- */
+
+.skeleton {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    var(--surface-3) 40%,
+    var(--surface-2) 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  color: transparent;
+  user-select: none;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton--line {
+  height: 0.75rem;
+  margin-block: 0.35rem;
+}
+
+.skeleton--figure {
+  height: 3rem;
+  width: 5rem;
+}
+
+.skeleton--row {
+  height: 3.5rem;
+  margin-block: var(--space-2);
+}
+
+/* --------------------------------------------------------------------------
+   Copy-to-clipboard
+   -------------------------------------------------------------------------- */
+
+.copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  vertical-align: middle;
+  /* Hidden until the row it belongs to is hovered or it takes focus, so a list
+     of twenty findings is not also a list of twenty buttons. */
+  opacity: 0;
+  transition: opacity var(--duration) var(--ease),
+    background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.copy:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.copy:focus-visible,
+:hover > .copy,
+tr:hover .copy,
+li:hover .copy,
+.copy-host:hover .copy {
+  opacity: 1;
+}
+
+.copy.is-done {
+  opacity: 1;
+  color: var(--calm);
+}
+
+/* Coarse pointers have no hover, so the affordance has to be permanent. */
+@media (hover: none) {
+  .copy {
+    opacity: 1;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Unified pill — one component for every severity, tier and status marker.
+
+   Two treatments, not one. The tiers that mean "act now" are filled; the rest
+   are tinted. That difference is legible before hue is, which is what makes
+   the top of the ladder scannable at a glance and keeps it scannable in
+   monochrome, in both themes, and for the common colour-vision deficiencies.
+
+   No pill ever carries meaning in colour alone: each one states its tier as a
+   word, and the filled ones are additionally distinguished by weight and by
+   the fill itself.
+   -------------------------------------------------------------------------- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.5rem 0.15rem 0.4rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--step-000);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  color: var(--pill, var(--text-muted));
+  background: color-mix(in srgb, var(--pill, var(--text-dim)) 16%, transparent);
+  border-color: color-mix(in srgb, var(--pill, var(--text-dim)) 34%, transparent);
+}
+
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* The dot is redundant where an icon already leads the pill. */
+.pill--nodot::before {
+  display: none;
+}
+
+/* ---- Filled: the two tiers that mean act now ---------------------------- */
+
+.pill--exploited,
+.pill--critical {
+  padding-inline: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-color: transparent;
+}
+
+.pill--exploited {
+  color: var(--exploited-on-fill);
+  background: var(--exploited-fill);
+}
+
+.pill--critical {
+  color: var(--critical-on-fill);
+  background: var(--critical-fill);
+}
+
+/* On a filled pill the dot is noise — the fill is the indicator. */
+.pill--exploited::before,
+.pill--critical::before {
+  display: none;
+}
+
+/* ---- Tinted: everything below the bar ----------------------------------- */
+
+.pill--high {
+  --pill: var(--high);
+  font-weight: 700;
+}
+
+.pill--medium {
+  --pill: var(--medium);
+}
+.pill--low {
+  --pill: var(--low);
+}
+.pill--unknown {
+  --pill: var(--unknown);
+}
+.pill--digest {
+  --pill: var(--digest);
+}
+.pill--calm {
+  --pill: var(--accent);
+}
+
+.pill--plain {
+  --pill: var(--text-dim);
+  background: var(--surface-2);
+  border-color: var(--hairline);
+  color: var(--text-muted);
+}
+
+.pill--sm {
+  font-size: 0.625rem;
+  padding-block: 0.1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Sortable tables — client-side, on the rows already rendered.
+
+   Sorting never refetches: the page has the rows, so reordering them is a
+   local operation and the server is not asked a question it has already
+   answered.
+   -------------------------------------------------------------------------- */
+
+.table th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.table th[data-sort]:hover {
+  color: var(--text);
+}
+
+.table th[data-sort]::after {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-inline-start: 0.4rem;
+  vertical-align: middle;
+  border-inline: 3px solid transparent;
+  border-block-end: 4px solid currentColor;
+  opacity: 0;
+  transition: opacity var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.table th[data-sort]:hover::after {
+  opacity: 0.35;
+}
+
+.table th[aria-sort="ascending"]::after,
+.table th[aria-sort="descending"]::after {
+  opacity: 1;
+}
+
+.table th[aria-sort="descending"]::after {
+  transform: rotate(180deg);
+}
+
+.table-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.table-filter__input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--step-0);
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.table-filter__input::placeholder {
+  color: var(--text-dim);
+}
+
+.table-filter__count {
+  font-size: var(--step-00);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   Scan in progress
+
+   A scan takes seconds, not milliseconds. Without this the page just sits
+   there and the honest reading is that the button did nothing.
+   -------------------------------------------------------------------------- */
+
+.scanning {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--step-00);
+  color: var(--accent);
+}
+
+/* A class-level display beats the user-agent rule for [hidden], so the
+   attribute has to be honoured explicitly or the indicator shows before any
+   scan has started. */
+.scanning[hidden] {
+  display: none;
+}
+
+.scanning__bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.scanning__bars i {
+  display: block;
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: scan-bar 0.9s var(--ease) infinite;
+}
+
+.scanning__bars i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.scanning__bars i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes scan-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Theme switcher
+
+   A three-way segmented control rather than a two-way switch, because
+   "follow the system" is a real position and a toggle has nowhere to put it.
+   -------------------------------------------------------------------------- */
+
+.themer {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+}
+
+.themer__option {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+.themer__option:hover {
+  color: var(--text);
+}
+
+.themer__option[aria-pressed="true"] {
+  background: var(--surface-4);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+/* Collapsed to an icon rail there is no room for three; the control stacks and
+   keeps all three reachable rather than disappearing. */
+.is-collapsed .themer {
+  flex-direction: column;
+}
+
+/* Changing theme repaints every colour at once. Without this the whole page
+   animates through the change, which reads as a rendering glitch rather than
+   as a setting taking effect. Re-enabled on the next frame. */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Segmented control & theme swatches
+   -------------------------------------------------------------------------- */
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+}
+
+.segmented__option {
+  padding: 0.35rem 0.9rem;
+  font: inherit;
+  font-size: var(--step-00);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+.segmented__option:hover {
+  color: var(--text);
+}
+
+.segmented__option[aria-pressed="true"] {
+  background: var(--surface-4);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: var(--space-3);
+  font: inherit;
+  text-align: start;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.swatch:hover {
+  transform: translateY(-1px);
+}
+
+.swatch[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* A real sample of each preset's stack, so the choice is made by looking
+   rather than by reading three adjectives. The colours are literal because
+   they have to show a theme that is not the one currently applied. */
+.swatch__chip {
+  display: block;
+  width: 100%;
+  height: 34px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+}
+
+.swatch__chip--carbon {
+  background: linear-gradient(135deg, #08080b 0 40%, #17171e 40% 70%, #24242f 70%);
+}
+
+.swatch__chip--midnight {
+  background: linear-gradient(135deg, #060811 0 40%, #131a2b 40% 70%, #1c2539 70%);
+}
+
+.swatch__chip--ash {
+  background: linear-gradient(135deg, #0b0908 0 40%, #1d1917 40% 70%, #272120 70%);
+}
+
+.swatch__name {
+  font-size: var(--step-0);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.swatch__note {
+  font-size: var(--step-000);
+  color: var(--text-dim);
+}
+
+/* --------------------------------------------------------------------------
+   Sheet — a small centred dialog for reference content.
+   -------------------------------------------------------------------------- */
+
+.sheet {
+  width: min(480px, calc(100vw - 2rem));
+  margin: auto;
+  padding: 0;
+  color: var(--text);
+  background: var(--glass-float);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-3);
+}
+
+.sheet::backdrop {
+  background: rgb(0 0 0 / 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.sheet[open] {
+  animation: palette-in 0.16s var(--ease-out);
+}
+
+.sheet[open]::backdrop {
+  animation: fade-in 0.16s var(--ease-out);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5) var(--space-3);
+}
+
+.sheet__title {
+  font-size: var(--step-1);
+  font-weight: 600;
+}
+
+.sheet__close {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--step-2);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sheet__close:hover {
+  color: var(--text);
+}
+
+.sheet__foot {
+  margin: 0;
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  font-size: var(--step-00);
+  color: var(--text-dim);
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin: 0;
+  padding: 0 var(--space-5);
+}
+
+.shortcuts dt {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+
+.shortcuts dd {
+  margin: 0;
+  font-size: var(--step-0);
+  color: var(--text-muted);
+}
+
+.shortcuts__then {
+  font-size: var(--step-000);
+  color: var(--text-dim);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.5rem;
+  padding: 0.15rem 0.4rem;
+  font-family: var(--font-sans);
+  font-size: var(--step-000);
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--surface-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 5px;
+  box-shadow: 0 1px 0 var(--glass-border);
+}
+
+/* --------------------------------------------------------------------------
+   Live updates
+   -------------------------------------------------------------------------- */
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--step-000);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.live__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: background var(--duration) var(--ease);
+}
+
+/* Only claims to be live once the stream is actually open. A dot that is green
+   because the page hoped for a connection is worse than no dot. */
+.live[data-state="on"] .live__dot {
+  background: var(--accent);
+  animation: live-pulse 2.4s var(--ease) infinite;
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--accent-quiet);
+  }
+  50% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+/* A figure that changed while you were looking elsewhere. Brief, and only on
+   the element that actually changed. */
+.is-updated {
+  animation: figure-updated 1.1s var(--ease);
+}
+
+@keyframes figure-updated {
+  0% {
+    color: var(--accent);
+    transform: translateY(-2px);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.live-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--step-0);
+  background: var(--accent-quiet);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-radius: var(--radius);
+  animation: rise-in 0.3s var(--ease-out);
+}
+
+.live-banner a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   Two-factor authentication
+   -------------------------------------------------------------------------- */
+
+.totp {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.totp__qr {
+  flex: none;
+  padding: var(--space-3);
+  background: #ffffff;
+  border-radius: var(--radius);
+  line-height: 0;
+}
+
+.totp__qr svg {
+  display: block;
+  width: 168px;
+  height: 168px;
+}
+
+.totp__side {
+  flex: 1;
+  min-width: 15rem;
+}
+
+.codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+}
+
+.codes code {
+  font-family: var(--font-mono);
+  font-size: var(--step-0);
+  letter-spacing: 0.06em;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.codes code.is-used {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+/* --------------------------------------------------------------------------
+   Session list
+   -------------------------------------------------------------------------- */
+
+.sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.session {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.session:last-child {
+  border-bottom: 0;
+}
+
+.session__what {
+  flex: 1;
+  min-width: 0;
+}
+
+.session__device {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--step-0);
+  font-weight: 500;
+}
+
+.session__meta {
+  margin-top: 0.2rem;
+  font-size: var(--step-00);
+  color: var(--text-dim);
+}
+
+/* --------------------------------------------------------------------------
+   API key usage
+   -------------------------------------------------------------------------- */
+
+.usage {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.usage__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.usage__value {
+  font-size: var(--step-1);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.usage__label {
+  font-size: var(--step-000);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.usage--idle .usage__value {
+  color: var(--text-dim);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive shell
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  /* Below this width the sidebar is a drawer: off-canvas by default, slid in
+     over the content, dismissed by the scrim or Esc. The content keeps the
+     full width rather than being squeezed beside a rail. */
+  .has-sidebar {
+    --gutter: 0px;
+  }
+
+  .sidebar {
+    width: var(--sidebar-w);
+    transform: translateX(-100%);
+    box-shadow: var(--elevation-3);
+  }
+
+  .has-sidebar.is-drawer-open .sidebar {
+    transform: none;
+  }
+
+  .appbar__menu {
+    display: inline-flex;
+  }
+
+  .appbar {
+    padding-inline: var(--space-4);
+  }
+}
+
+@media (min-width: 901px) {
+  /* The scrim is a drawer-only device. */
+  .scrim {
+    display: none;
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -250,7 +2098,7 @@ hr {
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.9375rem;
   font-weight: 600;
   letter-spacing: -0.03em;
@@ -320,7 +2168,7 @@ hr {
    -------------------------------------------------------------------------- */
 
 .eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -330,6 +2178,13 @@ hr {
 
 .mono {
   font-family: var(--font-mono);
+}
+
+/* A figure in the interface face, lined and tabular so columns of numbers line
+   up and a changing value doesn't shift its neighbours. */
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
 .muted {
@@ -380,6 +2235,68 @@ hr {
 .page-head p {
   margin: 0.4rem 0 0;
   color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Utilities
+
+   A deliberately small set, covering the handful of adjustments that were
+   being written as inline `style` attributes on nearly every page. They existed
+   because there was no vocabulary for "a bit of space above this" — so each
+   template invented its own value and no two pages agreed.
+
+   Everything here resolves to a token. If a utility is needed that cannot,
+   that is a sign the component itself is missing.
+   -------------------------------------------------------------------------- */
+
+.u-mt-2 { margin-top: var(--space-2); }
+.u-mt-3 { margin-top: var(--space-3); }
+.u-mt-4 { margin-top: var(--space-4); }
+.u-mt-5 { margin-top: var(--space-5); }
+.u-mt-6 { margin-top: var(--space-6); }
+.u-mt-7 { margin-top: var(--space-7); }
+
+.u-mb-4 { margin-bottom: var(--space-4); }
+.u-mb-5 { margin-bottom: var(--space-5); }
+.u-mb-6 { margin-bottom: var(--space-6); }
+.u-mb-0 { margin-bottom: 0; }
+.u-mt-0 { margin-top: 0; }
+.u-flush { margin: 0; }
+
+.u-text-sm { font-size: 0.875rem; }
+.u-text-xs { font-size: var(--step-00); }
+.u-text-xxs { font-size: var(--step-000); }
+
+.u-center { text-align: center; }
+.u-right { text-align: end; }
+.u-wrap-anywhere { overflow-wrap: anywhere; }
+
+/* Panel column widths. Forms are easier to read short; these are the two
+   widths the app actually uses, named rather than repeated. */
+.u-narrow { max-width: 560px; }
+.u-wide { max-width: 640px; }
+.u-measure { max-width: var(--measure); }
+.u-center-column { margin-inline: auto; }
+.u-mb-3 { margin-bottom: var(--space-3); }
+.u-pb-5 { padding-bottom: var(--space-5); }
+.u-prewrap { white-space: pre-wrap; }
+.u-scroll-y { max-height: 280px; overflow-y: auto; }
+
+/* A bulleted list inside a notice, which otherwise inherits the reset. */
+.u-list {
+  margin: var(--space-2) 0 0;
+  padding-left: 1.2rem;
+}
+
+/* A <summary> is a button in every way except the cursor. */
+summary {
+  cursor: pointer;
+}
+
+/* Centred call-to-action inside an empty state. */
+.btn-row--center {
+  justify-content: center;
+  margin-top: var(--space-5);
 }
 
 /* --------------------------------------------------------------------------
@@ -468,11 +2385,18 @@ hr {
    Cards & panels
    -------------------------------------------------------------------------- */
 
+/* A card is a raised plane, not a boxed region: a hairline for the contact
+   edge and elevation for the shape. The old 1px border made every card shout
+   its own outline, and a page of eight of them read as a grid of containers
+   rather than as content. */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--glass-solid);
+  -webkit-backdrop-filter: var(--glass-blur-soft);
+  backdrop-filter: var(--glass-blur-soft);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  padding: var(--space-5);
+  box-shadow: var(--elevation-1);
 }
 
 .card--flush {
@@ -480,22 +2404,97 @@ hr {
   overflow: hidden;
 }
 
+/* Interactive cards lift very slightly. 2px is enough to register as a
+   response; more reads as a toy. */
+.card--interactive {
+  transition: transform var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+
+.card--interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elevation-2);
+}
+
 .card__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1.125rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+}
+
+/* Only drawn when rows follow, where the head genuinely needs separating from
+   a list. A head above prose separates itself with space. */
+.card--flush .card__head {
+  border-bottom: 1px solid var(--hairline);
 }
 
 .card__head h2 {
-  font-size: 0.9375rem;
+  font-size: var(--step-0);
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .card__body {
-  padding: 1.5rem;
+  padding: var(--space-5);
+}
+
+.card__head-link {
+  font-size: var(--step-00);
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color var(--duration) var(--ease);
+}
+
+.card__head-link:hover {
+  color: var(--text);
+}
+
+/* Section rhythm. Templates previously each picked their own margin-top, so
+   no two pages agreed on how far apart two sections sat. */
+.section-gap {
+  margin-top: var(--space-7);
+}
+
+.section-gap--tight {
+  margin-top: var(--space-6);
+}
+
+/* --------------------------------------------------------------------------
+   Settings panels
+
+   A column of cards, each one setting. Every heading here used to carry an
+   inline font-size because the global h2 was tuned for page sections and was
+   far too large inside a card; the panel title is now a class, so the scale is
+   declared once and no template overrides it.
+   -------------------------------------------------------------------------- */
+
+.panels {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 640px;
+}
+
+.panel__title {
+  font-size: var(--step-1);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-bottom: var(--space-2);
+}
+
+/* Sits directly under a panel title, so it must not re-add the space the
+   title already left. */
+.panel__intro {
+  margin-top: 0;
+  margin-bottom: var(--space-5);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.panel__intro:last-child {
+  margin-bottom: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -518,6 +2517,16 @@ hr {
   margin: 0 0 0.75rem;
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+.keyreveal__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.keyreveal__row .copy {
+  opacity: 1;
 }
 
 .keyreveal__value {
@@ -573,84 +2582,312 @@ hr {
 }
 
 /* --------------------------------------------------------------------------
-   The noise ledger — the signature element.
+   Status hero — the instrument cluster.
 
-   One horizontal bar showing every real version match this account has: a dim
-   majority that was filtered, and a small lit sliver that was surfaced. It is
-   the product's entire argument rendered as a proportion, and it is the first
-   thing on the dashboard.
+   One readout, sized so it is legible across the room, reporting the state the
+   account is actually in rather than a fixed metric. Three states, in order of
+   precedence: something is exploited in the wild, something is open, or
+   nothing needs you. The state decides the colour, the mark and the sentence
+   together, so the meaning never rests on colour alone — a monochrome or
+   colour-blind reading still gets the lit-bar count, the state word and the
+   position.
+
+   The clear state is as large and as confident as the alarming ones. Shrinking
+   good news to a footnote is how a dashboard teaches people to distrust it.
    -------------------------------------------------------------------------- */
 
-.ledger {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.75rem;
+.status-hero {
+  --state: var(--calm);
+  position: relative;
+  overflow: hidden;
+  background: var(--glass-solid);
+  -webkit-backdrop-filter: var(--glass-blur-soft);
+  backdrop-filter: var(--glass-blur-soft);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  padding-inline-start: var(--space-7);
+  box-shadow: var(--elevation-1);
 }
 
-.ledger__figures {
+/* A single wash of the state colour, bled from the left edge. At 7% it reads as
+   temperature rather than as a panel that has been coloured in. */
+.status-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    100% 130% at 0% 50%,
+    color-mix(in srgb, var(--state) 8%, transparent) 0%,
+    transparent 62%
+  );
+  pointer-events: none;
+}
+
+/* The contact edge, lit in the state colour. This is the warning strip: it is
+   the first thing the eye lands on and it is present in every state. */
+.status-hero::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 0;
+  width: 3px;
+  background: var(--state);
+}
+
+.status-hero--open {
+  --state: var(--high);
+}
+
+.status-hero--exploited {
+  --state: var(--exploited);
+}
+
+/* Stored but never checked. Deliberately neither alarm nor all-clear: the
+   whole point of this state is that we do not know yet. */
+.status-hero--idle {
+  --state: var(--text-dim);
+}
+
+.status-hero__inner {
+  position: relative;
   display: flex;
-  align-items: flex-end;
-  gap: 3rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
   flex-wrap: wrap;
-  margin-bottom: 1.5rem;
 }
 
-.ledger__primary .ledger__value {
-  font-family: var(--font-mono);
-  font-size: var(--step-5);
+/* Indicator and state word share a line, above the figure: the mark qualifies
+   the words, so it belongs with them rather than parked beside a numeral. */
+.status-hero__state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--step-00);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--state);
+}
+
+/* The brand mark doing duty as a state indicator: three bars, lit from the
+   bottom up like a signal meter. One lit is calm, two is open, three is
+   exploited — so the state is countable without seeing the colour. */
+.status-hero__mark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 15px;
+  flex: none;
+}
+
+.status-hero__mark i {
+  display: block;
+  width: 4px;
+  border-radius: 1px;
+  background: var(--surface-3);
+}
+
+.status-hero__mark i:nth-child(1) {
+  height: 40%;
+}
+.status-hero__mark i:nth-child(2) {
+  height: 68%;
+}
+.status-hero__mark i:nth-child(3) {
+  height: 100%;
+}
+
+.status-hero__mark i.is-lit {
+  background: var(--state);
+}
+
+.status-hero__value {
+  display: block;
+  margin-top: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--step-6);
   font-weight: 600;
-  line-height: 0.9;
-  letter-spacing: -0.045em;
-  color: var(--text);
-  display: block;
+  line-height: 0.85;
+  letter-spacing: -0.055em;
+  color: var(--state);
 }
 
-.ledger__primary .ledger__label {
+/* The all-clear has no number worth enlarging — "0" as the biggest thing on
+   the page is a strange way to say everything is fine — so the clear state
+   sets a word at heading size instead. */
+.status-hero__word {
   display: block;
-  margin-top: 0.75rem;
-  max-width: 30ch;
+  margin-top: var(--space-3);
+  font-size: var(--step-4);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.status-hero__note {
+  margin: var(--space-4) 0 0;
+  max-width: 46ch;
   color: var(--text-muted);
   font-size: 0.875rem;
+  line-height: 1.55;
 }
 
-.ledger__secondary {
+/* --------------------------------------------------------------------------
+   Metric row — the supporting figures under a hero.
+
+   Deliberately quiet and deliberately unboxed: these are the numbers you read
+   second. Giving each one its own card would put them back on equal footing
+   with the hero, which is the layout this replaced.
+   -------------------------------------------------------------------------- */
+
+/* Clustered, not stretched. A grid across the full card width pushed five
+   short labels to the far corners and made them read as five separate panels
+   rather than one row of supporting figures. */
+.metrics {
+  position: relative;
   display: flex;
-  gap: 2.5rem;
-  padding-bottom: 0.25rem;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-6);
 }
 
-.ledger__stat .ledger__value {
-  font-family: var(--font-mono);
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 5.5rem;
+  padding: var(--space-3) var(--space-4);
+  margin-inline-start: calc(var(--space-4) * -1);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--duration) var(--ease);
+}
+
+.metric + .metric {
+  margin-inline-start: 0;
+}
+
+a.metric:hover {
+  background: var(--surface-2);
+}
+
+.metric__value {
+  font-family: var(--font-sans);
   font-size: var(--step-2);
   font-weight: 600;
   line-height: 1;
   letter-spacing: -0.03em;
-  display: block;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
-.ledger__stat .ledger__label {
-  display: block;
-  margin-top: 0.4rem;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
+/* The indicator dot. Never the only carrier of meaning — it sits beside a
+   number and a label that both say the same thing. */
+.metric__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--dot, var(--text-dim));
+}
+
+.metric--signal {
+  --dot: var(--high);
+}
+
+.metric--exploited {
+  --dot: var(--exploited);
+}
+
+.metric--calm {
+  --dot: var(--calm);
+}
+
+/* Lit only when the number is non-zero: a zero in the exploited column is the
+   best news on the page and must not glow like a warning. */
+.metric--signal .metric__value,
+.metric--exploited .metric__value {
+  color: var(--text);
+}
+
+.metric.is-active .metric__value {
+  color: var(--dot);
+}
+
+.metric.is-active .metric__dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot) 18%, transparent);
+}
+
+.metric:not(.is-active) .metric__dot {
+  background: var(--surface-3);
+}
+
+/* A metric whose value is a phrase rather than a figure ("15h ago"). At the
+   full figure size a timestamp reads as a headline it isn't. */
+.metric--text .metric__value {
+  font-size: var(--step-0);
+  letter-spacing: -0.01em;
+}
+
+.metric__label {
+  font-family: var(--font-sans);
+  font-size: var(--step-00);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
   color: var(--text-dim);
 }
 
-.ledger__stat--surfaced .ledger__value {
-  color: var(--signal);
+/* --------------------------------------------------------------------------
+   The noise ledger.
+
+   One horizontal bar showing every real version match this account has: a dim
+   majority that was filtered, and a small lit sliver that was surfaced. It used
+   to carry the hero number too; now that the status hero states the case, this
+   is reduced to the proportion alone, which is all it was ever really saying.
+   -------------------------------------------------------------------------- */
+
+.ledger {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--elevation-1);
 }
 
-.ledger__stat--exploited .ledger__value {
-  color: var(--exploited);
+.ledger__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.ledger__ratio {
+  font-family: var(--font-sans);
+  font-size: var(--step-2);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.ledger__ratio-unit {
+  font-size: 0.5em;
+  color: var(--text-dim);
+  margin-left: 0.25em;
+  letter-spacing: 0.04em;
 }
 
 .ledger__bar {
   display: flex;
-  height: 6px;
-  border-radius: 3px;
+  height: 8px;
+  border-radius: 4px;
   overflow: hidden;
   background: var(--surface-3);
   gap: 2px;
@@ -658,18 +2895,19 @@ hr {
 
 .ledger__seg {
   height: 100%;
-  border-radius: 2px;
-  min-width: 2px;
+  border-radius: 4px;
+  min-width: 3px;
+  /* Widths come from flex values the template computes, so the bar animates
+     into place on first paint and slides when the proportion changes. */
+  transition: flex-grow 0.6s var(--ease);
 }
 
 .ledger__seg--filtered {
   background: var(--surface-3);
-  border: 1px solid var(--border-strong);
-  border-radius: 3px;
 }
 
 .ledger__seg--surfaced {
-  background: var(--signal);
+  background: var(--high);
 }
 
 .ledger__seg--exploited {
@@ -678,11 +2916,11 @@ hr {
 
 .ledger__key {
   display: flex;
-  gap: 1.5rem;
+  gap: var(--space-5);
   flex-wrap: wrap;
-  margin-top: 0.875rem;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  margin-top: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--step-00);
   letter-spacing: 0.04em;
   color: var(--text-dim);
 }
@@ -693,11 +2931,17 @@ hr {
   gap: 0.45rem;
 }
 
+.ledger__swatch--filtered { background: var(--surface-3); }
+.ledger__swatch--surfaced { background: var(--high); }
+
 .ledger__key i {
   width: 8px;
   height: 8px;
   border-radius: 2px;
   display: block;
+  /* The filtered swatch is surface-3 on surface, which is almost no contrast
+     on its own. The ring is what makes it findable. */
+  box-shadow: 0 0 0 1px var(--border-strong);
 }
 
 /* --------------------------------------------------------------------------
@@ -713,18 +2957,54 @@ hr {
 }
 
 .finding {
-  border-bottom: 1px solid var(--border);
+  position: relative;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .finding:last-child {
   border-bottom: 0;
 }
 
+/* The severity edge. A row's tier is readable before any of its text is —
+   which is the point of a warning light — but it never carries the meaning
+   alone: the same tier is stated in the reason line above and the badge
+   beside the package name. */
+.finding::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 0.5rem;
+  width: 2px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background var(--duration) var(--ease);
+}
+
+/* Exploited rows get a wider, hotter edge than merely-surfaced ones. Thickness
+   is the second channel, after colour: scanning a long list, the eye picks up
+   the heavier rule before it resolves the hue. */
+.finding--exploited::before {
+  width: 3px;
+  background: var(--exploited-fill);
+}
+
+.finding--surfaced::before {
+  background: var(--high);
+}
+
+.finding__actions {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-end: var(--space-5);
+  display: flex;
+  gap: var(--space-1);
+}
+
 .finding__link {
   display: block;
-  padding: 1.125rem 1.5rem;
+  padding: var(--space-5) var(--space-5);
   text-decoration: none;
-  transition: background 0.12s ease;
+  transition: background var(--duration) var(--ease);
 }
 
 .finding__link:hover {
@@ -735,7 +3015,7 @@ hr {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.11em;
@@ -757,7 +3037,7 @@ hr {
 }
 
 .finding--surfaced .finding__reason {
-  color: var(--signal);
+  color: var(--high);
 }
 
 .finding__title {
@@ -787,6 +3067,8 @@ hr {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-left: auto;
+  /* Clear of the copy buttons parked in the row's top-right corner. */
+  padding-inline-end: 3.25rem;
 }
 
 .finding__summary {
@@ -806,59 +3088,64 @@ hr {
   gap: 1rem;
   flex-wrap: wrap;
   margin-top: 0.6rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   color: var(--text-dim);
   letter-spacing: 0.03em;
 }
 
 /* --------------------------------------------------------------------------
-   Badges
+   Badges — superseded by `.pill`.
+
+   Every template now uses the pill. These rules stay as a compatibility alias
+   because the docs CMS stores admin-authored markup in the database, and a page
+   written before the change can still contain a badge. Nothing new should use
+   them.
    -------------------------------------------------------------------------- */
 
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--border-strong);
+  font-size: var(--step-000);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--hairline);
+  background: var(--surface-2);
   color: var(--text-muted);
   white-space: nowrap;
 }
 
 .badge--kev {
   color: var(--exploited);
-  border-color: var(--exploited);
-  background: color-mix(in srgb, var(--exploited) 12%, transparent);
-  font-weight: 600;
+  border-color: color-mix(in srgb, var(--exploited) 30%, transparent);
+  background: var(--exploited-dim);
 }
 
 .badge--calm {
   color: var(--calm);
-  border-color: color-mix(in srgb, var(--calm) 50%, transparent);
+  border-color: color-mix(in srgb, var(--calm) 30%, transparent);
+  background: var(--calm-dim);
 }
 
 .sev-critical {
-  color: var(--sev-critical);
-  border-color: color-mix(in srgb, var(--sev-critical) 45%, transparent);
+  color: var(--critical);
+  border-color: color-mix(in srgb, var(--critical) 30%, transparent);
 }
 .sev-high {
-  color: var(--sev-high);
-  border-color: color-mix(in srgb, var(--sev-high) 45%, transparent);
+  color: var(--high);
+  border-color: color-mix(in srgb, var(--high) 30%, transparent);
 }
 .sev-medium {
-  color: var(--sev-medium);
-  border-color: color-mix(in srgb, var(--sev-medium) 45%, transparent);
+  color: var(--medium);
+  border-color: color-mix(in srgb, var(--medium) 30%, transparent);
 }
 .sev-low,
 .sev-unknown {
-  color: var(--sev-low);
-  border-color: var(--border-strong);
+  color: var(--low);
+  border-color: var(--hairline);
 }
 
 /* --------------------------------------------------------------------------
@@ -901,8 +3188,41 @@ hr {
   border-bottom-color: var(--signal);
 }
 
+/* The findings filters, nested under the project-level tabs. Quieter and
+   without the underline rail, so two rows of tabs read as a hierarchy rather
+   than as two competing navigations. */
+.tabs--sub {
+  border-bottom: 0;
+  gap: 0.125rem;
+  margin-bottom: 1.25rem;
+}
+
+.tabs--sub .tab {
+  padding: 0.4375rem 0.75rem;
+  font-size: 0.8125rem;
+  border-bottom: 0;
+  border-radius: var(--radius);
+  margin-bottom: 0;
+}
+
+.tabs--sub .tab[aria-selected="true"] {
+  background: var(--surface-2);
+  border-bottom-color: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   Project overview
+
+   The four tier counts used to sit here as equal columns, on the reasoning that
+   the filtered number is the one the product is arguing about and should not be
+   demoted. That argument survives — but it belongs in the noise ledger, which
+   states it as a proportion, not in a row of four numbers that made a page with
+   one urgent finding look exactly like a page with none. The counts are now the
+   shared `.metrics` row underneath a status hero that says which it is.
+   -------------------------------------------------------------------------- */
+
 .tab__count {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.75rem;
   color: var(--text-dim);
   background: var(--surface-2);
@@ -1066,6 +3386,10 @@ hr {
   opacity: 0.55;
 }
 
+.empty__mark i:nth-child(1) { height: 10px; }
+.empty__mark i:nth-child(2) { height: 22px; }
+.empty__mark i:nth-child(3) { height: 15px; }
+
 .empty__mark i {
   display: block;
   width: 4px;
@@ -1098,7 +3422,7 @@ hr {
 }
 
 .datalist dt {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1123,7 +3447,7 @@ hr {
 
 .table th {
   text-align: left;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1155,57 +3479,90 @@ hr {
 .projects {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .project {
+  position: relative;
   display: block;
+  overflow: hidden;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
-  padding: 1.25rem;
+  padding: var(--space-5);
   text-decoration: none;
-  transition: border-color 0.15s ease;
+  box-shadow: var(--elevation-1);
+  transition: transform var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+
+/* The same warning strip as the status hero, so a project's state is legible
+   from the grid without opening it. Muted by default; a project with nothing
+   open shows the calm edge rather than no edge, because "checked and fine" and
+   "not checked" must never look the same. */
+.project::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 0;
+  width: 3px;
+  background: var(--state, var(--surface-3));
+}
+
+.project--calm {
+  --state: var(--calm);
+}
+
+.project--open {
+  --state: var(--high);
+}
+
+.project--exploited {
+  --state: var(--exploited);
 }
 
 .project:hover {
-  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--elevation-2);
 }
 
 .project__name {
   font-weight: 600;
-  font-size: 0.9375rem;
+  font-size: var(--step-0);
   margin-bottom: 0.2rem;
   overflow-wrap: anywhere;
+  letter-spacing: -0.01em;
 }
 
 .project__kind {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-family: var(--font-sans);
+  font-size: var(--step-00);
   color: var(--text-dim);
   letter-spacing: 0.04em;
 }
 
+/* No rule above the counts: the gap does that work, and a card this small does
+   not need to be subdivided. */
 .project__counts {
   display: flex;
-  gap: 1.5rem;
-  margin-top: 1.125rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
+  gap: var(--space-6);
+  margin-top: var(--space-5);
 }
 
 .project__count b {
   display: block;
-  font-family: var(--font-mono);
-  font-size: var(--step-1);
+  font-family: var(--font-sans);
+  font-size: var(--step-2);
   font-weight: 600;
   line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .project__count span {
   display: block;
-  margin-top: 0.3rem;
-  font-family: var(--font-mono);
+  margin-top: 0.35rem;
+  font-family: var(--font-sans);
   font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1213,11 +3570,15 @@ hr {
 }
 
 .project__count--open b {
-  color: var(--signal);
+  color: var(--high);
 }
 
 .project__count--clear b {
   color: var(--calm);
+}
+
+.project__count--exploited b {
+  color: var(--exploited);
 }
 
 /* --------------------------------------------------------------------------
@@ -1251,7 +3612,7 @@ hr {
 }
 
 .hero__note {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.75rem;
   color: var(--text-dim);
 }
@@ -1295,7 +3656,8 @@ hr {
 /* A worked example of the filter, shown rather than described. */
 .demo {
   margin-top: 4rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--elevation-1);
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--surface);
@@ -1328,7 +3690,7 @@ hr {
 }
 
 .demo__row--kept {
-  background: color-mix(in srgb, var(--signal) 6%, transparent);
+  background: color-mix(in srgb, var(--high) 6%, transparent);
 }
 
 .demo__verdict {
@@ -1341,7 +3703,7 @@ hr {
 }
 
 .demo__row--kept .demo__verdict {
-  color: var(--signal);
+  color: var(--high);
 }
 
 .demo__pkg {
@@ -1397,7 +3759,7 @@ hr {
 }
 
 .rules h3 {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1461,7 +3823,8 @@ hr {
 }
 
 .flagged {
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--elevation-1);
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--surface);
@@ -1530,7 +3893,7 @@ hr {
 }
 
 .flagged__foot strong {
-  color: var(--signal);
+  color: var(--high);
   font-weight: 600;
 }
 
@@ -1551,7 +3914,8 @@ hr {
 }
 
 .trend {
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--elevation-1);
   border-radius: var(--radius-lg);
   background: var(--surface);
   padding: 1.5rem;
@@ -1770,7 +4134,7 @@ hr {
 }
 
 .footer__heading {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -1849,7 +4213,8 @@ hr {
 
 .plan {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--elevation-1);
   border-radius: var(--radius-lg);
   padding: 1.75rem;
   display: flex;
@@ -1861,7 +4226,7 @@ hr {
 }
 
 .plan__name {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -1870,7 +4235,7 @@ hr {
 }
 
 .plan__price {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--step-4);
   font-weight: 600;
   letter-spacing: -0.04em;
@@ -1924,7 +4289,7 @@ hr {
 }
 
 .explain h2 {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -1939,7 +4304,7 @@ hr {
 }
 
 .explain--why {
-  border-left: 2px solid var(--signal);
+  border-left: 2px solid var(--high);
   padding-left: 1.25rem;
 }
 
@@ -2021,14 +4386,22 @@ hr {
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
 .stat {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: var(--space-5);
+  box-shadow: var(--elevation-1);
+  transition: transform var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+
+.stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elevation-2);
 }
 
 .stat--wide {
@@ -2037,11 +4410,11 @@ hr {
 
 .stat b {
   display: block;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--step-3);
   font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.045em;
 }
 
 .stat__unit {
@@ -2054,7 +4427,7 @@ hr {
 .stat > span {
   display: block;
   margin-top: 0.55rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.11em;
@@ -2069,7 +4442,7 @@ hr {
 }
 
 .stat--warn b {
-  color: var(--signal);
+  color: var(--high);
 }
 
 /* --- Feed health --------------------------------------------------------- */
@@ -2077,22 +4450,23 @@ hr {
 .feed-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
 .feed {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   border-left-width: 3px;
   border-left-color: var(--calm);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
+  border-radius: var(--radius);
+  padding: var(--space-5);
+  box-shadow: var(--elevation-1);
 }
 
 /* Status is carried by a border colour AND a written word, never colour alone. */
 .feed--stale,
 .feed--never-synced {
-  border-left-color: var(--signal);
+  border-left-color: var(--high);
 }
 
 .feed--failing {
@@ -2113,7 +4487,7 @@ hr {
 }
 
 .feed__status {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -2122,7 +4496,7 @@ hr {
 
 .feed--stale .feed__status,
 .feed--never-synced .feed__status {
-  color: var(--signal);
+  color: var(--high);
 }
 
 .feed--failing .feed__status {
@@ -2158,7 +4532,7 @@ hr {
 }
 
 .chart-range__option {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
@@ -2191,7 +4565,7 @@ hr {
 
 .chart__ylabel,
 .chart__xlabel {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   fill: var(--text-dim);
 }
@@ -2248,7 +4622,8 @@ hr {
   margin-bottom: 1.5rem;
   padding: 1.25rem;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--elevation-1);
   border-radius: var(--radius-lg);
 }
 
@@ -2428,7 +4803,7 @@ hr {
 }
 
 .audit__summary b {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 600;
 }
 
@@ -2473,7 +4848,8 @@ hr {
   align-items: baseline;
   padding: 1.25rem 1.5rem;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--elevation-1);
   border-radius: var(--radius-lg);
   text-decoration: none;
   transition: border-color 0.15s ease, transform 0.15s ease;
@@ -2675,7 +5051,7 @@ hr {
 
 .prose-doc th {
   text-align: left;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -2755,6 +5131,41 @@ hr {
    Motion — one transition class, and nothing that moves without being asked.
    -------------------------------------------------------------------------- */
 
+/* Page load-in. Content starts visible and animates *from* a displaced state,
+   so a failed or skipped animation leaves the page correct rather than blank —
+   the opposite of the usual opacity:0-until-JS pattern. Stagger comes from
+   nth-child rather than an inline delay per element, so templates stay clean.
+
+   Only the first few children are staggered. Past ~5 the wait before the last
+   card lands is longer than the page took to arrive, which reads as slowness
+   rather than polish. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.page > * {
+  animation: rise-in 0.44s var(--ease) backwards;
+}
+
+.page > *:nth-child(1) {
+  animation-delay: 0s;
+}
+.page > *:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.page > *:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.page > *:nth-child(4) {
+  animation-delay: 0.15s;
+}
+.page > *:nth-child(n + 5) {
+  animation-delay: 0.2s;
+}
+
 /* Scroll reveal. `.reveal--armed` is added by JS, so with JS off (or reduced
    motion requested) the element is simply visible — the content never depends
    on the animation running. */
@@ -2798,8 +5209,12 @@ hr {
 @media (max-width: 640px) {
   :root {
     --step-3: 1.5rem;
-    --step-4: 1.875rem;
+    --step-4: 1.75rem;
     --step-5: 2.75rem;
+    /* The hero figure is sized to be read at arm's length on a desktop. At
+       phone width the same value overflows a three-digit count, so the scale
+       steps down rather than the number being allowed to clip. */
+    --step-6: 3.5rem;
   }
 
   .wrap {
@@ -2829,12 +5244,34 @@ hr {
     display: none;
   }
 
-  .ledger__figures {
-    gap: 2rem;
+  .status-hero {
+    padding: var(--space-5);
+    padding-inline-start: var(--space-5);
   }
 
-  .ledger__secondary {
-    gap: 1.75rem;
+  /* The inner row stops competing for width and stacks; the action moves under
+     the state it applies to rather than being squeezed beside it. */
+  .status-hero__inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-5);
+  }
+
+  .status-hero__note {
+    max-width: none;
+  }
+
+  .metrics {
+    gap: var(--space-2) 0;
+  }
+
+  .metric {
+    flex: 1 0 33%;
+    min-width: 0;
+  }
+
+  .ledger__head {
+    gap: var(--space-2);
   }
 
   .hero {
@@ -2850,16 +5287,22 @@ hr {
   }
 
   .card,
-  .ledger {
-    padding: 1.25rem;
+  .ledger,
+  .stat,
+  .project,
+  .feed {
+    padding: var(--space-5);
   }
 
-  .card__body,
   .card__head {
-    padding-inline: 1.25rem;
+    padding: var(--space-5) var(--space-5) var(--space-3);
+  }
+
+  .card__body {
+    padding-inline: var(--space-5);
   }
 
   .finding__link {
-    padding-inline: 1.25rem;
+    padding-inline: var(--space-5);
   }
 }

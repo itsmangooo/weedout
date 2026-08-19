@@ -1,0 +1,267 @@
+{# Project overview: what this project is, when it was last looked at, and what
+   the last look found. Also where a project with no manifest goes to get one. #}
+
+{% if not target.has_manifest %}
+  {# The state that must never be confused with "scanned, nothing found". #}
+  <div class="card">
+    <div class="empty u-pb-5">
+      <span class="empty__mark" aria-hidden="true"><i ></i><i ></i><i ></i></span>
+      <h2>No manifest yet</h2>
+      <p>
+        This project exists, but nothing has been checked. That is different from
+        having been checked and found clean — no advisory has been compared
+        against anything here.
+      </p>
+    </div>
+
+    <div class="stack u-narrow u-center-column">
+      <form method="post" action="/targets/{{ target.id }}/manifest"
+            enctype="multipart/form-data" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="field">
+          <label for="manifest">Upload a manifest</label>
+          <input class="input" type="file" id="manifest" name="manifest"
+                 accept=".json,.txt,.mod,application/json,text/plain">
+          <p class="field__hint">
+            {{ target.ecosystem.label }} project — so
+            {% if target.ecosystem.value == 'npm' %}<code>package-lock.json</code> or <code>package.json</code>
+            {% elif target.ecosystem.value == 'PyPI' %}<code>requirements.txt</code>
+            {% else %}<code>go.mod</code>{% endif %}.
+            A lockfile gives exact versions.
+          </p>
+        </div>
+
+        <details>
+          <summary class="label" >Or paste the contents</summary>
+          <div class="field u-mt-3">
+            <label for="filename">File name</label>
+            <input class="input" type="text" id="filename" name="filename" maxlength="255"
+                   placeholder="{% if target.ecosystem.value == 'npm' %}package.json{% elif target.ecosystem.value == 'PyPI' %}requirements.txt{% else %}go.mod{% endif %}">
+          </div>
+          <div class="field">
+            <label for="content">Contents</label>
+            <textarea class="textarea" id="content" name="content" spellcheck="false"></textarea>
+          </div>
+        </details>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn--primary" data-busy-text="Checking…">
+            Upload and check
+          </button>
+        </div>
+      </form>
+
+      <p class="prose u-text-sm">
+        Or push one from CI instead — create an API key for this project on the
+        <a href="?view=settings">Settings</a> tab and run <code>weedout scan</code>.
+      </p>
+    </div>
+  </div>
+{% else %}
+  {# The project's state, in the same instrument-cluster form as the dashboard.
+     There is no per-project exploited count in this view's context and inventing
+     one from the visible rows would be a guess, so a project reports two states:
+     something is open, or nothing is. #}
+  {% if not target.has_been_scanned %}
+    {% set state, lit = 'unscanned', 1 %}
+  {% elif counts.open %}
+    {% set state, lit = 'open', 2 %}
+  {% else %}
+    {% set state, lit = 'clear', 1 %}
+  {% endif %}
+
+  <section class="status-hero {% if state == 'open' %}status-hero--open{% elif state == 'unscanned' %}status-hero--idle{% endif %}"
+           aria-labelledby="project-state">
+    <h2 id="project-state" class="visually-hidden">Project state</h2>
+
+    <div class="status-hero__inner">
+      <div>
+        <span class="status-hero__state">
+          <span class="status-hero__mark" aria-hidden="true">
+            <i class="{% if lit >= 3 %}is-lit{% endif %}"></i>
+            <i class="{% if lit >= 2 %}is-lit{% endif %}"></i>
+            <i class="is-lit"></i>
+          </span>
+          {% if state == 'open' %}Needs attention
+          {% elif state == 'unscanned' %}Not checked yet
+          {% else %}Nothing needs you{% endif %}
+        </span>
+
+        {% if state == 'open' %}
+          <span class="status-hero__value">{{ counts.open }}</span>
+          <p class="status-hero__note">
+            {{ 'This finding' if counts.open == 1 else 'These findings' }} cleared the
+            alerting bar. {{ counts.filtered }} more matched your dependencies and
+            {{ 'was' if counts.filtered == 1 else 'were' }} filtered out.
+          </p>
+        {% elif state == 'unscanned' %}
+          <span class="status-hero__word">No result yet</span>
+          <p class="status-hero__note">
+            The manifest is stored but no check has completed. This is not a clean
+            result — it is no result.
+          </p>
+        {% else %}
+          <span class="status-hero__word">All clear</span>
+          <p class="status-hero__note">
+            No advisory affecting this project cleared the alerting bar.
+            {% if counts.filtered %}
+              {{ counts.filtered }} matched and {{ 'was' if counts.filtered == 1 else 'were' }}
+              filtered out — filed, not hidden.
+            {% endif %}
+          </p>
+        {% endif %}
+      </div>
+
+      {% if state == 'open' %}
+        <a href="?view=findings&show=open" class="btn btn--primary">Review findings</a>
+      {% endif %}
+    </div>
+
+    <div class="metrics">
+      <a class="metric metric--signal {% if counts.open %}is-active{% endif %}" href="?view=findings&show=open">
+        <span class="metric__value"><span class="metric__dot" aria-hidden="true"></span>{{ counts.open }}</span>
+        <span class="metric__label">Open</span>
+      </a>
+      <a class="metric" href="?view=findings&show=filtered">
+        <span class="metric__value"><span class="metric__dot" aria-hidden="true"></span>{{ counts.filtered }}</span>
+        <span class="metric__label">Filtered</span>
+      </a>
+      <a class="metric" href="?view=findings&show=dismissed">
+        <span class="metric__value"><span class="metric__dot" aria-hidden="true"></span>{{ counts.dismissed }}</span>
+        <span class="metric__label">Dismissed</span>
+      </a>
+      <a class="metric metric--calm {% if counts.resolved %}is-active{% endif %}" href="?view=findings&show=resolved">
+        <span class="metric__value"><span class="metric__dot" aria-hidden="true"></span>{{ counts.resolved }}</span>
+        <span class="metric__label">Resolved</span>
+      </a>
+    </div>
+  </section>
+
+  {# The facts you would otherwise go looking for. Second, because they are
+     reference rather than state. #}
+  <div class="card section-gap--tight">
+    <dl class="datalist">
+      <dt>Ecosystem</dt><dd>{{ target.ecosystem.label }}</dd>
+      <dt>Manifest</dt>
+      <dd class="mono">{{ target.manifest_kind.value if target.manifest_kind else '—' }}</dd>
+      <dt>Dependencies</dt><dd class="num">{{ target.dependency_count }}</dd>
+      <dt>Last checked</dt>
+      <dd>
+        {% if target.has_been_scanned %}
+          {{ target.last_scanned_at|relative_time }}
+          <span class="dim">({{ target.last_scanned_at|absolute_time }})</span>
+        {% else %}
+          <span class="dim">Never — no check has completed yet</span>
+        {% endif %}
+      </dd>
+      <dt>Next check</dt>
+      <dd>
+        {% if target.next_scan_at %}
+          {{ target.next_scan_at|relative_time }}
+        {% else %}
+          <span class="dim">On the next sweep</span>
+        {% endif %}
+      </dd>
+      <dt>Status</dt><dd>{{ target.status_label }}</dd>
+    </dl>
+  </div>
+
+  {% if target.parse_warnings %}
+    <div class="notice notice--info section-gap--tight">
+      <p><strong>{{ target.parse_warnings|length }} {{ target.parse_warnings|length|pluralize('line', 'lines') }} couldn't be checked.</strong>
+        These aren't covered by any finding:</p>
+      <ul class="u-list muted u-text-xs">
+        {% for warning in target.parse_warnings[:8] %}<li>{{ warning }}</li>{% endfor %}
+        {% if target.parse_warnings|length > 8 %}
+          <li class="dim">…and {{ target.parse_warnings|length - 8 }} more</li>
+        {% endif %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if recent_runs %}
+    <section class="section-gap">
+      <div class="card card--flush">
+        <div class="card__head"><h2>Recent checks</h2></div>
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>When</th><th>Result</th><th>Deps</th><th>Surfaced</th><th>Filtered</th><th>New</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for run in recent_runs %}
+                <tr>
+                  <td>{{ run.started_at|relative_time }}</td>
+                  <td>
+                    {% if run.status == 'success' %}
+                      <span class="pill pill--calm">OK</span>
+                    {% elif run.status == 'running' %}
+                      <span class="pill pill--plain">Running</span>
+                    {% else %}
+                      <span class="pill pill--critical">Failed</span>
+                    {% endif %}
+                  </td>
+                  <td class="num">{{ run.dependencies_scanned }}</td>
+                  <td class="num">{{ run.actionable_count }}</td>
+                  <td class="num">{{ run.suppressed_count }}</td>
+                  <td class="num">{{ run.new_actionable_count }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if dependencies %}
+    <section class="section-gap">
+      <details class="card card--flush">
+        <summary class="card__head" >
+          <h2>Dependencies</h2>
+          <span class="dim u-text-xs">{{ dependencies|length }} · show</span>
+        </summary>
+
+        {# Filter and sort happen on the rows already in the page. The server
+           has answered this question once; re-asking it to reorder a list of
+           dependencies would be work nobody needs done twice. #}
+        <div class="table-filter">
+          <input class="table-filter__input" type="search" data-filters="deps-body"
+                 data-count="deps-count" aria-label="Filter dependencies"
+                 placeholder="Filter by package name…">
+          <span class="table-filter__count" id="deps-count" aria-live="polite">
+            {{ dependencies|length }} {{ dependencies|length|pluralize('row') }}
+          </span>
+        </div>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th data-sort scope="col">Package</th>
+                <th data-sort scope="col">Version</th>
+                <th data-sort scope="col">Declared as</th>
+                <th data-sort scope="col">Reaches production</th>
+              </tr>
+            </thead>
+            <tbody id="deps-body">
+              {% for dep in dependencies %}
+                <tr>
+                  <td class="mono">{{ dep.name }}</td>
+                  <td class="mono">
+                    {{ dep.version }}
+                    {% if not dep.version_exact %}<span class="dim" title="Assumed from a range">≈</span>{% endif %}
+                  </td>
+                  <td class="mono dim">{{ dep.version_spec }}</td>
+                  <td data-sort-value="{{ '1' if dep.reachability.ships_to_production else '0' }}">{{ 'Yes' if dep.reachability.ships_to_production else 'No — dev only' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+  {% endif %}
+{% endif %}

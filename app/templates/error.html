@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="card auth-card" style="text-align:center">
+<div class="card auth-card u-center">
   <p class="eyebrow">{{ status_code }}</p>
   <h1>{{ title }}</h1>
   <p class="muted">{{ message }}</p>
-  <div class="btn-row" style="justify-content:center;margin-top:1.5rem">
+  <div class="btn-row btn-row--center">
     <a href="{% if user %}/dashboard{% else %}/{% endif %}" class="btn">
       {% if user %}Back to dashboard{% else %}Back to home{% endif %}
     </a>

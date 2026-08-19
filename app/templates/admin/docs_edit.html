@@ -47,7 +47,7 @@
              {% if (v.get('published') if v else (page.published if page else False)) %}checked{% endif %}>
       <div>
         <label class="label" for="published">Published</label>
-        <p class="field__hint" style="margin:0">
+        <p class="field__hint u-flush">
           Drafts are invisible to everyone — <code>/docs/&lt;slug&gt;</code> returns 404.
         </p>
       </div>

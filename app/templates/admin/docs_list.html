@@ -24,9 +24,9 @@
               <td class="mono dim">/docs/{{ page.slug }}</td>
               <td>
                 {% if page.published %}
-                  <span class="badge badge--calm">Published</span>
+                  <span class="pill pill--calm">Published</span>
                 {% else %}
-                  <span class="badge">Draft</span>
+                  <span class="pill pill--plain">Draft</span>
                 {% endif %}
               </td>
               <td class="mono">{{ page.position }}</td>
@@ -47,7 +47,7 @@
     <div class="empty">
       <h2>No pages yet</h2>
       <p>Write the first one — it appears at <code>/docs</code> once published.</p>
-      <div class="btn-row" style="justify-content:center;margin-top:1.5rem">
+      <div class="btn-row btn-row--center">
         <a href="/admin/docs/new" class="btn btn--primary">New page</a>
       </div>
     </div>

@@ -16,23 +16,23 @@
     </p>
   </div>
 {% elif user.tier.value == 'pro' %}
-  <div class="card" style="max-width:560px">
-    <h2 style="font-size:0.9375rem;margin-bottom:1rem">Pro</h2>
+  <div class="card u-narrow">
+    <h2 class="panel__title">Pro</h2>
     <dl class="datalist">
       <dt>Status</dt><dd>{{ user.subscription_status or 'active' }}</dd>
       {% if user.subscription_ends_at %}
         <dt>Next billed</dt><dd>{{ user.subscription_ends_at|absolute_time }}</dd>
       {% endif %}
     </dl>
-    <p class="field__hint" style="margin-top:1.25rem">
+    <p class="field__hint u-mt-4">
       Manage or cancel your subscription from the receipt Dodo emailed you.
       Changes appear here within a minute.
     </p>
   </div>
 {% else %}
-  <div class="card" style="max-width:560px">
-    <h2 style="font-size:0.9375rem;margin-bottom:0.5rem">Upgrade to Pro</h2>
-    <p class="muted" style="font-size:0.875rem">
+  <div class="card u-narrow">
+    <h2 class="panel__title">Upgrade to Pro</h2>
+    <p class="muted u-text-sm">
       Unlimited projects, checked every 4 hours, with full alert history.
     </p>
     {% if checkout_url %}
@@ -44,7 +44,7 @@
     {% else %}
       <p class="field__hint">No product is configured for the Pro plan yet.</p>
     {% endif %}
-    <p class="field__hint" style="margin-top:0.875rem">
+    <p class="field__hint u-mt-3">
       Dodo Payments handles payment and tax as merchant of record. Your card
       details never reach our servers.
     </p>

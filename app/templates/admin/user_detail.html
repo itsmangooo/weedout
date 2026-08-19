@@ -51,7 +51,7 @@
       {% endif %}
     </section>
 
-    <section class="card card--flush" style="margin-top:1.5rem">
+    <section class="card card--flush u-mt-5">
       <div class="card__head"><h2>Alert history</h2></div>
       {% if detail.recent_alerts %}
         <div class="table-scroll">
@@ -64,17 +64,17 @@
                   <td class="mono dim">{{ alert.channel }}</td>
                   <td>
                     {% if alert.status == 'sent' %}
-                      <span class="badge badge--calm">Sent</span>
+                      <span class="pill pill--calm">Sent</span>
                     {% elif alert.status == 'failed' %}
-                      <span class="badge sev-critical">Failed</span>
+                      <span class="pill pill--critical">Failed</span>
                     {% else %}
-                      <span class="badge">{{ alert.status }}</span>
+                      <span class="pill pill--plain">{{ alert.status }}</span>
                     {% endif %}
                   </td>
-                  <td style="font-size:0.8125rem">
+                  <td class="u-text-xs">
                     {{ alert.subject }}
                     {% if alert.error %}
-                      <br><span class="dim" style="font-size:0.75rem">{{ alert.error[:160] }}</span>
+                      <br><span class="dim u-text-xs">{{ alert.error[:160] }}</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -88,7 +88,7 @@
     </section>
 
     {% if detail.audit_entries %}
-      <section class="card card--flush" style="margin-top:1.5rem">
+      <section class="card card--flush u-mt-5">
         <div class="card__head"><h2>Admin actions on this account</h2></div>
         <ul class="audit-list">
           {% for entry in detail.audit_entries %}
@@ -103,12 +103,12 @@
     <div class="card">
       <h2 class="eyebrow">Account</h2>
       <dl class="datalist">
-        <dt>Email</dt><dd class="mono" style="overflow-wrap:anywhere">{{ u.email }}</dd>
+        <dt>Email</dt><dd class="mono u-wrap-anywhere">{{ u.email }}</dd>
         <dt>Plan</dt><dd>{{ u.tier.label }}</dd>
         <dt>Status</dt>
         <dd>
           {{ u.status_label }}
-          {% if u.is_admin %}<span class="badge badge--admin">Admin</span>{% endif %}
+          {% if u.is_admin %}<span class="pill pill--digest">Admin</span>{% endif %}
         </dd>
         <dt>Signed up</dt><dd>{{ u.created_at | absolute_time }}</dd>
         <dt>Last login</dt><dd>{{ u.last_login_at | relative_time }}</dd>
@@ -120,7 +120,7 @@
     </div>
 
     {% if u.dodo_subscription_id %}
-      <div class="card" style="margin-top:1rem">
+      <div class="card u-mt-4">
         <h2 class="eyebrow">Subscription</h2>
         <dl class="datalist">
           <dt>Status</dt><dd>{{ u.subscription_status or '—' }}</dd>
@@ -133,14 +133,14 @@
           {% endif %}
           <dt>Next billed</dt><dd>{{ u.subscription_ends_at | absolute_time }}</dd>
           <dt>Subscription</dt>
-          <dd class="mono" style="font-size:0.6875rem;overflow-wrap:anywhere">
+          <dd class="mono u-text-xxs u-wrap-anywhere">
             {{ u.dodo_subscription_id }}
           </dd>
         </dl>
       </div>
     {% endif %}
 
-    <div class="card" style="margin-top:1rem">
+    <div class="card u-mt-4">
       <h2 class="eyebrow">Change plan</h2>
       <form method="post" action="/admin/users/{{ u.id }}/tier">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -162,10 +162,10 @@
       </form>
     </div>
 
-    <div class="card" style="margin-top:1rem">
+    <div class="card u-mt-4">
       <h2 class="eyebrow">Access</h2>
       {% if u.is_admin %}
-        <p class="field__hint" style="margin:0">
+        <p class="field__hint u-flush">
           Administrator accounts can't be suspended from here. Use
           <code>python -m app.manage demote-admin</code> first.
         </p>
@@ -192,9 +192,9 @@
       {% endif %}
     </div>
 
-    <div class="card card--danger" style="margin-top:1rem">
+    <div class="card card--danger u-mt-4">
       <h2 class="eyebrow">Delete account</h2>
-      <p class="field__hint" style="margin-top:0">
+      <p class="field__hint u-mt-0">
         Permanently removes this account and everything belonging to it:
         {{ detail.targets | length }} {{ detail.targets | length | pluralize('project') }},
         {{ detail.open_alert_count + detail.suppressed_count }} findings,

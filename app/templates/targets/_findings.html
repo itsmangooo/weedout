@@ -1,0 +1,90 @@
+{# The findings list, with its own filter tabs. Unchanged from before the
+   Overview/Settings split apart from the no-manifest case at the top. #}
+
+{% if not target.has_manifest %}
+  <div class="card card--flush">
+    <div class="empty">
+      <span class="empty__mark" aria-hidden="true"><i ></i><i ></i><i ></i></span>
+      <h2>Nothing checked yet</h2>
+      <p>
+        This project has no manifest, so no advisory has been compared against
+        anything. That is not the same as having none —
+        <a href="?view=overview">upload one</a> to find out.
+      </p>
+    </div>
+  </div>
+{% else %}
+  <nav class="tabs tabs--sub" aria-label="Findings">
+    <a class="tab" href="?view=findings&show=open" {% if selected == 'open' %}aria-selected="true"{% endif %}>
+      Open <span class="tab__count">{{ counts.open }}</span>
+    </a>
+    <a class="tab" href="?view=findings&show=filtered" {% if selected == 'filtered' %}aria-selected="true"{% endif %}>
+      Filtered <span class="tab__count">{{ counts.filtered }}</span>
+    </a>
+    <a class="tab" href="?view=findings&show=dismissed" {% if selected == 'dismissed' %}aria-selected="true"{% endif %}>
+      Dismissed <span class="tab__count">{{ counts.dismissed }}</span>
+    </a>
+    <a class="tab" href="?view=findings&show=resolved" {% if selected == 'resolved' %}aria-selected="true"{% endif %}>
+      Resolved <span class="tab__count">{{ counts.resolved }}</span>
+    </a>
+  </nav>
+
+  {% if selected == 'filtered' %}
+    <p class="prose u-text-sm u-mb-4">
+      These advisories genuinely affect versions you have. They were filed instead of sent,
+      with the reason on each row. If you disagree with a call, it's here so you can see it.
+    </p>
+  {% endif %}
+
+  <div class="card card--flush">
+    {% if matches %}
+      {# Exports what this tab shows. A compliance export of the open findings
+         is a different document from a dump of everything, and handing over
+         the second when the first was asked for is how a report ends up
+         wrong. #}
+      <div class="table-filter">
+        <span class="table-filter__count">
+          {{ matches|length }} {{ matches|length|pluralize('finding') }} in this view
+        </span>
+        <span class="exporters">
+          <a class="btn btn--ghost btn--sm"
+             href="/targets/{{ target.id }}/export.csv?show={{ selected }}"
+             download>Export CSV</a>
+          <a class="btn btn--ghost btn--sm"
+             href="/targets/{{ target.id }}/export.json?show={{ selected }}"
+             download>Export JSON</a>
+        </span>
+      </div>
+      <ul class="findings">
+        {% for match in matches %}
+          {% include "partials/_finding.html" %}
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty">
+        <span class="empty__mark" aria-hidden="true"><i ></i><i ></i><i ></i></span>
+        <h2>
+          {% if not target.has_been_scanned %}Not scanned yet
+          {% elif selected == 'open' %}Nothing needs you here
+          {% elif selected == 'filtered' %}Nothing has been filtered yet
+          {% elif selected == 'dismissed' %}Nothing dismissed
+          {% else %}Nothing resolved yet{% endif %}
+        </h2>
+        <p>
+          {% if not target.has_been_scanned %}
+            The manifest is stored but no check has completed, so this is not a
+            clean result — it is no result. Use <strong>Check now</strong> above.
+          {% elif selected == 'open' %}
+            No advisory affecting this project cleared the alerting bar.
+          {% elif selected == 'filtered' %}
+            When an advisory matches your dependencies but doesn't clear the bar, it lands here with the reason.
+          {% elif selected == 'dismissed' %}
+            Findings you dismiss move here and stop appearing on your dashboard.
+          {% else %}
+            Findings move here once a scan confirms the affected version is gone.
+          {% endif %}
+        </p>
+      </div>
+    {% endif %}
+  </div>
+{% endif %}

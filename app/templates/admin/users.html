@@ -65,18 +65,18 @@
             <tr>
               <td>
                 <a href="/admin/users/{{ row.user.id }}" class="mono">{{ row.user.email }}</a>
-                {% if row.user.is_admin %}<span class="badge badge--admin">Admin</span>{% endif %}
+                {% if row.user.is_admin %}<span class="pill pill--digest">Admin</span>{% endif %}
               </td>
               <td>
-                <span class="badge {% if row.user.tier.value == 'pro' %}badge--pro{% endif %}">
+                <span class="pill {% if row.user.tier.value == 'pro' %}pill--calm{% else %}pill--plain{% endif %}">
                   {{ row.user.tier.label }}
                 </span>
               </td>
               <td>
                 {% if row.user.is_suspended %}
-                  <span class="badge sev-critical">Suspended</span>
+                  <span class="pill pill--critical">Suspended</span>
                 {% else %}
-                  <span class="badge badge--calm">{{ row.user.status_label }}</span>
+                  <span class="pill pill--calm">{{ row.user.status_label }}</span>
                 {% endif %}
               </td>
               <td class="mono">{{ row.target_count }}</td>
@@ -114,7 +114,7 @@
       {% else %}
         <span class="btn btn--sm" aria-disabled="true">Previous</span>
       {% endif %}
-      <span class="mono dim" style="font-size:0.75rem">Page {{ result.page }} of {{ result.pages }}</span>
+      <span class="mono dim u-text-xs">Page {{ result.page }} of {{ result.pages }}</span>
       {% if result.has_next %}
         <a class="btn btn--sm" href="{{ base }}&page={{ result.page + 1 }}">Next</a>
       {% else %}
