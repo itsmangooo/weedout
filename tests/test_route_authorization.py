@@ -37,6 +37,12 @@ PUBLIC_ROUTES: dict[str, str] = {
     "/logout": "ends a session; harmless without one",
     "/forgot-password": "reset request; identical response either way",
     "/reset-password": "reset completion; the token is the credential",
+    "/cli": "public marketing page for the CLI",
+    "/install.sh": (
+        "the install script itself. `curl -sSL https://weedout.dev/install.sh | sh` "
+        "is a documented address that has to work before anyone has an account, "
+        "and the file is a static asset with no user data in it."
+    ),
     "/docs": "public documentation index",
     "/docs/{slug}": "public documentation page",
     "/webhooks/dodo": "authenticated by HMAC signature, not by session",

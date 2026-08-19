@@ -122,6 +122,16 @@
   --accent-quiet: color-mix(in srgb, var(--accent) 16%, transparent);
   --accent-ink: #0b0a12;
 
+  /* The filled-button pair. Deliberately a deeper violet than --accent:
+     white on #6d4de8 measures 5.42:1, and the fill still clears 3:1
+     against the card as a UI component boundary. Using --accent as a
+     button fill forces dark ink on a saturated mid-tone — legal at
+     5.99:1 and still hard to read. One token cannot be both legible as
+     text on a dark surface and dark enough to carry white text. */
+  --accent-solid: #6d4de8;
+  --accent-solid-hover: #5f3edb;
+  --accent-on-solid: #ffffff;
+
   /* ======================================================================
      SEVERITY — its own set, and nothing else may use it.
 
@@ -362,6 +372,10 @@
   --accent-quiet: color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-ink: #ffffff;
 
+  --accent-solid: #5b3fd1;
+  --accent-solid-hover: #4a31b4;
+  --accent-on-solid: #ffffff;
+
   --exploited: #c62a17;
   --critical: #bd1747;
   --high: #a05a00;
@@ -417,6 +431,10 @@
     --accent-strong: #4a31b4;
     --accent-quiet: color-mix(in srgb, var(--accent) 12%, transparent);
     --accent-ink: #ffffff;
+
+    --accent-solid: #5b3fd1;
+    --accent-solid-hover: #4a31b4;
+    --accent-on-solid: #ffffff;
 
     --exploited: #c62a17;
     --critical: #bd1747;
@@ -2036,6 +2054,370 @@ kbd {
 }
 
 /* --------------------------------------------------------------------------
+   CLI page
+
+   The one page where a heavier visual investment is justified. It still draws
+   every colour from the same tokens as the app — the ambition is in the hero
+   and the layout confidence, not in a second visual language.
+   -------------------------------------------------------------------------- */
+
+.cli-hero {
+  position: relative;
+  isolation: isolate;
+  margin-block: calc(var(--space-6) * -1) var(--space-8);
+  padding-block: var(--space-8) var(--space-7);
+  overflow: hidden;
+}
+
+.cli-hero__canvas {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  /* Masked at the edges so the field dissolves into the page rather than
+     ending at a rectangle. */
+  /* #000 here is an alpha value, not a colour: in a mask it means "fully
+     opaque" and never renders. It must not follow the theme. */
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 35%, #000 30%, transparent 78%);
+  mask-image: radial-gradient(120% 90% at 50% 35%, #000 30%, transparent 78%);
+}
+
+.cli-hero__inner {
+  position: relative;
+  max-width: 46rem;
+}
+
+.cli-hero__title {
+  font-size: clamp(2.25rem, 6vw, 4.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  margin-bottom: var(--space-5);
+}
+
+.cli-hero__title span {
+  display: block;
+}
+
+.cli-hero__lit {
+  color: var(--accent);
+}
+
+.cli-hero__lede {
+  max-width: 40ch;
+  font-size: var(--step-1);
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin-bottom: var(--space-6);
+}
+
+.cli-hero__actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-7);
+}
+
+/* Load-in. Starts from the displaced state and animates *to* neutral, so a
+   skipped or failed animation leaves the text readable rather than invisible —
+   the opposite of the usual opacity:0-until-JS pattern. */
+@keyframes cli-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* Stagger comes from source order rather than an index written onto each
+   element: the delay is a property of position in the hero, and encoding it in
+   markup means a reordered section silently animates out of sequence. */
+.cli-reveal {
+  animation: cli-rise 0.7s var(--ease-out) backwards;
+}
+
+.cli-hero__inner > .cli-reveal:nth-child(1),
+.cli-hero__title .cli-reveal:nth-child(1) {
+  animation-delay: 0s;
+}
+.cli-hero__inner > .cli-reveal:nth-child(2),
+.cli-hero__title .cli-reveal:nth-child(2) {
+  animation-delay: 0.09s;
+}
+.cli-hero__inner > .cli-reveal:nth-child(3) {
+  animation-delay: 0.18s;
+}
+.cli-hero__inner > .cli-reveal:nth-child(4) {
+  animation-delay: 0.27s;
+}
+.cli-hero__inner > .cli-reveal:nth-child(n + 5) {
+  animation-delay: 0.36s;
+}
+
+/* ---- Trust badge -------------------------------------------------------- */
+
+.cli-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 44rem;
+  padding: var(--space-4);
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  background: var(--glass-solid);
+  -webkit-backdrop-filter: var(--glass-blur-soft);
+  backdrop-filter: var(--glass-blur-soft);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  box-shadow: var(--elevation-1);
+}
+
+.cli-badge strong {
+  color: var(--text);
+}
+
+.cli-badge__mark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+}
+
+.cli-badge__mark i {
+  display: block;
+  width: 3px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.cli-badge__mark i:nth-child(1) { height: 45%; }
+.cli-badge__mark i:nth-child(2) { height: 100%; }
+.cli-badge__mark i:nth-child(3) { height: 70%; }
+
+/* ---- Sections ----------------------------------------------------------- */
+
+.cli-section {
+  margin-block: var(--space-8);
+}
+
+.cli-section__title {
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  letter-spacing: -0.03em;
+  margin-bottom: var(--space-5);
+}
+
+.cli-section__lede {
+  max-width: 52ch;
+  font-size: var(--step-1);
+  color: var(--text-muted);
+  margin-bottom: var(--space-5);
+}
+
+/* ---- Install ------------------------------------------------------------ */
+
+.cli-install {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.cli-install__label {
+  margin: 0 0 var(--space-3);
+  font-size: var(--step-000);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+/* The OS-detected card, marked by JS. Highlighted rather than reordered: the
+   detection is a guess from a user-agent string, and reordering the page on a
+   guess makes the other options feel hidden. */
+.cli-install__primary.is-detected {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    var(--elevation-1);
+}
+
+.cli-install__badge {
+  display: inline-block;
+  margin-inline-start: var(--space-2);
+  padding: 0.05rem 0.4rem;
+  font-size: var(--step-000);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--accent-quiet);
+  border-radius: var(--radius-pill);
+}
+
+.cmdline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--level-0);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+
+.cmdline code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+}
+
+.cmdline .copy {
+  opacity: 1;
+  margin-inline-start: auto;
+}
+
+/* ---- Downloads ---------------------------------------------------------- */
+
+.cli-assets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cli-asset {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.cli-asset:last-child {
+  border-bottom: 0;
+}
+
+.cli-asset.is-detected {
+  background: var(--accent-quiet);
+}
+
+.cli-asset__platform {
+  flex: 1;
+  font-size: 0.875rem;
+}
+
+.cli-asset__size {
+  font-size: var(--step-00);
+}
+
+.cli-downloads__foot {
+  padding: var(--space-4) var(--space-5);
+  margin: 0;
+}
+
+/* ---- Usage -------------------------------------------------------------- */
+
+.cli-step {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: var(--space-6);
+  align-items: center;
+  margin-bottom: var(--space-8);
+}
+
+.cli-step__heading {
+  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+  letter-spacing: -0.025em;
+  margin-bottom: var(--space-4);
+}
+
+/* Deliberately large body copy. This is the page where somebody decides
+   whether to run the thing; small print would be the wrong register. */
+.cli-step__body {
+  max-width: 46ch;
+  font-size: var(--step-1);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.cli-step__body code {
+  font-size: 0.9em;
+}
+
+.terminal {
+  margin: 0;
+  padding: var(--space-5);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  color: var(--text-muted);
+  background: var(--level-0);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  box-shadow: var(--elevation-1);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.terminal__prompt { color: var(--accent); }
+.terminal__bold { color: var(--text); font-weight: 600; }
+.terminal__dim { color: var(--text-dim); }
+.terminal__crit { color: var(--exploited); }
+.terminal__warn { color: var(--high); }
+.terminal__ok { color: var(--accent); }
+
+/* ---- Dependencies ------------------------------------------------------- */
+
+.cli-deps__none {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.cli-deps__figure {
+  font-size: clamp(4rem, 12vw, 8rem);
+  font-weight: 600;
+  line-height: 0.85;
+  letter-spacing: -0.05em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.cli-deps__heading {
+  font-size: var(--step-2);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-3);
+}
+
+.cli-deps__body {
+  max-width: 52ch;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* ---- Version ------------------------------------------------------------ */
+
+.cli-version {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .cli-hero {
+    padding-block: var(--space-7) var(--space-6);
+  }
+
+  .cli-step {
+    gap: var(--space-5);
+  }
+}
+
+/* --------------------------------------------------------------------------
    Responsive shell
    -------------------------------------------------------------------------- */
 
@@ -2335,15 +2717,18 @@ summary {
 }
 
 .btn--primary {
-  background: var(--signal);
-  border-color: var(--signal);
-  color: #14161a;
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+  color: var(--accent-on-solid);
   font-weight: 600;
 }
 
+/* Hover goes darker, not lighter. Lightening a fill that white text sits on
+   reduces the contrast under the label at exactly the moment the control is
+   being used. */
 .btn--primary:hover {
-  background: color-mix(in srgb, var(--signal) 88%, white);
-  border-color: color-mix(in srgb, var(--signal) 88%, white);
+  background: var(--accent-solid-hover);
+  border-color: var(--accent-solid-hover);
 }
 
 .btn--ghost {

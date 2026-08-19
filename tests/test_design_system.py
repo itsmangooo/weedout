@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -138,6 +139,69 @@ class TestTokens:
             d = re.search(rf"^\s+{tier}:\s*(#[0-9a-fA-F]+);", dark, re.M).group(1)
             lt = re.search(rf"^\s+{tier}:\s*(#[0-9a-fA-F]+);", light, re.M).group(1)
             assert d.lower() != lt.lower(), f"{tier} is identical in both themes"
+
+
+class TestStylesheetUsesTokens:
+    """The template guard above missed the stylesheet itself.
+
+    A hardcoded `color: #14161a` sat in the primary button rule for several
+    rounds — invisible to the template check, and the reason the button ink
+    never followed the theme. Colours below the token block have to justify
+    themselves.
+    """
+
+    #: The only literals allowed outside the token block, each because it must
+    #: NOT follow the current theme.
+    ALLOWED: ClassVar[set[str]] = {
+        # Theme swatches show a preset that is not the one applied, so they
+        # cannot be expressed in tokens that resolve to the active theme.
+        "swatch__chip",
+        # A QR code needs a real white plate to be scannable, in every theme.
+        "totp__qr",
+        # A mask's #000 is an alpha value meaning "opaque", not a colour. It
+        # never renders, and theming it would be meaningless.
+        "cli-hero__canvas",
+    }
+
+    def test_no_hardcoded_colours_below_the_token_block(self):
+        css = CSS.read_text(encoding="utf-8")
+        body = css[css.index("   Reset & base") :]
+
+        offenders = []
+        rule = "(unknown)"
+        for line in body.splitlines():
+            stripped = line.strip()
+            if stripped.endswith("{"):
+                rule = stripped
+            if HEX.search(line) and not any(a in rule for a in self.ALLOWED):
+                offenders.append(f"{rule} -> {stripped}")
+
+        assert offenders == [], f"hardcoded colours outside the tokens: {offenders}"
+
+
+class TestButtonContrast:
+    def test_the_filled_button_has_its_own_accent(self):
+        # One accent cannot be both light enough to read as text on a dark
+        # surface and dark enough to carry white text as a fill. Splitting them
+        # is what lets the button drop its near-black ink.
+        css = CSS.read_text(encoding="utf-8")
+        assert "--accent-solid:" in css
+        assert "--accent-on-solid:" in css
+
+        start = css.index(".btn--primary {")
+        block = css[start : css.index("}", start)]
+        assert "var(--accent-solid)" in block
+        assert "var(--accent-on-solid)" in block
+        assert "#" not in block, "the primary button is hardcoding a colour again"
+
+    def test_hover_darkens_rather_than_lightens(self):
+        # White sits on this fill. Lightening it on hover drops the contrast
+        # under the label exactly when the control is being used.
+        css = CSS.read_text(encoding="utf-8")
+        start = css.index(".btn--primary:hover {")
+        block = css[start : css.index("}", start)]
+        assert "var(--accent-solid-hover)" in block
+        assert "white" not in block
 
 
 class TestSearchHasOneEntryPoint:

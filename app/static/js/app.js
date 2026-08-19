@@ -1020,6 +1020,69 @@
     });
   }
 
+
+  /* ---------------------------------------------------------------------
+     CLI page: highlight the download that matches this machine.
+
+     A guess from a user-agent string, so it highlights rather than reorders.
+     Reordering on a guess makes the other options feel hidden, and the guess
+     is wrong often enough — ARM Macs reporting Intel, Linux browsers spoofing
+     Windows — that the wrong one must never be the only one you can see.
+     --------------------------------------------------------------------- */
+
+  var installCards = document.querySelectorAll(".cli-install__primary");
+  var assetList = document.getElementById("cli-assets");
+
+  if (installCards.length || assetList) {
+    var ua = navigator.userAgent;
+    var platform = navigator.platform || "";
+
+    var os = "";
+    if (/Windows|Win32|Win64/i.test(ua)) os = "windows";
+    else if (/Macintosh|Mac OS X/i.test(ua)) os = "darwin";
+    else if (/Linux|X11|CrOS/i.test(ua)) os = "linux";
+
+    /* Architecture is barely knowable from a browser. userAgentData is the
+       only honest source; everything else is inference, and an Apple Silicon
+       Mac reports "MacIntel" for compatibility. Default to arm64 on modern
+       Macs, amd64 elsewhere, and let the full list carry the rest. */
+    var arch = "amd64";
+    if (/aarch64|arm64/i.test(ua) || /ARM/i.test(platform)) {
+      arch = "arm64";
+    } else if (os === "darwin" && navigator.maxTouchPoints > 1) {
+      arch = "arm64";
+    }
+
+    var want = os ? os + "-" + arch : "";
+    if (want && assetList) {
+      var matched = assetList.querySelector('[data-platform="' + want + '"]');
+      if (matched) {
+        matched.classList.add("is-detected");
+        var link = matched.querySelector(".btn");
+        if (link) link.classList.add("btn--primary");
+      }
+    }
+
+    /* The install card for this OS. Highlighted independently of the download
+       table, because before the first release exists there is no table — and
+       that is exactly when the install command matters most.
+
+       Windows has no curl|sh path, so it gets the Go card rather than a
+       command it cannot run. */
+    var cards = installCards;
+    if (cards.length >= 2 && os) {
+      var card = os === "windows" ? cards[1] : cards[0];
+      card.classList.add("is-detected");
+      var label = card.querySelector(".cli-install__label");
+      if (label) {
+        var badge = document.createElement("span");
+        badge.className = "cli-install__badge";
+        badge.textContent = "Detected";
+        label.appendChild(badge);
+      }
+    }
+  }
+
   /* Restore forms when the browser serves a cached page on back-navigation,
      which would otherwise leave every button stuck in its busy state. */
   window.addEventListener("pageshow", function (event) {

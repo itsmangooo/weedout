@@ -119,6 +119,7 @@
         </a>
 
         <nav class="nav" aria-label="Main">
+          <a href="/cli" {% if request.url.path == '/cli' %}aria-current="page"{% endif %}>CLI</a>
           <a href="/docs" {% if request.url.path.startswith('/docs') %}aria-current="page"{% endif %}>Docs</a>
           <a href="/pricing" {% if request.url.path == '/pricing' %}aria-current="page"{% endif %}>Pricing</a>
           <a href="/login">Sign in</a>
