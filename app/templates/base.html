@@ -8,10 +8,10 @@
   <meta name="color-scheme" content="dark light">
   {# Synchronous and separate rather than inline: it must run before the
      first paint, and `script-src 'self'` has no room for an inline block. #}
-  <script src="/static/js/theme.js?v={{ request.app.version }}"></script>
+  <script src="{{ asset('js/theme.js') }}"></script>
   {# Versioned so a deploy doesn't leave people on a cached stylesheet from the
      previous one — a half-updated UI is worse than either version of it. #}
-  <link rel="stylesheet" href="/static/css/weedout.css?v={{ request.app.version }}">
+  <link rel="stylesheet" href="{{ asset('css/weedout.css') }}">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   {% block head %}{% endblock %}
 </head>
@@ -204,7 +204,7 @@
      hears "Project created" at the same moment everyone else sees it. #}
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
-  <script src="/static/js/app.js?v={{ request.app.version }}" defer></script>
+  <script src="{{ asset('js/app.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

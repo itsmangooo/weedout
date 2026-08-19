@@ -14,6 +14,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.assets import asset
 from app.config import get_settings
 from app.core.explain import (
     confidence_note,
@@ -141,6 +142,9 @@ def pluralize(count: int, singular: str, plural: str | None = None) -> str:
 templates.env.filters["relative_time"] = relative_time
 templates.env.filters["absolute_time"] = absolute_time
 templates.env.filters["severity_class"] = severity_class
+# Content-hashed static URLs. See app/assets.py for why this is not
+# keyed on the application version.
+templates.env.globals["asset"] = asset
 templates.env.filters["device_name"] = device_name
 templates.env.filters["pluralize"] = pluralize
 

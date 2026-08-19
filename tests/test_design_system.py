@@ -204,6 +204,71 @@ class TestButtonContrast:
         assert "white" not in block
 
 
+class TestStaticAssetsAreCacheBusted:
+    """Static URLs must change when the file changes.
+
+    They were keyed on the application version, which nobody bumps — so
+    `weedout.css?v=0.1.0` stayed one URL across every edit. A browser that had
+    loaded it once kept serving the old copy, and the CLI page shipped looking
+    completely unstyled to anybody who had visited the site before.
+    """
+
+    def test_no_template_versions_an_asset_by_app_version(self):
+        offenders = [
+            rel(p) for p in templates() if "request.app.version" in p.read_text(encoding="utf-8")
+        ]
+        assert offenders == [], (
+            "these version assets by app.version, which does not change when "
+            f"the file does: {offenders}"
+        )
+
+    def test_every_versioned_asset_goes_through_the_helper(self):
+        offenders = {}
+        for path in templates():
+            text = path.read_text(encoding="utf-8")
+            raw = re.findall(r'(?:href|src)="/static/[^"]*\?v=[^"]*"', text)
+            if raw:
+                offenders[rel(path)] = raw
+        assert offenders == {}, f"hand-written cache-busting: {offenders}"
+
+    def test_the_hash_tracks_the_contents(self, tmp_path, monkeypatch):
+        from app import assets
+
+        monkeypatch.setattr(assets, "STATIC_DIR", tmp_path)
+        assets._cache.clear()
+
+        target = tmp_path / "probe.css"
+        target.write_bytes(b"a{}")
+        first = assets.digest("probe.css")
+
+        target.write_bytes(b"a{color:red}")
+        second = assets.digest("probe.css")
+
+        assert first and second
+        assert first != second, "the hash did not change when the file did"
+
+    def test_a_missing_asset_does_not_raise(self, tmp_path, monkeypatch):
+        from app import assets
+
+        monkeypatch.setattr(assets, "STATIC_DIR", tmp_path)
+        assets._cache.clear()
+        # A broken page either way; this must fail as a 404 on the file rather
+        # than as a 500 inside the template.
+        assert assets.asset("nope.css") == "/static/nope.css"
+
+
+class TestReducedMotionIsSafe:
+    def test_delays_are_reset_not_just_durations(self):
+        # The load-in animations use `backwards` fill, which holds the *from*
+        # keyframe — opacity 0 — for the whole delay. Zeroing the duration but
+        # leaving the delay means the content is invisible until it elapses.
+        css = CSS.read_text(encoding="utf-8")
+        start = css.index("@media (prefers-reduced-motion: reduce) {")
+        block = css[start : css.index("\n}", start)]
+        assert "animation-delay: 0s !important" in block
+        assert "transition-delay: 0s !important" in block
+
+
 class TestSearchHasOneEntryPoint:
     def test_only_one_control_opens_the_command_palette(self):
         triggers = []

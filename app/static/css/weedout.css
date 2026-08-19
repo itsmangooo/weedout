@@ -5578,6 +5578,14 @@ a.metric:hover {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+    /* The delay has to go too, not just the duration.
+       The load-in animations use `backwards` fill, which holds the *from*
+       keyframe — opacity 0 — for the whole delay. Shortening the duration to
+       0.01ms while leaving a 360ms delay in place means the content is
+       invisible for 360ms and then snaps in, which is both a flash and, if
+       anything interrupts the animation, a permanently blank page. */
+    animation-delay: 0s !important;
+    transition-delay: 0s !important;
   }
 }
 

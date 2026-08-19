@@ -143,14 +143,14 @@ class TestThemePersistence:
             encoding="utf-8"
         )
 
-        script_at = base.index("/static/js/theme.js")
-        stylesheet_at = base.index("/static/css/weedout.css")
+        script_at = base.index("js/theme.js")
+        stylesheet_at = base.index("css/weedout.css")
         # Ordering is the whole point: applying a saved theme after the
         # stylesheet has painted shows a frame of the wrong one.
         assert script_at < stylesheet_at
 
         # And it must not be deferred, or it runs after first paint anyway.
-        line = next(row for row in base.splitlines() if "/static/js/theme.js" in row)
+        line = next(row for row in base.splitlines() if "js/theme.js" in row)
         assert "defer" not in line
         assert "async" not in line
 

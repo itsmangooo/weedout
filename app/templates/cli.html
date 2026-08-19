@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block head %}
-  <script src="/static/js/cli-hero.js?v={{ request.app.version }}" defer></script>
+  <script src="{{ asset('js/cli-hero.js') }}" defer></script>
 {% endblock %}
 
 {% block content %}
