@@ -1,0 +1,106 @@
+{# A working miniature of the dashboard, driven by a scripted cursor.
+
+   Built from markup rather than a screenshot or a video for three reasons: it
+   stays correct when the real UI changes, it follows the visitor's theme, and
+   it weighs a few kilobytes instead of a few megabytes. The cursor is a real
+   element moving between real targets, so what you watch it click is what the
+   product actually does.
+
+   Entirely decorative: `aria-hidden`, and the prose above it makes the same
+   argument in words for anyone who never sees it move. #}
+
+<div class="stage" data-demo>
+  <div class="stage__frame">
+    <div class="appwin" aria-hidden="true">
+
+      <div class="appwin__bar">
+        <span class="appwin__dots"><i></i><i></i><i></i></span>
+        <span class="appwin__addr">weedout.dev/targets/12</span>
+      </div>
+
+      <div class="appwin__body">
+        <aside class="appwin__rail">
+          <span class="appwin__brand"><i></i><i></i><i></i></span>
+          <span class="appwin__navitem is-active"></span>
+          <span class="appwin__navitem"></span>
+          <span class="appwin__navitem"></span>
+          <span class="appwin__navitem"></span>
+        </aside>
+
+        <div class="appwin__main">
+          <div class="appwin__head">
+            <span class="appwin__title">acme-storefront</span>
+            <span class="appwin__meta">312 dependencies · checked just now</span>
+          </div>
+
+          {# The counters the cursor will change. #}
+          <div class="appwin__stats">
+            <span class="appwin__stat appwin__stat--open">
+              <b data-count="open">3</b><span>Open</span>
+            </span>
+            <span class="appwin__stat">
+              <b data-count="filtered">47</b><span>Filtered</span>
+            </span>
+            <span class="appwin__stat">
+              <b data-count="dismissed">0</b><span>Dismissed</span>
+            </span>
+          </div>
+
+          <div class="appwin__tabs">
+            <span class="appwin__tab is-active" data-tab="open">Open</span>
+            <span class="appwin__tab" data-tab="filtered">Filtered</span>
+          </div>
+
+          {# --- Open findings ------------------------------------------- #}
+          <div class="appwin__list" data-panel="open">
+            <div class="appwin__row" data-row="kev">
+              <span class="appwin__reason appwin__reason--kev">Exploited in the wild</span>
+              <span class="appwin__pkg">systeminformation <em>5.0.0</em></span>
+              <span class="appwin__cve">CVE-2021-21315</span>
+              <span class="appwin__act" data-act>Dismiss</span>
+            </div>
+            <div class="appwin__row">
+              <span class="appwin__reason appwin__reason--crit">Critical · ships to production</span>
+              <span class="appwin__pkg">minimist <em>1.2.0</em></span>
+              <span class="appwin__cve">CVE-2021-44906</span>
+            </div>
+            <div class="appwin__row">
+              <span class="appwin__reason appwin__reason--high">High · direct dependency</span>
+              <span class="appwin__pkg">lodash <em>4.17.15</em></span>
+              <span class="appwin__cve">CVE-2021-23337</span>
+            </div>
+          </div>
+
+          {# --- What was filtered out ----------------------------------- #}
+          <div class="appwin__list" data-panel="filtered" hidden>
+            <div class="appwin__row appwin__row--quiet">
+              <span class="appwin__reason">Dev-only dependency</span>
+              <span class="appwin__pkg">postcss <em>8.4.5</em></span>
+              <span class="appwin__cve">CVE-2023-44270</span>
+            </div>
+            <div class="appwin__row appwin__row--quiet">
+              <span class="appwin__reason">Transitive, not exploited</span>
+              <span class="appwin__pkg">semver <em>7.3.5</em></span>
+              <span class="appwin__cve">CVE-2022-25883</span>
+            </div>
+            <div class="appwin__row appwin__row--quiet">
+              <span class="appwin__reason">Below the bar, no known exploitation</span>
+              <span class="appwin__pkg">45 more</span>
+              <span class="appwin__cve"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# The cursor. Positioned by script; parked off-frame until it runs. #}
+      <span class="cursor" data-cursor>
+        <svg viewBox="0 0 20 20"><path d="M4 2l12 7-5.5 1.2L8.5 16z"/></svg>
+        <span class="cursor__ring"></span>
+      </span>
+    </div>
+  </div>
+
+  {# Narration, so the demo says what it is doing rather than expecting you to
+     infer it from a moving pointer. #}
+  <p class="stage__caption" data-caption>Three findings cleared the bar. Forty-seven did not.</p>
+</div>

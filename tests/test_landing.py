@@ -12,6 +12,8 @@ invented example rows, because "this is real data" is the whole claim.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from app.core.types import (
@@ -395,24 +397,59 @@ class TestLandingContent:
         response = await client.get("/")
         assert "/docs/getting-started" in response.text
 
-    async def test_how_it_works_references_real_screenshots(self, client):
+    async def test_how_it_works_shows_all_four_steps(self, client):
+        """The four mockups are markup, not screenshots.
+
+        Screenshots of your own product go stale the day you redesign it, and
+        these had been showing an interface that no longer existed. As markup
+        they follow the visitor's theme, cost nothing to ship, and can be
+        checked by a test -- which is what the rest of this class does.
+        """
         response = await client.get("/")
-        for shot in ("dashboard", "filtered", "alert-detail", "add-project"):
-            assert f"/static/img/screens/{shot}.png" in response.text
+        assert response.text.count('class="mock"') == 4
+        # Never decorative-only: each one carries its own description.
+        assert response.text.count('class="mock" role="img"') == 4
 
-    def test_screenshot_files_actually_exist(self):
-        """A broken image on the landing page is worse than no image.
+    def test_the_mockups_point_at_routes_that_exist(self):
+        """The address bars are a promise about the product.
 
-        Deliberately synchronous: this touches the filesystem, not the app, and
-        a blocking `Path.stat` inside an async test is what ASYNC240 warns about.
+        Deliberately synchronous: it reads templates off disk and builds the
+        router itself, so there is no request to await.
+
+        A mockup showing a URL the app does not serve is the same failure as a
+        stale screenshot, only quieter. Matching is done by the real router, so
+        /targets/acme-storefront fails here the way it would in a browser:
+        {target_id} takes an integer.
         """
         from pathlib import Path
 
-        base = Path(__file__).resolve().parents[1] / "app" / "static" / "img" / "screens"
-        for shot in ("dashboard", "filtered", "alert-detail", "add-project"):
-            path = base / f"{shot}.png"
-            assert path.exists(), f"missing screenshot: {path}"
-            assert path.stat().st_size > 5000, f"suspiciously small: {path}"
+        from starlette.routing import Match
+
+        from app.main import create_app
+
+        app = create_app()
+        templates = Path(__file__).resolve().parents[1] / "app" / "templates"
+        shown = []
+        for page in templates.rglob("*.html"):
+            shown += re.findall(
+                r'<span class="appwin__addr">weedout\.dev([^<]+)</span>',
+                page.read_text(encoding="utf-8"),
+            )
+        assert shown, "no mockup address bars found"
+
+        for shown_path in shown:
+            path, _, query = shown_path.partition("?")
+            scope = {
+                "type": "http",
+                "method": "GET",
+                "path": path,
+                "query_string": query.encode(),
+                "headers": [],
+                "root_path": "",
+            }
+            assert any(route.matches(scope)[0] is Match.FULL for route in app.routes), (
+                f"mockup shows {shown_path}, which no route serves"
+            )
 
     async def test_signed_in_users_skip_the_landing_page(self, auth_client):
         response = await auth_client.get("/")

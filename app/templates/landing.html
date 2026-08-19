@@ -1,63 +1,46 @@
 {% extends "base.html" %}
 
+{% block head %}
+  <script src="{{ asset('js/marketing.js') }}" defer></script>
+{% endblock %}
+
 {% block body %}
-<section class="hero">
+<div class="marketing">
+<section class="mhero">
+  {# Two washes drifting at different rates behind the headline. Soft-edged on
+     purpose: a hard edge moving at its own speed reads as a bug rather than as
+     depth. #}
+  <span class="mhero__glow mhero__glow--one" data-parallax="-0.35" aria-hidden="true"></span>
+  <span class="mhero__glow mhero__glow--two" data-parallax="0.5" aria-hidden="true"></span>
+
   <div class="wrap">
-    <p class="eyebrow">Dependency vulnerability alerts</p>
-    {# The slogan doubles as the headline: "weed out" is the product's verb, and
-       naming what it removes says more than naming what it keeps. #}
-    <h1 class="hero__headline">Weed out the CVE alerts nobody acts on.</h1>
-    <p class="hero__sub">
-      Weedout watches your dependency manifests and tells you about two kinds of
-      vulnerability: the ones attackers are actively exploiting right now, and the ones
-      that are severe and reachable in the code you actually ship. Everything else is
-      filed away, counted, and left alone.
-    </p>
-    <div class="hero__cta">
-      <a href="/signup" class="btn btn--primary">Add your first project</a>
-      <a href="/docs/getting-started" class="btn">Read the docs</a>
-      <span class="hero__note">Free · no card · takes about a minute</span>
+    <div class="mhero__inner">
+      <p class="mhero__eyebrow">
+        <span class="pill pill--exploited pill--sm">KEV</span>
+        Exploited-first dependency alerts
+      </p>
+
+      {# The slogan doubles as the headline: "weed out" is the product's verb,
+         and naming what it removes says more than naming what it keeps. #}
+      <h1 class="mhero__headline">
+        Weed out the CVE alerts <em>nobody acts on.</em>
+      </h1>
+
+      <p class="mhero__lede">
+        You get told about two things: what attackers are exploiting right now,
+        and what is severe and actually reachable in the code you ship.
+        Everything else is filed, counted, and left alone.
+      </p>
+
+      <div class="mhero__cta">
+        <a href="/signup" class="btn btn--primary">Add your first project</a>
+        <a href="/cli" class="btn">Get the CLI</a>
+        <span class="mhero__note">Free · no card · about a minute</span>
+      </div>
     </div>
 
-    {# The command, not a picture of one. It is short enough to read at a
-       glance and real enough to paste, which is the whole promise. #}
-    <p class="hero__cmd mono">
-      <span class="hero__cmd-prompt" aria-hidden="true">$</span>
-      pip install weedout-cli &amp;&amp; weedout scan
-      <span class="hero__cmd-note">or upload a file in the browser — no install</span>
-    </p>
-
-    {# The filter, shown rather than described. These are real advisories and real
-       reasoning — the same rules the scanner applies. #}
-    <div class="demo">
-      <p class="demo__head">One package.json · 412 dependencies · 34 advisories matched</p>
-
-      <div class="demo__row demo__row--kept">
-        <span class="demo__verdict">Sent</span>
-        <span class="demo__pkg">CVE-2021-44228</span>
-        <span class="demo__why">On CISA's exploited list. Attacks using this have been observed.</span>
-      </div>
-      <div class="demo__row demo__row--kept">
-        <span class="demo__verdict">Sent</span>
-        <span class="demo__pkg">CVE-2022-25883</span>
-        <span class="demo__why">Critical, in a package that ships to production.</span>
-      </div>
-      <div class="demo__row">
-        <span class="demo__verdict">Filed</span>
-        <span class="demo__pkg">CVE-2023-26136</span>
-        <span class="demo__why">High severity, but four levels deep in the tree and not exploited.</span>
-      </div>
-      <div class="demo__row">
-        <span class="demo__verdict">Filed</span>
-        <span class="demo__pkg">CVE-2022-46175</span>
-        <span class="demo__why">Only in devDependencies. Never reaches your running app.</span>
-      </div>
-      <div class="demo__row">
-        <span class="demo__verdict">Filed</span>
-        <span class="demo__pkg">30 more</span>
-        <span class="demo__why">Moderate or unrated, no evidence of exploitation anywhere.</span>
-      </div>
-    </div>
+    {# The product, working, rather than a description of it working. #}
+    {% include "partials/_hero_demo.html" %}
   </div>
 </section>
 
@@ -69,14 +52,14 @@
    is that it is live.
    --------------------------------------------------------------------------- #}
 {% if landing.has_findings %}
-<section class="section section--flush">
+<section class="section section--flush mrise reveal">
   <div class="wrap">
     <div class="flagged__head reveal">
       <div>
         <p class="eyebrow">
           <span class="pulse" aria-hidden="true"></span> Recently flagged
         </p>
-        <h2>What cleared the bar this week.</h2>
+        <h2 class="msection__title">What cleared the bar this week.</h2>
         <p class="prose">
           Live from scans across every account — critical severity or confirmed
           exploitation, nothing else. Package names and CVE ids are public
@@ -128,11 +111,11 @@
    anyone's stack. Hidden entirely until that bar is met.
    --------------------------------------------------------------------------- #}
 {% if landing.has_trends %}
-<section class="section section--flush">
+<section class="section section--flush mrise reveal">
   <div class="wrap">
     <div class="reveal">
       <p class="eyebrow">Across every account</p>
-      <h2>What's spreading this week.</h2>
+      <h2 class="msection__title">What's spreading this week.</h2>
       <p class="prose">
         The same findings, counted instead of listed. Project counts only —
         no names, no accounts, and nothing that appears on a single team's
@@ -196,10 +179,10 @@
 {% endif %}
 
 {# --------------------------------------------------------------------------- #}
-<section class="section">
+<section class="section msection mrise reveal">
   <div class="wrap">
     <p class="eyebrow">How it works</p>
-    <h2>One command, wired into your pipeline.</h2>
+    <h2 class="msection__title">One command, wired into your pipeline.</h2>
 
     <div class="steps">
       <div class="step reveal">
@@ -219,8 +202,22 @@
           </p>
         </div>
         <figure class="step__shot">
-          <img src="/static/img/screens/add-project.png" width="1568" height="764" loading="lazy"
-               alt="The add-project form, with a file picker and a paste-contents option.">
+          <div class="mock" role="img"
+               aria-label="The add-project form: a name, an ecosystem, and an optional file.">
+            <div class="mock__bar"><span class="appwin__dots"><i></i><i></i><i></i></span>
+              <span class="appwin__addr">weedout.dev/targets/new</span></div>
+            <div class="mock__body">
+              <p class="mock__h">Add a project</p>
+              <p class="mock__sub">Name it and pick its ecosystem. The manifest can come later.</p>
+              <span class="mock__label">Project name</span>
+              <span class="mock__field">acme-storefront</span>
+              <span class="mock__label">Ecosystem</span>
+              <span class="mock__field mock__field--select">npm — package.json, package-lock.json</span>
+              <span class="mock__label">Manifest file <em>(optional)</em></span>
+              <span class="mock__field mock__field--file">Choose file</span>
+              <span class="mock__btn">Add project</span>
+            </div>
+          </div>
         </figure>
       </div>
 
@@ -229,14 +226,33 @@
           <p class="step__number mono">02</p>
           <h3>See the noise you're not being shown</h3>
           <p>
-            The dashboard leads with the number of advisories that matched your
-            dependencies and were <em>filtered out</em>. It's the largest number on
-            the page, because it's the whole argument.
+            The dashboard opens with the one number that should change your
+            afternoon: how many findings are actually open. Beside it sits the
+            count that matched your dependencies and was <em>filtered out</em> —
+            usually an order of magnitude larger, and the whole argument.
           </p>
         </div>
         <figure class="step__shot">
-          <img src="/static/img/screens/dashboard.png" width="1568" height="764" loading="lazy"
-               alt="The dashboard, showing filtered and open counts with a signal-and-noise bar.">
+          <div class="mock" role="img"
+               aria-label="The dashboard: three open findings, and forty-seven filtered out.">
+            <div class="mock__bar"><span class="appwin__dots"><i></i><i></i><i></i></span>
+              <span class="appwin__addr">weedout.dev/dashboard</span></div>
+            <div class="mock__body">
+              <div class="mock__hero">
+                <span class="mock__state"><i></i><i></i><i></i> Open findings</span>
+                <span class="mock__figure">3</span>
+                <span class="mock__sub">These cleared the alerting bar. Everything else was filtered out.</span>
+              </div>
+              <div class="mock__stats">
+                <span><b class="mock__num--high">3</b>Open</span>
+                <span><b>47</b>Filtered</span>
+                <span><b>0</b>Dismissed</span>
+                <span><b>0</b>Resolved</span>
+              </div>
+              <div class="mock__bar-track"><i style="flex:47"></i><b style="flex:3"></b></div>
+              <span class="mock__sub">94% filtered</span>
+            </div>
+          </div>
         </figure>
       </div>
 
@@ -251,8 +267,37 @@
           </p>
         </div>
         <figure class="step__shot">
-          <img src="/static/img/screens/filtered.png" width="1568" height="764" loading="lazy"
-               alt="The filtered tab, showing critical advisories suppressed as dev-only dependencies.">
+          <div class="mock" role="img"
+               aria-label="The filtered tab, showing advisories set aside with the reason for each.">
+            <div class="mock__bar"><span class="appwin__dots"><i></i><i></i><i></i></span>
+              <span class="appwin__addr">weedout.dev/alerts?show=filtered</span></div>
+            <div class="mock__body">
+              <div class="appwin__tabs">
+                <span class="appwin__tab">Open</span>
+                <span class="appwin__tab is-active">Filtered</span>
+              </div>
+              <div class="appwin__row appwin__row--quiet">
+                <span class="appwin__reason">Dev-only dependency</span>
+                <span class="appwin__pkg">postcss <em>8.4.5</em></span>
+                <span class="appwin__cve">CVE-2023-44270</span>
+              </div>
+              <div class="appwin__row appwin__row--quiet">
+                <span class="appwin__reason">Transitive, not exploited in the wild</span>
+                <span class="appwin__pkg">semver <em>7.3.5</em></span>
+                <span class="appwin__cve">CVE-2022-25883</span>
+              </div>
+              <div class="appwin__row appwin__row--quiet">
+                <span class="appwin__reason">Advisory withdrawn by its publisher</span>
+                <span class="appwin__pkg">node-fetch <em>2.6.6</em></span>
+                <span class="appwin__cve">CVE-2022-0235</span>
+              </div>
+              <div class="appwin__row appwin__row--quiet">
+                <span class="appwin__reason">Below the bar, no known exploitation</span>
+                <span class="appwin__pkg">44 more</span>
+                <span class="appwin__cve"></span>
+              </div>
+            </div>
+          </div>
         </figure>
       </div>
 
@@ -267,18 +312,33 @@
           </p>
         </div>
         <figure class="step__shot">
-          <img src="/static/img/screens/alert-detail.png" width="1568" height="764" loading="lazy"
-               alt="An alert detail page explaining the risk in prose with a paste-able fix command.">
+          <div class="mock" role="img"
+               aria-label="An alert, explaining why it was surfaced and what to do.">
+            <div class="mock__bar"><span class="appwin__dots"><i></i><i></i><i></i></span>
+              <span class="appwin__addr">weedout.dev/alerts/2841</span></div>
+            <div class="mock__body">
+              <p class="mock__h">systeminformation <em class="mock__ver">5.0.0</em></p>
+              <span class="mock__pills">
+                <span class="pill pill--exploited pill--sm">KEV</span>
+                <span class="pill pill--high pill--sm">High</span>
+              </span>
+              <span class="mock__label">Why you are seeing this</span>
+              <p class="mock__why">CISA lists this as actively exploited in the wild, so it is
+                not theoretical — attacks using it have been observed.</p>
+              <span class="mock__label">What to do</span>
+              <span class="mock__cmd">npm install systeminformation@5.3.1</span>
+            </div>
+          </div>
         </figure>
       </div>
     </div>
   </div>
 </section>
 
-<section class="section">
+<section class="section msection mrise reveal">
   <div class="wrap">
     <p class="eyebrow">What gets through</p>
-    <h2>Three rules decide whether you hear from us.</h2>
+    <h2 class="msection__title">Three rules decide whether you hear from us.</h2>
     <p class="prose">
       They are the whole product, and they are written down so you can disagree with them.
       Every filtered advisory stays on your dashboard with the reason attached.
@@ -315,10 +375,10 @@
 
 {# Pricing reads from app/tiers.py — the same table the limits are enforced
    from, so this can never drift from what a plan actually does. #}
-<section class="section" id="pricing">
+<section class="section msection mrise reveal" id="pricing">
   <div class="wrap">
     <p class="eyebrow">Pricing</p>
-    <h2>Two plans. No sales call.</h2>
+    <h2 class="msection__title">Two plans. No sales call.</h2>
     <p class="prose">
       Both plans use the same filtering rules. Pro checks more often and watches
       more projects — it does not show you a different set of vulnerabilities.
@@ -343,10 +403,10 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section msection mrise reveal">
   <div class="wrap">
     <p class="eyebrow">Questions</p>
-    <h2>The things people ask first.</h2>
+    <h2 class="msection__title">The things people ask first.</h2>
 
     <div class="faq">
       {% set faqs = [
@@ -373,9 +433,9 @@
   </div>
 </section>
 
-<section class="section section--cta">
+<section class="section section--cta mrise reveal">
   <div class="wrap">
-    <h2>Start with one project.</h2>
+    <h2 class="msection__title">Start with one project.</h2>
     <p class="prose">
       Free, no card, and the first scan runs the moment you upload a manifest.
     </p>
@@ -423,4 +483,5 @@
     <span>Reads manifests, not source code.</span>
   </div>
 </footer>
+</div>
 {% endblock %}

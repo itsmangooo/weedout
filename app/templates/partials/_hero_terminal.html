@@ -1,0 +1,24 @@
+{# A terminal that types itself, for the CLI page's hero.
+
+   The dashboard demo would be the wrong argument here: somebody on this page
+   is deciding whether to run a binary in their pipeline, and what they want to
+   see is the command and what it prints. So this types the command, pauses the
+   way a real scan does, and prints the real output.
+
+   Decorative and aria-hidden. The same commands and the same output appear as
+   selectable text further down the page, so nothing here is the only copy. #}
+
+<div class="stage stage--term" data-term>
+  <div class="stage__frame">
+    <div class="termwin" aria-hidden="true">
+      <div class="termwin__bar">
+        <span class="appwin__dots"><i></i><i></i><i></i></span>
+        <span class="termwin__title">acme-storefront — weedout</span>
+      </div>
+
+      <pre class="termwin__body"><code data-term-out></code><span class="termwin__caret" data-caret></span></pre>
+    </div>
+  </div>
+
+  <p class="stage__caption" data-term-caption>One command. It reads your lockfile and asks what actually matters.</p>
+</div>

@@ -2,49 +2,56 @@
 
 {% block head %}
   <script src="{{ asset('js/cli-hero.js') }}" defer></script>
+  <script src="{{ asset('js/marketing.js') }}" defer></script>
 {% endblock %}
 
 {% block content %}
+<div class="marketing">
+
 {# ---------------------------------------------------------------------------
    Hero
 
-   The canvas sits behind real text in normal document flow. With no WebGL, a
-   lost context, or reduced motion requested, the background is blank or frozen
-   and every word on this page still reads.
+   The particle field sits behind real text in normal document flow, and the
+   terminal below it is markup rather than a video. With no WebGL, a lost
+   context, or reduced motion requested, the background is blank or frozen, the
+   terminal prints its transcript at once, and every word still reads.
    --------------------------------------------------------------------------- #}
-<section class="cli-hero">
+<section class="mhero cli-hero">
   <canvas class="cli-hero__canvas" id="cli-hero-canvas" aria-hidden="true"></canvas>
+  <span class="mhero__glow mhero__glow--one" data-parallax="-0.3" aria-hidden="true"></span>
 
-  <div class="cli-hero__inner">
-    <p class="eyebrow cli-reveal">The Weedout CLI</p>
-
-    <h1 class="cli-hero__title">
-      <span class="cli-reveal">Thousands of advisories.</span>
-      <span class="cli-reveal cli-hero__lit">The few that reach you.</span>
-    </h1>
-
-    <p class="cli-hero__lede cli-reveal">
-      One binary, no runtime, no dependencies. It reads your lockfile, asks
-      Weedout what actually matters, and fails your build only when something
-      genuinely does.
+  <div class="mhero__inner">
+    <p class="mhero__eyebrow">
+      <span class="pill pill--calm pill--sm">Go</span>
+      One static binary, zero dependencies
     </p>
 
-    <div class="cli-hero__actions cli-reveal">
+    <h1 class="mhero__headline">
+      Thousands of advisories.<br>
+      <em>The few that reach you.</em>
+    </h1>
+
+    <p class="mhero__lede">
+      No runtime, no interpreter, nothing to install alongside your project. It
+      reads your lockfile, asks Weedout what actually matters, and fails your
+      build only when something genuinely does.
+    </p>
+
+    <div class="mhero__cta">
       <a class="btn btn--primary" href="#install">Install</a>
       <a class="btn" href="https://github.com/{{ repo }}" rel="noopener">Source</a>
+      <span class="mhero__note">macOS · Linux · Windows</span>
     </div>
 
     {# --------------------------------------------------------------------
-       Trust badge — the CLI, scanned by the product it ships with.
+       Trust badge - the CLI, measured by the product it ships with.
        -------------------------------------------------------------------- #}
-    <div class="cli-badge cli-reveal">
+    <div class="cli-badge">
       {% if go_module.available and go_module.is_stdlib_only %}
-        <span class="cli-badge__mark" aria-hidden="true">
-          <i></i><i></i><i></i>
-        </span>
+        <span class="cli-badge__mark" aria-hidden="true"><i></i><i></i><i></i></span>
         <span>
           <strong>Zero third-party dependencies.</strong>
-          Nothing to scan, because there is nothing there —
+          Nothing to scan, because there is nothing there -
           <a href="#dependencies">see for yourself</a>.
         </span>
       {% elif go_module.available %}
@@ -52,7 +59,7 @@
         <span>
           <strong>{{ go_module.third_party_count }} third-party
           {{ go_module.third_party_count|pluralize('dependency', 'dependencies') }}</strong>,
-          scanned by Weedout on the same schedule as any tracked project —
+          scanned by Weedout on the same schedule as any tracked project -
           <a href="#dependencies">the full list</a>.
         </span>
       {% else %}
@@ -61,13 +68,15 @@
       {% endif %}
     </div>
   </div>
+
+  {% include "partials/_hero_terminal.html" %}
 </section>
 
 {# ---------------------------------------------------------------------------
    Install
    --------------------------------------------------------------------------- #}
-<section class="cli-section reveal" id="install">
-  <h2 class="cli-section__title">Install</h2>
+<section class="cli-section msection mrise reveal" id="install">
+  <h2 class="msection__title">Install</h2>
 
   <div class="cli-install">
     <div class="card cli-install__primary">
@@ -146,13 +155,13 @@
 {# ---------------------------------------------------------------------------
    Usage
    --------------------------------------------------------------------------- #}
-<section class="cli-section reveal" id="usage">
-  <h2 class="cli-section__title">Three commands</h2>
+<section class="cli-section msection mrise reveal" id="usage">
+  <h2 class="msection__title">Three commands</h2>
 
   <div class="cli-step reveal">
     <div class="cli-step__words">
       <h3 class="cli-step__heading">Point it at your account, once.</h3>
-      <p class="cli-step__body">
+      <p class="mprose">
         <code>weedout init</code> writes a <code>.weedout</code> file holding
         your API key, and tells you to gitignore it. In CI, skip this entirely
         and set <code>WEEDOUT_API_KEY</code> instead — the environment always
@@ -170,7 +179,7 @@ Will scan package-lock.json
   <div class="cli-step reveal">
     <div class="cli-step__words">
       <h3 class="cli-step__heading">Scan, and read what it did not tell you.</h3>
-      <p class="cli-step__body">
+      <p class="mprose">
         <code>weedout scan</code> finds your lockfile, uploads it, and prints
         the result. The number worth reading is the second one: how much
         matched your dependencies and was deliberately filtered out. That is
@@ -192,12 +201,12 @@ Will scan package-lock.json
   <div class="cli-step reveal">
     <div class="cli-step__words">
       <h3 class="cli-step__heading">Gate the pipeline on what is real.</h3>
-      <p class="cli-step__body">
+      <p class="mprose">
         <code>weedout scan --ci</code> exits <code>1</code> only for something
         critical or confirmed exploited in the wild. Everything else is
         reported and the build continues.
       </p>
-      <p class="cli-step__body">
+      <p class="mprose">
         A failure to run — a rejected key, an unreachable service, no lockfile
         — exits <code>2</code>, never <code>1</code>. A pipeline that cannot
         tell an outage from a finding will eventually treat an expired key as a
@@ -218,10 +227,10 @@ Will scan package-lock.json
 {# ---------------------------------------------------------------------------
    Dependencies — the trust signal
    --------------------------------------------------------------------------- #}
-<section class="cli-section reveal" id="dependencies">
-  <h2 class="cli-section__title">Our own dependencies</h2>
+<section class="cli-section msection mrise reveal" id="dependencies">
+  <h2 class="msection__title">Our own dependencies</h2>
 
-  <p class="cli-section__lede">
+  <p class="msection__lede">
     We scan your dependencies for a living. Here are ours — parsed from the
     CLI's <code>go.mod</code> on this page load, not typed out by hand.
   </p>
@@ -311,7 +320,7 @@ Will scan package-lock.json
 {# ---------------------------------------------------------------------------
    Version
    --------------------------------------------------------------------------- #}
-<section class="cli-section reveal" id="version">
+<section class="cli-section msection mrise reveal" id="version">
   <div class="card cli-version">
     <div>
       <h2 class="panel__title">
@@ -335,4 +344,5 @@ Will scan package-lock.json
     </div>
   </div>
 </section>
+</div>
 {% endblock %}

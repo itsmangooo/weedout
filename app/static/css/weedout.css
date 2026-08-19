@@ -2573,6 +2573,798 @@ a.metric:hover .metric__value {
   box-shadow: var(--elevation-2);
 }
 
+/* ==========================================================================
+   Marketing pages — landing and CLI.
+
+   These two pages carry a different job from the application: somebody who has
+   never seen the product is deciding whether to care. So the type is far
+   larger, the spacing is looser, and motion is allowed to be a feature rather
+   than only feedback. None of it leaks into the app, which stays quiet.
+
+   Scale is set here as its own step ramp rather than by overriding the app's,
+   so changing how a headline reads on the landing page cannot change how a
+   heading reads on the dashboard.
+   ========================================================================== */
+
+.marketing {
+  --m-display: clamp(2.75rem, 7.2vw, 6rem);
+  --m-headline: clamp(2rem, 4.4vw, 3.5rem);
+  --m-lede: clamp(1.25rem, 1.9vw, 1.75rem);
+  --m-body: clamp(1.0625rem, 1.35vw, 1.3125rem);
+}
+
+/* --------------------------------------------------------------------------
+   Hero
+   -------------------------------------------------------------------------- */
+
+.mhero {
+  position: relative;
+  padding-block: clamp(3rem, 8vw, 7rem) clamp(3rem, 6vw, 5rem);
+  overflow: hidden;
+}
+
+/* Two washes drifting behind the headline at different rates. The parallax is
+   most legible on something with no edges — a hard-edged element sliding at a
+   different speed reads as a bug. */
+.mhero__glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: -1;
+  transform: translate3d(0, var(--shift, 0px), 0);
+}
+
+.mhero__glow--one {
+  inset-block-start: -14rem;
+  inset-inline-start: -8rem;
+  width: 42rem;
+  height: 42rem;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 68%);
+  opacity: 0.28;
+}
+
+.mhero__glow--two {
+  inset-block-start: 8rem;
+  inset-inline-end: -14rem;
+  width: 34rem;
+  height: 34rem;
+  background: radial-gradient(circle, var(--exploited) 0%, transparent 70%);
+  opacity: 0.14;
+}
+
+.mhero__inner {
+  position: relative;
+  max-width: 54rem;
+}
+
+.mhero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding: 0.3rem 0.8rem 0.3rem 0.5rem;
+  font-size: var(--step-00);
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background: var(--glass-solid);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+}
+
+.mhero__headline {
+  font-size: var(--m-display);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+  margin-bottom: var(--space-5);
+  text-wrap: balance;
+}
+
+.mhero__headline em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.mhero__lede {
+  max-width: 40ch;
+  font-size: var(--m-lede);
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin-bottom: var(--space-6);
+}
+
+.mhero__cta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.mhero__cta .btn {
+  font-size: var(--step-1);
+  padding: 0.95rem 1.6rem;
+}
+
+.mhero__note {
+  font-size: var(--step-0);
+  color: var(--text-dim);
+}
+
+/* --------------------------------------------------------------------------
+   The stage — a 3D frame holding the running demo.
+
+   `perspective` on the wrapper rather than the frame, so the tilt reads as the
+   whole object turning toward you rather than as a skew applied to a flat
+   picture of one.
+   -------------------------------------------------------------------------- */
+
+.stage {
+  position: relative;
+  margin-top: clamp(3rem, 6vw, 5rem);
+  perspective: 1800px;
+  perspective-origin: 50% 0%;
+}
+
+.stage__frame {
+  transform: rotateX(var(--tilt, 12deg)) translateY(var(--lift, 30px));
+  opacity: var(--dim, 0.7);
+  transform-style: preserve-3d;
+  border-radius: clamp(14px, 1.6vw, 22px);
+  overflow: hidden;
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: var(--elevation-3),
+    0 60px 120px -40px color-mix(in srgb, var(--accent) 22%, transparent);
+  will-change: transform;
+}
+
+/* Where the browser can drive this from scroll position natively, it does —
+   no listener, no layout reads, and it keeps running while the main thread is
+   busy. The JS path in marketing.js only exists for browsers without it. */
+@supports (animation-timeline: view()) {
+  .stage__frame {
+    animation: stage-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 10% cover 45%;
+  }
+
+  .mhero__glow {
+    animation: glow-drift linear both;
+    animation-timeline: view();
+    animation-range: entry 0% exit 100%;
+  }
+}
+
+@keyframes stage-rise {
+  from {
+    transform: rotateX(14deg) translateY(40px);
+    opacity: 0.55;
+  }
+  to {
+    transform: rotateX(0deg) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes glow-drift {
+  from {
+    transform: translate3d(0, -60px, 0);
+  }
+  to {
+    transform: translate3d(0, 60px, 0);
+  }
+}
+
+.stage__caption {
+  margin: var(--space-5) 0 0;
+  font-size: var(--step-1);
+  color: var(--text-muted);
+  text-align: center;
+  transition: opacity 0.18s var(--ease-out);
+  min-height: 1.6em;
+}
+
+.stage__caption.is-changing {
+  opacity: 0;
+}
+
+/* --------------------------------------------------------------------------
+   The miniature application inside the frame
+   -------------------------------------------------------------------------- */
+
+.appwin {
+  position: relative;
+  background: var(--level-0);
+  font-size: clamp(0.6875rem, 0.85vw, 0.8125rem);
+}
+
+.appwin__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0.65rem var(--space-4);
+  background: var(--level-1);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.appwin__dots {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.appwin__dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+
+.appwin__addr {
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  color: var(--text-dim);
+}
+
+.appwin__body {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  min-height: clamp(17rem, 26vw, 22rem);
+}
+
+.appwin__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  background: var(--level-1);
+  border-inline-end: 1px solid var(--glass-border);
+}
+
+.appwin__brand {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+  margin-bottom: var(--space-3);
+}
+
+.appwin__brand i {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--text-dim);
+}
+
+.appwin__brand i:nth-child(1) { height: 6px; }
+.appwin__brand i:nth-child(2) { height: 14px; background: var(--accent); }
+.appwin__brand i:nth-child(3) { height: 9px; }
+
+.appwin__navitem {
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+
+.appwin__navitem.is-active {
+  background: var(--accent);
+}
+
+.appwin__main {
+  padding: var(--space-5);
+  min-width: 0;
+}
+
+.appwin__title {
+  display: block;
+  font-size: 1.5em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.appwin__meta {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text-dim);
+}
+
+.appwin__stats {
+  display: flex;
+  gap: var(--space-5);
+  margin: var(--space-4) 0;
+}
+
+.appwin__stat b {
+  display: block;
+  font-size: 2em;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.2s var(--ease-out), color 0.2s var(--ease-out);
+}
+
+.appwin__stat span {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.appwin__stat--open b {
+  color: var(--high);
+}
+
+/* The counter reacting as the cursor changes it. */
+.appwin__stat b.is-bumped {
+  transform: translateY(-3px) scale(1.08);
+}
+
+.appwin__tabs {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.appwin__tab {
+  padding-bottom: 0.5rem;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.appwin__tab.is-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.appwin__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.appwin__row {
+  position: relative;
+  display: grid;
+  /* Three columns, not two: the package, the CVE, and the action. With two,
+     the CVE and the Dismiss button both landed in column 2 row 2 and stacked
+     on top of each other. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.2rem var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  transition: background 0.25s var(--ease), opacity 0.4s var(--ease),
+    transform 0.4s var(--ease-out);
+}
+
+.appwin__row.is-focused {
+  background: var(--surface-2);
+}
+
+.appwin__row.is-leaving {
+  opacity: 0;
+  transform: translateX(28px);
+}
+
+.appwin__reason {
+  grid-column: 1 / -1;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.appwin__reason--kev { color: var(--exploited); }
+.appwin__reason--crit { color: var(--critical); }
+.appwin__reason--high { color: var(--high); }
+
+.appwin__pkg {
+  grid-column: 1;
+  grid-row: 2;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.appwin__pkg em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.appwin__cve {
+  grid-column: 2;
+  grid-row: 2;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.appwin__act {
+  grid-column: 3;
+  grid-row: 2;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.appwin__row--quiet .appwin__pkg {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ---- The cursor --------------------------------------------------------- */
+
+.cursor {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+  /* The easing is the whole character of it: fast off the mark, settling at
+     the end. A linear cursor reads as a machine; this reads as a hand. */
+  transition: left 0.6s cubic-bezier(0.33, 0.9, 0.25, 1),
+    top 0.6s cubic-bezier(0.33, 0.9, 0.25, 1), opacity 0.3s var(--ease);
+}
+
+.cursor.is-visible {
+  opacity: 1;
+}
+
+.cursor svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--text);
+  stroke: var(--level-0);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.4));
+}
+
+.cursor__ring {
+  position: absolute;
+  inset-block-start: -6px;
+  inset-inline-start: -6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.cursor.is-clicking .cursor__ring {
+  animation: cursor-tap 0.42s var(--ease-out);
+}
+
+@keyframes cursor-tap {
+  0% { opacity: 0.9; transform: scale(0.4); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+/* Commands are meant to be retyped, so ligatures are off wherever we set
+   monospace: `--ci` must look like two hyphens, not an em dash. */
+.mono,
+code,
+kbd,
+pre,
+samp,
+.termwin,
+.mock__cmd,
+.appwin__addr {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "clig" 0, "calt" 0;
+}
+
+/* ---- Markup mockups, in place of screenshots ----------------------------
+   Screenshots of your own product go stale the day you change it, and the
+   landing page was still showing an interface from before the redesign. These
+   follow the theme, follow every preset, and cannot drift.
+   ------------------------------------------------------------------------ */
+
+.mock {
+  background: var(--level-0);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-size: clamp(0.625rem, 0.78vw, 0.75rem);
+  line-height: 1.5;
+}
+
+.mock__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.5rem var(--space-3);
+  background: var(--level-1);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.mock__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: var(--space-4);
+}
+
+.mock__h {
+  margin: 0;
+  font-size: 1.7em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.mock__ver {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.mock__pills {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.3rem;
+}
+
+.mock__sub, .mock__why {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.mock__why { color: var(--text-muted); }
+
+.mock__label {
+  margin-top: 0.4rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.mock__label em { font-style: normal; color: var(--text-dim); }
+
+.mock__field {
+  padding: 0.45rem 0.6rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+
+.mock__field--select::after { content: "▾"; float: inline-end; color: var(--text-dim); }
+.mock__field--file { color: var(--text-dim); }
+
+.mock__cmd {
+  padding: 0.45rem 0.6rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+  background: var(--level-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
+.mock__btn {
+  align-self: flex-start;
+  margin-top: 0.6rem;
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  color: var(--accent-on-solid);
+  background: var(--accent-solid);
+  border-radius: var(--radius-sm);
+}
+
+.mock__hero {
+  padding: var(--space-4);
+  border-inline-start: 3px solid var(--high);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.mock__state {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--high);
+}
+
+.mock__state i { display: inline-block; width: 3px; border-radius: 1px; background: var(--high); }
+.mock__state i:nth-child(1) { height: 5px; }
+.mock__state i:nth-child(2) { height: 9px; }
+.mock__state i:nth-child(3) { height: 12px; }
+
+.mock__figure {
+  display: block;
+  margin: 0.3rem 0;
+  font-size: 3.4em;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--high);
+}
+
+.mock__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  margin-top: 0.6rem;
+}
+
+.mock__stats span {
+  display: flex;
+  flex-direction: column;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mock__stats b {
+  font-size: 1.9em;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  text-transform: none;
+}
+
+.mock__num--high { color: var(--high); }
+
+.mock__bar-track {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin-top: 0.6rem;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mock__bar-track i { background: var(--calm); border-radius: 3px; }
+.mock__bar-track b { background: var(--high); border-radius: 3px; }
+
+/* ---- The typing terminal ------------------------------------------------ */
+
+.stage--term .stage__frame {
+  max-width: 46rem;
+}
+
+.termwin {
+  background: var(--level-0);
+}
+
+.termwin__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0.65rem var(--space-4);
+  background: var(--level-1);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.termwin__title {
+  font-size: var(--step-00);
+  color: var(--text-dim);
+}
+
+.termwin__body {
+  margin: 0;
+  padding: var(--space-5);
+  font-family: var(--font-mono);
+  font-size: clamp(0.75rem, 1vw, 0.875rem);
+  line-height: 1.75;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* Fixed height so the frame does not resize line by line as the script
+     types itself -- a panel that grows while you read it is worse than one
+     with a little empty space at the bottom. */
+  min-height: clamp(15rem, 24vw, 19rem);
+}
+
+.termwin__cmd { color: var(--accent); }
+.termwin__strong { color: var(--text); font-weight: 600; }
+.termwin__dim { color: var(--text-dim); }
+.termwin__crit { color: var(--exploited); }
+.termwin__warn { color: var(--high); }
+
+.termwin__caret {
+  display: inline-block;
+  width: 8px;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: caret-blink 1.1s steps(1) infinite;
+}
+
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+
+/* --------------------------------------------------------------------------
+   Marketing sections — bigger everything
+   -------------------------------------------------------------------------- */
+
+.msection {
+  padding-block: clamp(4rem, 9vw, 8rem);
+}
+
+.msection__title {
+  font-size: var(--m-headline);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  margin-bottom: var(--space-5);
+  max-width: 22ch;
+  text-wrap: balance;
+}
+
+.msection__lede {
+  max-width: 46ch;
+  font-size: var(--m-lede);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.mprose {
+  max-width: 40ch;
+  font-size: var(--m-body);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.mprose strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Sections rise as they enter. Native scroll timeline where available, the
+   existing IntersectionObserver `.reveal` class everywhere else. */
+@supports (animation-timeline: view()) {
+  .mrise {
+    animation: mrise linear both;
+    animation-timeline: view();
+    animation-range: entry 5% entry 60%;
+  }
+}
+
+@keyframes mrise {
+  from {
+    opacity: 0;
+    transform: translateY(38px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage__frame {
+    transform: none;
+    opacity: 1;
+    animation: none;
+  }
+
+  .mhero__glow {
+    animation: none;
+    transform: none;
+  }
+
+  .mrise {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* --------------------------------------------------------------------------
    Responsive shell
    -------------------------------------------------------------------------- */
@@ -2846,7 +3638,7 @@ a.metric:hover .metric__value {
   font-size: 0.875rem;
 }
 
-.nav a {
+.nav a:not(.btn) {
   color: var(--text-muted);
   text-decoration: none;
   padding-block: 0.25rem;
@@ -2854,11 +3646,11 @@ a.metric:hover .metric__value {
   transition: color 0.15s ease;
 }
 
-.nav a:hover {
+.nav a:not(.btn):hover {
   color: var(--text);
 }
 
-.nav a[aria-current="page"] {
+.nav a[aria-current="page"]:not(.btn) {
   color: var(--text);
   border-bottom-color: var(--signal);
 }
@@ -4750,12 +5542,6 @@ a.metric:hover {
   overflow: hidden;
   background: var(--surface);
   box-shadow: var(--shadow);
-}
-
-.step__shot img {
-  display: block;
-  width: 100%;
-  height: auto;
 }
 
 /* --------------------------------------------------------------------------

@@ -294,3 +294,53 @@ class TestSearchHasOneEntryPoint:
         base = (TEMPLATES / "base.html").read_text(encoding="utf-8")
         assert "appbar__search" not in base
         assert "appbar__search" not in css
+
+
+class TestButtonsKeepTheirOwnColour:
+    """Chrome that paints its links must not paint its buttons.
+
+    `.nav a { color: var(--text-muted) }` is (0,1,1) and `.btn--primary` is
+    (0,1,0), so the marketing header's "Start free" button wore the muted link
+    colour: near-white in dark mode, which hid the bug, and dark grey on solid
+    purple in light mode, about 1.5:1.
+
+    Scoped to the containers that actually hold buttons -- a link colour inside
+    prose or a footer is not a hazard, because no button lives there, and
+    demanding `:not(.btn)` everywhere would be noise rather than a guard.
+    """
+
+    #  The chrome regions whose templates put a .btn next to a link.
+    BUTTON_BEARING: ClassVar[tuple[str, ...]] = (
+        ".nav",
+        ".appbar",
+        ".sidebar",
+        ".page-head",
+        ".btn-row",
+        ".empty",
+        ".modal",
+    )
+
+    #  ".something a" / ".something a:hover" -- a descendant-link rule. The @
+    #  exclusion keeps at-rules out, where " and (" reads as one.
+    LINK_RULE = re.compile(r"^([^@\n{}]*?\s+a(?![\w-])[^\n{},]*)\{([^}]*)\}", re.M)
+
+    def offenders(self, css: str) -> list[str]:
+        found = []
+        for match in self.LINK_RULE.finditer(css):
+            selector, body = match.group(1).strip(), match.group(2)
+            if "color:" not in body or ".btn" in selector:
+                continue
+            if selector.startswith(self.BUTTON_BEARING):
+                found.append(selector)
+        return found
+
+    def test_no_chrome_link_rule_repaints_a_button(self):
+        found = self.offenders(CSS.read_text(encoding="utf-8"))
+        assert not found, (
+            f"these paint every link inside them, buttons included; add :not(.btn): {found}"
+        )
+
+    def test_the_guard_would_notice(self):
+        """Only worth having if it fails on the bug it was written for."""
+        assert self.offenders(".nav a {\n  color: var(--text-muted);\n}\n") == [".nav a"]
+        assert self.offenders(".prose-doc a {\n  color: var(--accent);\n}\n") == []
