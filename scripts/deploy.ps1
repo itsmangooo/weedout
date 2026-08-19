@@ -136,8 +136,20 @@ $commitMessage
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01HzRFwbfa4yPNNk1C3bcNYU
 "@
-        $full | git commit -F -
-        if ($LASTEXITCODE -ne 0) { Fail "git commit failed in $repo" }
+
+        # Written to a file rather than piped. Piping to `git commit -F -`
+        # under PowerShell 5.1 prepends a UTF-8 BOM, which git keeps -- the
+        # first commit made this way had an invisible character in front of
+        # "feat:". UTF8Encoding($false) is the no-BOM constructor; the built-in
+        # "utf8" encoding name is the one that emits it.
+        $messageFile = [System.IO.Path]::GetTempFileName()
+        try {
+            [System.IO.File]::WriteAllText(
+                $messageFile, $full, (New-Object System.Text.UTF8Encoding($false)))
+            git commit -F $messageFile
+            if ($LASTEXITCODE -ne 0) { Fail "git commit failed in $repo" }
+        }
+        finally { Remove-Item $messageFile -ErrorAction SilentlyContinue }
 
         Write-Host "  pushing $branch..." -NoNewline
         git push origin $branch
