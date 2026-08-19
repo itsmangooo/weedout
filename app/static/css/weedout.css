@@ -2076,6 +2076,42 @@ kbd {
   overflow: hidden;
 }
 
+/* At desktop width the pitch and the proof sit side by side.
+
+   Stacked, this hero used the left 864px of its column and left the right
+   third of the window empty, which reads as a broken page rather than a
+   composed one. The landing hero can stack because its demo spans the full
+   column; a terminal cannot get that wide without the transcript swimming, so
+   here the two halves share the width instead.
+
+   The headline steps down in this mode: --m-display tops out at 6rem, which is
+   sized for a full-width column, not for half of one. */
+@media (min-width: 62rem) {
+  .cli-hero .wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: clamp(2rem, 4vw, 4rem);
+    align-items: center;
+  }
+
+  .cli-hero .mhero__inner {
+    max-width: none;
+  }
+
+  .cli-hero .mhero__headline {
+    font-size: clamp(2.5rem, 3.6vw, 3.75rem);
+  }
+
+  /* The stage is a column now, not something that follows the words. */
+  .cli-hero .stage {
+    margin-top: 0;
+  }
+
+  .cli-hero .stage--term .stage__frame {
+    max-width: none;
+  }
+}
+
 .cli-hero__canvas {
   position: absolute;
   inset: 0;
@@ -2433,6 +2469,37 @@ kbd {
   max-width: 52ch;
   color: var(--text-muted);
   line-height: 1.6;
+}
+
+/* Three parts across, once there is room for them: the figure, the argument,
+   and the facts that back it. Below this the flex rule above stacks them. */
+@media (min-width: 62rem) {
+  .cli-deps__none {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(15rem, 20rem);
+    align-items: start;
+    gap: var(--space-6) var(--space-7);
+  }
+
+  .cli-deps__facts {
+    padding-inline-start: var(--space-6);
+    border-inline-start: 1px solid var(--glass-border);
+  }
+}
+
+/* Label above value, not beside it. Side by side inside this column the
+   module path broke mid-token -- "itsmang / ooo" -- which is the one thing a
+   spec panel must not do to an identifier. */
+.datalist.cli-deps__facts {
+  display: block;
+}
+
+.datalist.cli-deps__facts dd {
+  margin: 0.15rem 0 var(--space-4);
+}
+
+.datalist.cli-deps__facts dd:last-child {
+  margin-bottom: 0;
 }
 
 /* ---- Version ------------------------------------------------------------ */

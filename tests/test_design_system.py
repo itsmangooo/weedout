@@ -344,3 +344,39 @@ class TestButtonsKeepTheirOwnColour:
         """Only worth having if it fails on the bug it was written for."""
         assert self.offenders(".nav a {\n  color: var(--text-muted);\n}\n") == [".nav a"]
         assert self.offenders(".prose-doc a {\n  color: var(--accent);\n}\n") == []
+
+
+class TestMarketingPagesGetTheFullWindow:
+    """A full-bleed page must not render inside the app-shell column.
+
+    base.html's `content` block sits inside `<div class="wrap page">`, the
+    1180px column the signed-in app uses. The CLI page used `content`, so its
+    hero could not bleed, the particle canvas was clipped to that box, and every
+    section sat in the left two-thirds of the window with the rest empty. Pages
+    that declare `.marketing` own the full width and wrap their own sections.
+    """
+
+    def test_marketing_pages_override_the_body_block(self):
+        offenders = []
+        for path in TEMPLATES.rglob("*.html"):
+            text = path.read_text(encoding="utf-8")
+            if '<div class="marketing">' not in text:
+                continue
+            if "{% block body %}" not in text:
+                offenders.append(rel(path))
+        assert not offenders, (
+            f"these render full-bleed markup inside the app column; use `block body`: {offenders}"
+        )
+
+    def test_every_marketing_section_wraps_its_own_content(self):
+        """Without a `.wrap`, section content spans edge to edge on a wide screen."""
+        offenders = []
+        for path in TEMPLATES.rglob("*.html"):
+            text = path.read_text(encoding="utf-8")
+            if '<div class="marketing">' not in text:
+                continue
+            for section in re.findall(r"<section[^>]*>(.*?)</section>", text, re.S):
+                if 'class="wrap' not in section:
+                    opening = section.strip().splitlines()[0][:60]
+                    offenders.append(f"{rel(path)}: {opening}")
+        assert not offenders, f"sections with no column of their own: {offenders}"
