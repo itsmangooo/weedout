@@ -263,8 +263,12 @@ class TestReducedMotionIsSafe:
         # keyframe — opacity 0 — for the whole delay. Zeroing the duration but
         # leaving the delay means the content is invisible until it elapses.
         css = CSS.read_text(encoding="utf-8")
-        start = css.index("@media (prefers-reduced-motion: reduce) {")
-        block = css[start : css.index("\n}", start)]
+        # There is more than one reduced-motion block now: components may carry
+        # their own local fallback, and the mobile nav does. The one that has to
+        # reset delays is the global reset, identified by its universal
+        # selector rather than by happening to come first in the file.
+        marker = css.index("@media (prefers-reduced-motion: reduce) {\n  *,")
+        block = css[marker : css.index("\n}", marker)]
         assert "animation-delay: 0s !important" in block
         assert "transition-delay: 0s !important" in block
 

@@ -297,9 +297,29 @@
     var opener = document.querySelector("[data-open-drawer]");
     if (opener) {
       opener.setAttribute("aria-expanded", "false");
+      opener.setAttribute("aria-label", "Open navigation");
       opener.focus();
     }
   }
+
+  /* The same button closes it once open, which is what the morphing cross
+     promises. Without this the cross is decorative and the only way out is the
+     scrim. */
+  document.addEventListener("click", function (event) {
+    if (!body.classList.contains("is-drawer-open")) return;
+    if (event.target.closest("[data-open-drawer]")) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeDrawer();
+    }
+  }, true);
+
+  /* Esc closes it, matching every other overlay in the app. */
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && body.classList.contains("is-drawer-open")) {
+      closeDrawer();
+    }
+  });
 
   document.addEventListener("click", function (event) {
     if (event.target.closest("[data-toggle-sidebar]")) {
@@ -316,13 +336,29 @@
       return;
     }
 
-    if (event.target.closest("[data-open-drawer]")) {
+    var opener = event.target.closest("[data-open-drawer]");
+    if (opener) {
+      /* The panel is revealed by a clip-path circle grown from wherever the
+         button actually is, so the menu appears to come out of the thing that
+         was pressed. Measured rather than hardcoded: the bar's position moves
+         with padding, safe-area insets and the breakpoint. */
+      var box = opener.getBoundingClientRect();
+      body.style.setProperty("--nav-x", box.left + box.width / 2 + "px");
+      body.style.setProperty("--nav-y", box.top + box.height / 2 + "px");
+
       body.classList.add("is-drawer-open");
       var scrim = document.querySelector(".scrim");
       if (scrim) scrim.hidden = false;
-      event.target.closest("[data-open-drawer]").setAttribute("aria-expanded", "true");
-      var first = document.querySelector(".sidenav__item");
-      if (first) first.focus();
+      opener.setAttribute("aria-expanded", "true");
+      opener.setAttribute("aria-label", "Close navigation");
+
+      /* Focus after the reveal has started rather than on the same frame:
+         moving focus instantly scrolls the panel into view before it is
+         visible, which fights the animation. */
+      window.setTimeout(function () {
+        var first = document.querySelector(".sidebar .sidenav__item");
+        if (first && body.classList.contains("is-drawer-open")) first.focus();
+      }, 120);
       return;
     }
 

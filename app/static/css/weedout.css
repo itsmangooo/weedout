@@ -974,6 +974,13 @@ hr {
   display: none;
 }
 
+/* Only the mobile bar uses the morphing bars; the desktop button keeps its
+   SVG. Declared here so three empty spans are never rendered at desktop
+   width. */
+.menu-bars {
+  display: none;
+}
+
 /* ---- Breadcrumbs --------------------------------------------------------
    Location, not history: every crumb is a real ancestor you can click, and the
    last one is the page you are on and so is not a link. */
@@ -2175,6 +2182,11 @@ kbd {
   color: var(--text);
 }
 
+.cli-badge > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .cli-badge__mark {
   display: inline-flex;
   align-items: flex-end;
@@ -2223,6 +2235,12 @@ kbd {
   margin-bottom: var(--space-5);
 }
 
+/* The command inside scrolls on its own; without this the track sizes to the
+   un-wrapped command instead and takes the page with it. */
+.cli-install > * {
+  min-width: 0;
+}
+
 .cli-install__label {
   margin: 0 0 var(--space-3);
   font-size: var(--step-000);
@@ -2256,6 +2274,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   padding: var(--space-3) var(--space-4);
   background: var(--level-0);
   border: 1px solid var(--glass-border);
@@ -2267,6 +2286,7 @@ kbd {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   white-space: nowrap;
+  min-width: 0;
   background: none;
   border: 0;
   padding: 0;
@@ -2326,6 +2346,12 @@ kbd {
   margin-bottom: var(--space-8);
 }
 
+/* The terminal blocks are pre-formatted and scroll horizontally on their own.
+   Without this they widen their track instead. */
+.cli-step > * {
+  min-width: 0;
+}
+
 .cli-step__heading {
   font-size: clamp(1.25rem, 2.4vw, 1.75rem);
   letter-spacing: -0.025em;
@@ -2376,6 +2402,10 @@ kbd {
   flex-wrap: wrap;
 }
 
+.cli-deps__none > * {
+  min-width: 0;
+}
+
 .cli-deps__figure {
   font-size: clamp(4rem, 12vw, 8rem);
   font-weight: 600;
@@ -2407,6 +2437,10 @@ kbd {
   flex-wrap: wrap;
 }
 
+.cli-version > * {
+  min-width: 0;
+}
+
 @media (max-width: 640px) {
   .cli-hero {
     padding-block: var(--space-7) var(--space-6);
@@ -2418,33 +2452,290 @@ kbd {
 }
 
 /* --------------------------------------------------------------------------
+   Micro-interactions
+
+   Small, and each one tied to something the user did. Motion that plays on its
+   own is decoration; motion that answers a pointer or a keypress is feedback,
+   and only the second kind earns its place in an interface people use daily.
+
+   Everything here is transform or opacity, so none of it triggers layout, and
+   all of it is disabled by the global reduced-motion rule.
+   -------------------------------------------------------------------------- */
+
+/* Nav icons lean toward the label on hover. Two pixels — enough to feel
+   responsive, not enough to notice as an animation. */
+.sidenav__item .icon {
+  transition: transform var(--duration) var(--ease-out);
+}
+
+.sidenav__item:hover .icon {
+  transform: translateX(2px);
+}
+
+.sidenav__item[aria-current="page"] .icon {
+  transform: none;
+}
+
+/* Buttons take a press. The scale is deliberately tiny: a button that visibly
+   shrinks reads as a toy, but no movement at all reads as a dead control on
+   touch, where there is no hover state to fall back on. */
+.btn {
+  transition: background var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    transform 0.08s var(--ease-out);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.copy:active,
+.segmented__option:active,
+.themer__option:active {
+  transform: scale(0.94);
+}
+
+/* Focus rings arrive rather than snap, which makes keyboard navigation feel
+   continuous instead of strobing between elements. */
+:focus-visible {
+  transition: outline-offset 0.12s var(--ease-out);
+  outline-offset: 2px;
+}
+
+/* Metric figures lift very slightly when their row is hovered, so the whole
+   tile reads as one target. */
+.metric__value {
+  transition: transform var(--duration) var(--ease-out);
+}
+
+a.metric:hover .metric__value {
+  transform: translateY(-1px);
+}
+
+/* The status hero's indicator bars breathe when something is actually wrong.
+   Deliberately not applied to the calm state: an all-clear that pulses is a
+   dashboard training you to ignore movement. */
+.status-hero--exploited .status-hero__mark i.is-lit {
+  animation: mark-breathe 2.6s var(--ease) infinite;
+}
+
+.status-hero--exploited .status-hero__mark i.is-lit:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.status-hero--exploited .status-hero__mark i.is-lit:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes mark-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Pills settle in when a filter changes the list under them. */
+.pill {
+  transition: background var(--duration) var(--ease),
+    border-color var(--duration) var(--ease);
+}
+
+/* Table rows acknowledge the pointer, which matters most on the long
+   dependency and audit tables. */
+.table tbody tr {
+  transition: background var(--duration) var(--ease);
+}
+
+.table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+/* The terminal blocks on the CLI page lift with their step. */
+.terminal {
+  transition: transform var(--duration) var(--ease-out),
+    box-shadow var(--duration) var(--ease-out);
+}
+
+.cli-step:hover .terminal {
+  transform: translateY(-2px);
+  box-shadow: var(--elevation-2);
+}
+
+/* --------------------------------------------------------------------------
    Responsive shell
    -------------------------------------------------------------------------- */
 
 @media (max-width: 900px) {
-  /* Below this width the sidebar is a drawer: off-canvas by default, slid in
-     over the content, dismissed by the scrim or Esc. The content keeps the
-     full width rather than being squeezed beside a rail. */
+  /* --------------------------------------------------------------------
+     Mobile navigation.
+
+     Not a slide-in drawer. The panel is revealed by a clip-path circle
+     growing out of the button you just pressed, so the menu appears to come
+     from the tap rather than from an off-screen edge that was never there.
+     The origin is set from the button's own position in JS, so it is correct
+     wherever the bar sits.
+
+     One animated property, and it is compositor-friendly. `will-change` is
+     applied only while the panel is open — leaving it on permanently keeps a
+     full-screen layer promoted for a menu that is shut.
+
+     Items then stagger in behind it: each row's icon arrives a beat before
+     its label, which is what makes it read as motion rather than as a list
+     that faded.
+     -------------------------------------------------------------------- */
   .has-sidebar {
     --gutter: 0px;
   }
 
   .sidebar {
-    width: var(--sidebar-w);
-    transform: translateX(-100%);
+    width: min(100%, 21rem);
+    /* A pinhole at the origin, so nothing of the panel is visible until it
+       opens. Not `display: none`: a hidden element cannot be transitioned,
+       and the items inside need to be laid out before they animate. */
+    clip-path: circle(0px at var(--nav-x, 1.75rem) var(--nav-y, 1.75rem));
+    transition: clip-path 0.5s var(--ease-out);
     box-shadow: var(--elevation-3);
+    /* Off the tab order and out of the accessibility tree while shut. The
+       clip-path still paints it, so without this it is reachable by keyboard
+       while invisible. */
+    visibility: hidden;
   }
 
   .has-sidebar.is-drawer-open .sidebar {
+    /* 150vmax guarantees the circle covers the panel from any origin, on any
+       aspect ratio, without measuring. */
+    clip-path: circle(150vmax at var(--nav-x, 1.75rem) var(--nav-y, 1.75rem));
+    visibility: visible;
+    will-change: clip-path;
+  }
+
+  /* Items wait for the reveal to be underway, then arrive in sequence. The
+     delay is on the item and the icon separately so the icon leads. */
+  .sidebar .sidenav__item,
+  .sidebar .cmdk-trigger,
+  .sidebar .themer,
+  .sidebar .sidebar__who {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+
+  .is-drawer-open .sidebar .sidenav__item,
+  .is-drawer-open .sidebar .cmdk-trigger,
+  .is-drawer-open .sidebar .themer,
+  .is-drawer-open .sidebar .sidebar__who {
+    opacity: 1;
     transform: none;
+    transition: opacity 0.32s var(--ease-out), transform 0.42s var(--ease-out);
+  }
+
+  .is-drawer-open .sidebar .cmdk-trigger { transition-delay: 0.08s; }
+  .is-drawer-open .sidebar .sidenav__item:nth-of-type(1) { transition-delay: 0.13s; }
+  .is-drawer-open .sidebar .sidenav__item:nth-of-type(2) { transition-delay: 0.18s; }
+  .is-drawer-open .sidebar .sidenav__item:nth-of-type(3) { transition-delay: 0.23s; }
+  .is-drawer-open .sidebar .sidenav__item:nth-of-type(4) { transition-delay: 0.28s; }
+  .is-drawer-open .sidebar .sidenav__item:nth-of-type(5) { transition-delay: 0.33s; }
+  .is-drawer-open .sidebar .themer { transition-delay: 0.36s; }
+  .is-drawer-open .sidebar .sidebar__who { transition-delay: 0.40s; }
+
+  /* The icon leads its label by a beat. This is the detail that separates
+     "animated menu" from "menu that faded in". */
+  .sidebar .sidenav__item .icon {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+
+  .is-drawer-open .sidebar .sidenav__item .icon {
+    transform: none;
+    opacity: 1;
+    transition: transform 0.4s var(--ease-out), opacity 0.26s var(--ease-out);
+    transition-delay: inherit;
+  }
+
+  /* Bigger touch targets, and room for the icon to matter. */
+  .sidebar .sidenav__item {
+    padding-block: var(--space-3);
+    font-size: var(--step-1);
+    gap: var(--space-4);
+  }
+
+  .sidebar .sidenav__item .icon {
+    width: 20px;
+    height: 20px;
   }
 
   .appbar__menu {
     display: inline-flex;
+    position: relative;
+    z-index: 45;
   }
 
   .appbar {
     padding-inline: var(--space-4);
+  }
+
+  /* ---- The button itself morphs into a close control ----------------- */
+  .appbar__menu .icon {
+    display: none;
+  }
+
+  .menu-bars {
+    display: block;
+    position: relative;
+    width: 18px;
+    height: 12px;
+  }
+
+  .menu-bars i {
+    position: absolute;
+    inset-inline: 0;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+    transition: transform 0.36s var(--ease-out), opacity 0.2s var(--ease-out);
+  }
+
+  .menu-bars i:nth-child(1) { top: 0; }
+  .menu-bars i:nth-child(2) { top: 5px; }
+  .menu-bars i:nth-child(3) { top: 10px; }
+
+  .is-drawer-open .menu-bars i:nth-child(1) {
+    transform: translateY(5px) rotate(45deg);
+  }
+
+  .is-drawer-open .menu-bars i:nth-child(2) {
+    opacity: 0;
+    transform: scaleX(0.2);
+  }
+
+  .is-drawer-open .menu-bars i:nth-child(3) {
+    transform: translateY(-5px) rotate(-45deg);
+  }
+
+  /* Reduced motion: the reveal is the point, but nobody needs it enough to
+     override a stated preference. The panel simply appears, fully formed. */
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar {
+      clip-path: none;
+      transform: translateX(-100%);
+    }
+
+    .has-sidebar.is-drawer-open .sidebar {
+      clip-path: none;
+      transform: none;
+    }
+
+    .sidebar .sidenav__item,
+    .sidebar .cmdk-trigger,
+    .sidebar .themer,
+    .sidebar .sidebar__who,
+    .sidebar .sidenav__item .icon {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 
@@ -2819,6 +3110,11 @@ summary {
   font-size: var(--step-0);
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.card__head > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .card__body {
@@ -3818,6 +4114,12 @@ a.metric:hover {
 .datalist dd {
   margin: 0;
   color: var(--text);
+  /* A grid item is `min-width: auto` by default, so an unbroken value like
+     `github.com/itsmangooo/weedout-cli` widens the whole track and pushes the
+     page sideways. These hold module paths, GHSA ids and package names —
+     exactly the strings with no spaces in them. */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .table-scroll {
