@@ -186,7 +186,7 @@ async def scan(
         "new": len(outcome.new_matches),
         "resolved": outcome.resolved_count,
         "counts": counts,
-        "findings": await _critical_findings(db, target.id),
+        "findings": await _blocking_findings(db, target.id),
         "warnings": outcome.errors,
         "dashboard_url": f"{base_url}/targets/{target.id}",
     }
@@ -228,14 +228,20 @@ async def _severity_counts(db, target_id: int) -> dict[str, int]:
     return counts
 
 
-#: How many critical findings the response spells out. The rest are behind the
-#: dashboard link — a build log that scrolls for two hundred lines is one
-#: nobody reads.
-MAX_INLINE_FINDINGS = 10
+#: How many findings the response spells out. The rest are behind the dashboard
+#: link — a build log that scrolls for two hundred lines is one nobody reads.
+MAX_INLINE_FINDINGS = 20
 
 
-async def _critical_findings(db, target_id: int) -> list[dict]:
-    """The findings a pipeline would actually stop for, with their fixes."""
+async def _blocking_findings(db, target_id: int) -> list[dict]:
+    """The findings a pipeline might stop for, worst first, with their fixes.
+
+    High severity is included as well as critical and exploited, because the
+    CLI's `--fail-on high` lets the caller choose where the line sits. The
+    server sends what could matter and the client decides what does; deciding
+    here would mean a pipeline configured to fail on high had nothing to print
+    when it failed.
+    """
     from app.models import SEVERITY_RANK, VulnerabilityRecord
 
     rows = (
@@ -253,7 +259,8 @@ async def _critical_findings(db, target_id: int) -> list[dict]:
                 CVEMatch.target_id == target_id,
                 CVEMatch.verdict == Verdict.ACTIONABLE,
                 CVEMatch.status == AlertStatus.OPEN,
-                (CVEMatch.severity == Severity.CRITICAL) | (CVEMatch.is_kev.is_(True)),
+                CVEMatch.severity.in_((Severity.CRITICAL, Severity.HIGH))
+                | CVEMatch.is_kev.is_(True),
             )
             .order_by(CVEMatch.is_kev.desc(), SEVERITY_RANK.desc(), CVEMatch.package_name)
             .limit(MAX_INLINE_FINDINGS)

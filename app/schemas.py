@@ -20,7 +20,14 @@ from pydantic import (
     model_validator,
 )
 
-from app.core.types import AlertStatus, ContactCategory, Ecosystem, MessageStatus, Tier
+from app.core.types import (
+    AlertStatus,
+    AudienceKind,
+    ContactCategory,
+    Ecosystem,
+    MessageStatus,
+    Tier,
+)
 
 MAX_NAME_LENGTH = 200
 
@@ -238,6 +245,49 @@ class ApiKeyForm(BaseModel):
 # an unbounded per_page is a one-request denial of service against a table that
 # grows without limit.
 # ---------------------------------------------------------------------------
+
+
+class ComposeEmailForm(BaseModel):
+    """An email an administrator is about to send to other people.
+
+    The length caps are generous rather than tight: this is a person writing
+    prose, and a validator that truncates somebody's carefully worded outage
+    notice is worse than a long email.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    subject: Annotated[str, Field(max_length=300)]
+    body: Annotated[str, Field(max_length=50_000)]
+    audience: AudienceKind
+    audience_email: Annotated[str, Field(max_length=320)] = ""
+
+    @field_validator("subject")
+    @classmethod
+    def _require_a_subject(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Give the email a subject.")
+        return value.strip()
+
+    @field_validator("body")
+    @classmethod
+    def _require_a_body(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("The email has no body.")
+        return value.strip()
+
+    @field_validator("audience", mode="before")
+    @classmethod
+    def _require_an_audience(cls, value: object) -> object:
+        if value in ("", None):
+            raise ValueError("Choose who this goes to.")
+        return value
+
+    @model_validator(mode="after")
+    def _one_needs_an_address(self) -> ComposeEmailForm:
+        if self.audience is AudienceKind.ONE and "@" not in self.audience_email:
+            raise ValueError("Give the address to send to.")
+        return self
 
 
 class ContactForm(BaseModel):

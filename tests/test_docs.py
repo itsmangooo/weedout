@@ -622,7 +622,10 @@ class TestStarterContentIsCliFirst:
         response = await client.get("/docs/getting-started")
         body = response.text
 
-        assert "pip install weedout-cli" in body
+        # The install line, not a package manager that no longer ships it:
+        # the CLI is a Go binary now and `pip install weedout-cli` would send
+        # somebody to a PyPI package that is not the product.
+        assert "install.sh" in body
         assert "weedout scan" in body
 
     async def test_getting_started_still_offers_the_browser_path(self, db, client):
@@ -630,6 +633,28 @@ class TestStarterContentIsCliFirst:
         await seed_starter_pages(db)
 
         assert "Add a project" in (await client.get("/docs/getting-started")).text
+
+    async def test_the_gating_example_uses_the_published_action(self, db, client):
+        """The example has to be copy-pasteable.
+
+        It previously named `itsmangooo/weedout/.github@v1`, a path that has
+        never existed. A workflow snippet in documentation is the one kind of
+        code nobody proof-reads before running.
+        """
+        await seed_starter_pages(db)
+        body = (await client.get("/docs/gate-your-pipeline")).text
+
+        assert "itsmangooo/weedout-cli@v1" in body
+        assert "weedout/.github@v1" not in body
+
+    async def test_no_doc_page_tells_anyone_to_pip_install_the_cli(self, db, client):
+        """The CLI is a Go binary. `pip install weedout-cli` would point people
+        at a PyPI package that is not this product."""
+        await seed_starter_pages(db)
+
+        for slug in ("getting-started", "gate-your-pipeline"):
+            body = (await client.get(f"/docs/{slug}")).text
+            assert "pip install weedout" not in body, f"{slug} still says pip install"
 
     async def test_the_gating_example_makes_the_scan_a_dependency(self, db, client):
         """`needs:` is the entire mechanism. Without it the example would show a

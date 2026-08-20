@@ -30,15 +30,25 @@ from tests.test_scan_pipeline import LODASH_ADVISORY, MANIFEST, seed_mirror
 VULNERABLE = json.dumps({"dependencies": {"lodash": "4.17.15"}})
 PATCHED = json.dumps({"dependencies": {"lodash": "4.17.21"}})
 
-#: A critical-severity variant of the shared lodash fixture. The `findings`
-#: array in the response is deliberately limited to what a pipeline would stop
-#: for, so exercising it needs an advisory that clears that bar — the shared
-#: fixture scores HIGH.
+#: A critical-severity variant of the shared lodash fixture. The shared one
+#: scores HIGH, so having both is what lets these tests tell the two `--fail-on`
+#: thresholds apart.
 CRITICAL_LODASH = dict(
     LODASH_ADVISORY,
     id="GHSA-lodash-critical",
     aliases=["CVE-2099-0001"],
     severity=[{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"}],
+)
+
+
+#: A medium-severity variant. `findings` stops here: the CLI's --fail-on offers
+#: critical and high, so a medium row could never be the reason a build failed
+#: and printing it into a build log only makes the log longer.
+MEDIUM_LODASH = dict(
+    LODASH_ADVISORY,
+    id="GHSA-lodash-medium",
+    aliases=["CVE-2099-0002"],
+    severity=[{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:L/A:N"}],
 )
 
 
@@ -250,18 +260,31 @@ class TestScanEndpoint:
         assert body["findings"][0]["fixed_in"] == "4.17.21"
         assert body["findings"][0]["severity"] == "critical"
 
-    async def test_only_gateable_findings_are_listed_inline(self, client, db, user):
-        """`findings` is what a pipeline stops for, not everything found.
+    async def test_high_severity_findings_are_listed_inline(self, client, db, user):
+        """`findings` covers both thresholds the CLI offers.
 
-        A high-severity finding still counts toward `actionable` — it belongs
-        on the dashboard — but printing every one of them into a build log is
-        how a gate stops being read.
+        `--fail-on high` can gate a build on a high-severity finding, and a
+        gate that fails with an empty table tells the person reading the log
+        nothing about what to fix. The server sends what could matter at either
+        threshold; the client decides which of it does.
         """
         await seed_mirror(db, LODASH_ADVISORY)  # scores HIGH
         token, _ = await make_key(db, user)
 
         body = (await self._scan(client, token)).json()
         assert body["actionable"] == 1
+        assert [f["severity"] for f in body["findings"]] == ["high"]
+        # With enough to act on: the package, the CVE and where the fix is.
+        assert body["findings"][0]["package"] == "lodash"
+        assert body["findings"][0]["fixed_in"]
+
+    async def test_medium_findings_are_not_listed_inline(self, client, db, user):
+        """The floor. No --fail-on value gates on medium, so no build fails for
+        one, so it does not belong in the build log."""
+        await seed_mirror(db, MEDIUM_LODASH)
+        token, _ = await make_key(db, user)
+
+        body = (await self._scan(client, token)).json()
         assert body["findings"] == []
 
     async def test_every_severity_is_present_even_at_zero(self, client, db, user):

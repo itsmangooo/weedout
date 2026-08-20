@@ -373,7 +373,7 @@ repository that build was for, which is why there is no account-wide key.
 ## 4. Scan from your terminal
 
 ```bash
-pip install weedout-cli
+curl -sSL https://weedout.dev/install.sh | sh
 export WEEDOUT_API_KEY=wo_...
 weedout scan
 ```
@@ -439,7 +439,7 @@ have to remember to do.
 ## From the command line
 
 ```bash
-pip install weedout-cli
+curl -sSL https://weedout.dev/install.sh | sh
 weedout scan
 ```
 
@@ -636,6 +636,11 @@ on:
 jobs:
   security-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Only for the pull request comment. Without it the scan still runs and
+      # the step summary is still written.
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -648,9 +653,10 @@ jobs:
       - run: npm ci
 
       - name: Scan dependencies
-        uses: itsmangooo/weedout/.github@v1
+        uses: itsmangooo/weedout-cli@v1
         with:
           api-key: ${{ secrets.WEEDOUT_API_KEY }}
+          fail-on: critical
 
   # Both of these wait for the scan. `needs:` is the entire mechanism: without
   # it the jobs run in parallel and the deploy ships regardless of what the scan
@@ -699,14 +705,41 @@ graph.
 was committed; after it, it is what actually resolved. Scanning the resolved
 tree is the difference between an exact answer and an assumed one.
 
-## Without the action
+## What the action gives you
 
-The action is a thin wrapper. Any CI system runs the same two commands:
+Beyond running the scan, it writes a summary into the Actions run — tier
+counts, the findings that are blocking, and the fix version for each — and
+posts the same summary as a pull request comment, updating that one comment
+rather than adding a new one on every push.
+
+It also publishes outputs, so a later step can react to the numbers:
+
+```yaml
+- uses: itsmangooo/weedout-cli@v1
+  id: weedout
+  with:
+    api-key: ${{ secrets.WEEDOUT_API_KEY }}
+
+- if: always() && steps.weedout.outputs.exploited-count != '0'
+  run: echo "Exploited in the wild: ${{ steps.weedout.outputs.exploited-count }}"
+```
+
+`critical-count`, `high-count`, `exploited-count`, `blocking-count`,
+`filtered-count` and `findings-url` are all available, on a failed run as well
+as a passing one.
+
+## On any other CI system
+
+The action is a wrapper around one command. GitLab, CircleCI, Jenkins and a
+bare shell all run the same thing:
 
 ```bash
-pip install weedout-cli
+curl -sSL https://weedout.dev/install.sh | sh
 weedout scan --ci
 ```
+
+On Windows, `irm https://weedout.dev/install.ps1 | iex`. Both scripts verify
+the published checksum before installing anything.
 
 The key comes from `WEEDOUT_API_KEY` in the environment. Set it as a secret in
 your CI provider — never in the repository, and never as a command-line
@@ -740,9 +773,25 @@ Until you do, the check is advice. After you do, it is a rule.
 
 ## What should actually block
 
-`--ci` fails on two things and no more: critical severity, and confirmed
-exploitation from CISA's KEV catalog. High-severity findings appear in the
-output and on your dashboard but do not fail the build.
+By default `--ci` fails on two things and no more: critical severity, and
+confirmed exploitation from CISA's KEV catalog. High-severity findings appear
+in the output and on your dashboard but do not fail the build.
+
+If that is too permissive for what you ship, raise the floor:
+
+```yaml
+- uses: itsmangooo/weedout-cli@v1
+  with:
+    api-key: ${{ secrets.WEEDOUT_API_KEY }}
+    fail-on: high
+```
+
+or `weedout scan --ci --fail-on high` directly. Confirmed exploitation fails at
+either setting — a vulnerability with working public exploitation is not a
+medium problem because a scoring rubric said so.
+
+There is no `medium` or `low`. A gate that fires on everything is a gate
+somebody disables, and a disabled gate reports nothing at all.
 
 That line is deliberate and it is on the strict side of what we would suggest
 by default. Weedout is a watchlist first — the premise of the product is that

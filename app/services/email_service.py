@@ -37,7 +37,7 @@ from app.config import Settings, get_settings
 from app.core.types import AudienceKind, EmailStatus, EmailTrigger, Tier
 from app.logging_config import get_logger
 from app.mail import EmailError, send_email
-from app.models import EmailCampaign, EmailLog, User
+from app.models import EmailCampaign, EmailLog, TrackedTarget, User
 from app.templating import templates
 
 log = get_logger(__name__)
@@ -45,7 +45,9 @@ log = get_logger(__name__)
 __all__ = [
     "AudiencePreview",
     "EmailTrigger",
+    "Recipient",
     "SendReport",
+    "fill",
     "known_templates",
     "preview_audience",
     "recent_sends",
@@ -78,9 +80,36 @@ class SendReport:
 
 
 @dataclass(slots=True)
+class Recipient:
+    """One address, with everything the variables can be filled from."""
+
+    user_id: int | None
+    email: str
+    #: The recipient's project names. Empty for somebody who has not added one,
+    #: which is a real and common state -- it is what a signup looks like
+    #: before they finish setting up.
+    projects: tuple[str, ...] = ()
+
+    @property
+    def project_phrase(self) -> str:
+        """What `{{project_name}}` becomes for this person.
+
+        Never empty. "Your project has a critical finding" with a blank where
+        the name should be is the kind of email that makes a product look
+        broken, so somebody with no project gets a phrase that still reads as a
+        sentence, and somebody with several gets all of them.
+        """
+        if not self.projects:
+            return "your project"
+        if len(self.projects) == 1:
+            return self.projects[0]
+        return ", ".join(self.projects[:-1]) + " and " + self.projects[-1]
+
+
+@dataclass(slots=True)
 class AudiencePreview:
     kind: AudienceKind
-    recipients: list[tuple[int | None, str]]
+    recipients: list[Recipient]
 
     @property
     def count(self) -> int:
@@ -89,6 +118,11 @@ class AudiencePreview:
     @property
     def needs_confirmation(self) -> bool:
         return self.count > CONFIRM_THRESHOLD
+
+    @property
+    def without_projects(self) -> int:
+        """How many would fall back to "your project"."""
+        return sum(1 for r in self.recipients if not r.projects)
 
 
 def known_templates() -> list[str]:
@@ -231,7 +265,8 @@ async def preview_audience(
         row = (await db.execute(select(User.id, User.email).where(User.email == address))).first()
         # An address with no account is still a valid recipient -- it is how you
         # reply to somebody whose signup failed.
-        return AudiencePreview(kind=kind, recipients=[(row[0], row[1]) if row else (None, address)])
+        recipients = [Recipient(row[0], row[1]) if row else Recipient(None, address)]
+        return AudiencePreview(kind=kind, recipients=await _with_projects(db, recipients))
 
     where = [User.is_active.is_(True), User.is_suspended.is_(False)]
     if kind is AudienceKind.PRO:
@@ -240,7 +275,29 @@ async def preview_audience(
         where.append(User.tier == Tier.FREE)
 
     rows = (await db.execute(select(User.id, User.email).where(*where).order_by(User.id))).all()
-    return AudiencePreview(kind=kind, recipients=[(r[0], r[1]) for r in rows])
+    recipients = [Recipient(r[0], r[1]) for r in rows]
+    return AudiencePreview(kind=kind, recipients=await _with_projects(db, recipients))
+
+
+async def _with_projects(db: AsyncSession, recipients: list[Recipient]) -> list[Recipient]:
+    """Attach project names, in one query rather than one per recipient."""
+    ids = [r.user_id for r in recipients if r.user_id is not None]
+    if not ids:
+        return recipients
+
+    rows = (
+        await db.execute(
+            select(TrackedTarget.user_id, TrackedTarget.name)
+            .where(TrackedTarget.user_id.in_(ids))
+            .order_by(TrackedTarget.user_id, TrackedTarget.id)
+        )
+    ).all()
+
+    by_user: dict[int, list[str]] = {}
+    for user_id, name in rows:
+        by_user.setdefault(user_id, []).append(name)
+
+    return [Recipient(r.user_id, r.email, tuple(by_user.get(r.user_id, ()))) for r in recipients]
 
 
 async def send_campaign(
@@ -266,21 +323,26 @@ async def send_campaign(
         subject=subject[:500],
         body=body,
         audience=audience.kind,
-        audience_email=audience.recipients[0][1] if audience.kind is AudienceKind.ONE else None,
+        audience_email=(
+            audience.recipients[0].email
+            if audience.kind is AudienceKind.ONE and audience.recipients
+            else None
+        ),
         actor_email=actor.email,
         batch_id=batch_id,
         recipient_count=audience.count,
     )
     db.add(campaign)
 
-    for user_id, address in audience.recipients:
+    for recipient in audience.recipients:
+        address = recipient.email
         report.attempted += 1
-        rendered_subject = _fill(subject, address)
-        rendered_body = _fill(body, address)
+        rendered_subject = fill(subject, recipient)
+        rendered_body = fill(body, recipient)
 
         entry = EmailLog(
             recipient=address,
-            user_id=user_id,
+            user_id=recipient.user_id,
             template="custom",
             subject=rendered_subject[:500],
             trigger=EmailTrigger.ADMIN_MANUAL,
@@ -321,18 +383,29 @@ async def send_campaign(
 #: these has to be available for every recipient, and a variable that resolves
 #: to an empty string for half the audience is worse than not offering it.
 CAMPAIGN_VARIABLES: dict[str, str] = {
-    "{{user_email}}": "The recipient's email address",
+    "{{user_email}}": "The recipient's email address.",
+    "{{project_name}}": (
+        "Their project. Somebody with several gets all of them; somebody with "
+        'none gets "your project", so the sentence still reads.'
+    ),
 }
 
 
-def _fill(text: str, address: str) -> str:
-    """Substitute campaign variables.
+def fill(text: str, recipient: Recipient) -> str:
+    """Substitute campaign variables for one recipient.
 
-    Plain string replacement rather than Jinja on purpose. This body is typed
-    into a browser by a human; handing it to a template engine would make
+    Plain string replacement rather than Jinja, on purpose. This body is typed
+    into a browser by a human, and handing it to a template engine would make
     `{{ settings.secret_key }}` a working expression.
+
+    Both spacings are accepted because both are what people type.
     """
-    return text.replace("{{user_email}}", address).replace("{{ user_email }}", address)
+    for name, value in (
+        ("user_email", recipient.email),
+        ("project_name", recipient.project_phrase),
+    ):
+        text = text.replace("{{" + name + "}}", value).replace("{{ " + name + " }}", value)
+    return text
 
 
 # ---------------------------------------------------------------------------

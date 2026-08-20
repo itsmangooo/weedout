@@ -18,11 +18,12 @@ from pydantic import ValidationError
 
 from app.charts import build_signup_chart
 from app.config import get_settings
-from app.core.types import MessageStatus, Tier
+from app.core.types import AudienceKind, MessageStatus, Tier
 from app.deps import CsrfProtected, CurrentAdmin, DbSession, redirect, require_admin
 from app.logging_config import get_logger
 from app.models import ContactMessage
 from app.schemas import (
+    ComposeEmailForm,
     ContactStatusForm,
     DeleteUserForm,
     DocPageForm,
@@ -72,6 +73,14 @@ from app.services.docs_service import (
 )
 from app.services.docs_service import (
     update_page as update_doc_page,
+)
+from app.services.email_service import (
+    CAMPAIGN_VARIABLES,
+    CONFIRM_THRESHOLD,
+    fill,
+    preview_audience,
+    recent_sends,
+    send_campaign,
 )
 from app.templating import render
 
@@ -617,6 +626,212 @@ async def inbox_set_status(
     )
     await db.commit()
     return redirect(f"/admin/inbox/{message.id}")
+
+
+# ---------------------------------------------------------------------------
+# Compose and send
+#
+# The guardrail is the whole feature. Composing an email is a textarea; sending
+# one to every account is irreversible, and the failure mode is not a bug
+# report, it is six hundred people receiving something that was meant for one.
+#
+# So the send is two requests. The first resolves the audience and shows the
+# exact count; the second carries that count back and is refused if it no
+# longer matches. Between those two, somebody could sign up -- and a
+# confirmation screen that said 47 while the send reached 48 would make the
+# count decorative.
+# ---------------------------------------------------------------------------
+
+
+async def _compose_page(
+    request: Request,
+    db,
+    *,
+    values: dict | None = None,
+    preview=None,
+    rendered: dict | None = None,
+    error: str | None = None,
+    success: str | None = None,
+    status_code: int = 200,
+):
+    return render(
+        request,
+        "admin/email.html",
+        {
+            "page_title": "Compose email",
+            "admin_section": "email",
+            "values": values or {},
+            "preview": preview,
+            "rendered": rendered,
+            "variables": CAMPAIGN_VARIABLES,
+            "confirm_threshold": CONFIRM_THRESHOLD,
+            "sends": await recent_sends(db, limit=40),
+            "error": error,
+            "success": success,
+        },
+        status_code=status_code,
+    )
+
+
+@router.get("/email")
+async def compose(request: Request, db: DbSession, admin: CurrentAdmin):
+    return await _compose_page(request, db)
+
+
+def _form_or_error(subject: str, body: str, audience: str, address: str):
+    """Returns (form, message). Exactly one is None."""
+    try:
+        return (
+            ComposeEmailForm(subject=subject, body=body, audience=audience, audience_email=address),
+            None,
+        )
+    except ValidationError as exc:
+        return None, _first_error(exc)
+
+
+@router.post("/email/preview", dependencies=[CsrfProtected])
+async def compose_preview(
+    request: Request,
+    db: DbSession,
+    admin: CurrentAdmin,
+    subject: Annotated[str, Form()] = "",
+    body: Annotated[str, Form()] = "",
+    audience: Annotated[str, Form()] = "",
+    audience_email: Annotated[str, Form()] = "",
+):
+    """Resolve the audience and show what would go out.
+
+    Nothing is sent here. The rendered sample uses the first recipient, so the
+    variables are shown resolved against a real person rather than against
+    placeholder text that hides an empty value.
+    """
+    typed = {
+        "subject": subject,
+        "body": body,
+        "audience": audience,
+        "audience_email": audience_email,
+    }
+
+    form, message = _form_or_error(subject, body, audience, audience_email)
+    if form is None:
+        return await _compose_page(request, db, values=typed, error=message, status_code=400)
+
+    resolved = await preview_audience(db, form.audience, email=form.audience_email)
+    if resolved.count == 0:
+        return await _compose_page(
+            request,
+            db,
+            values=typed,
+            error=(
+                "That audience has nobody in it."
+                if form.audience is not AudienceKind.ONE
+                else "No account with that address, and it is not a valid address either."
+            ),
+            status_code=400,
+        )
+
+    sample = resolved.recipients[0]
+    return await _compose_page(
+        request,
+        db,
+        values=typed,
+        preview=resolved,
+        rendered={
+            "subject": fill(form.subject, sample),
+            "body": fill(form.body, sample),
+            "sample_email": sample.email,
+        },
+    )
+
+
+@router.post("/email/send", dependencies=[CsrfProtected])
+async def compose_send(
+    request: Request,
+    db: DbSession,
+    admin: CurrentAdmin,
+    subject: Annotated[str, Form()] = "",
+    body: Annotated[str, Form()] = "",
+    audience: Annotated[str, Form()] = "",
+    audience_email: Annotated[str, Form()] = "",
+    confirmed_count: Annotated[str, Form()] = "",
+):
+    typed = {
+        "subject": subject,
+        "body": body,
+        "audience": audience,
+        "audience_email": audience_email,
+    }
+
+    form, message = _form_or_error(subject, body, audience, audience_email)
+    if form is None:
+        return await _compose_page(request, db, values=typed, error=message, status_code=400)
+
+    resolved = await preview_audience(db, form.audience, email=form.audience_email)
+
+    # The count the admin agreed to. Reaching this route without one means the
+    # preview step was skipped -- by a bookmarked URL, a replayed form, or a
+    # script -- and the confirmation is the only thing standing between a
+    # textarea and every account on the platform.
+    try:
+        agreed = int(confirmed_count)
+    except (TypeError, ValueError):
+        return await _compose_page(
+            request,
+            db,
+            values=typed,
+            preview=resolved,
+            error="Preview the message before sending it.",
+            status_code=400,
+        )
+
+    if agreed != resolved.count:
+        return await _compose_page(
+            request,
+            db,
+            values=typed,
+            preview=resolved,
+            error=(
+                f"The audience changed while you were reading it: you confirmed "
+                f"{agreed} {'recipient' if agreed == 1 else 'recipients'}, and it is now "
+                f"{resolved.count}. Nothing was sent. Check the count and confirm again."
+            ),
+            status_code=409,
+        )
+
+    report = await send_campaign(
+        db, subject=form.subject, body=form.body, audience=resolved, actor=admin
+    )
+
+    record_audit(
+        db,
+        actor=admin,
+        action="email.campaign_sent",
+        details={
+            "audience": form.audience.value,
+            "recipients": resolved.count,
+            "sent": report.sent,
+            "failed": report.failed,
+            "subject": form.subject[:200],
+            "batch_id": report.batch_id,
+        },
+        ip_address=_client_ip(request),
+    )
+    await db.commit()
+
+    if report.failed:
+        return await _compose_page(
+            request,
+            db,
+            error=(
+                f"Sent to {report.sent} of {report.attempted}. "
+                f"{report.failed} failed: {'; '.join(report.errors)}"
+            ),
+        )
+    return await _compose_page(
+        request,
+        db,
+        success=(f"Sent to {report.sent} {'recipient' if report.sent == 1 else 'recipients'}."),
+    )
 
 
 @router.get("/audit")

@@ -2071,8 +2071,12 @@ kbd {
 .cli-hero {
   position: relative;
   isolation: isolate;
-  margin-block: calc(var(--space-6) * -1) var(--space-8);
-  padding-block: var(--space-8) var(--space-7);
+  margin-block: calc(var(--space-6) * -1) 0;
+  /* Less below than above on purpose. The space above separates the hero from
+     the bar; the space below only has to separate it from the next section,
+     which brings its own padding. Matching them made the hero look like it
+     trailed off rather than ended. */
+  padding-block: var(--space-8) var(--space-6);
   overflow: hidden;
 }
 
@@ -2086,25 +2090,66 @@ kbd {
 
    The headline steps down in this mode: --m-display tops out at 6rem, which is
    sized for a full-width column, not for half of one. */
+/* One step, used everywhere in this hero.
+   The rhythm was 24 / 24 / 32 / 0 -- which is not a scale, and the 0 is why the
+   install buttons and the dependency box were touching. */
+.cli-hero {
+  --hero-step: clamp(1.25rem, 2vw, 1.75rem);
+}
+
+/* Both classes: .mhero__eyebrow sets its own margin further down this file and
+   would win on source order against a single class. */
+.mhero__eyebrow.cli-hero__eyebrow,
+.cli-hero .mhero__headline,
+.cli-hero .mhero__lede,
+.cli-hero .mhero__cta {
+  margin-bottom: var(--hero-step);
+}
+
+/* The lede is the one place a wider gap earns itself: it separates the claim
+   from the actions, which is the only break in the column that means anything. */
+.cli-hero .mhero__lede {
+  margin-bottom: calc(var(--hero-step) * 1.5);
+}
+
+.cli-hero .cli-badge {
+  margin-bottom: 0;
+}
+
 @media (min-width: 62rem) {
   .cli-hero .wrap {
     display: grid;
+    /* Two rows: the eyebrow, then everything else. The terminal lives in the
+       second row of the second column, so its top edge is the headline's top
+       edge by construction rather than by arithmetic. */
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-    gap: clamp(2rem, 4vw, 4rem);
-    align-items: center;
+    grid-template-rows: auto 1fr;
+    gap: 0 clamp(2rem, 4vw, 4rem);
+    align-items: start;
+  }
+
+  .cli-hero__eyebrow {
+    grid-column: 1;
+    grid-row: 1;
+    /* Grid items stretch by default, and a pill that runs the width of the
+       column stops reading as a pill. */
+    justify-self: start;
   }
 
   .cli-hero .mhero__inner {
+    grid-column: 1;
+    grid-row: 2;
     max-width: none;
+  }
+
+  .cli-hero .stage {
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: 0;
   }
 
   .cli-hero .mhero__headline {
     font-size: clamp(2.5rem, 3.6vw, 3.75rem);
-  }
-
-  /* The stage is a column now, not something that follows the words. */
-  .cli-hero .stage {
-    margin-top: 0;
   }
 
   .cli-hero .stage--term .stage__frame {
@@ -6954,3 +6999,84 @@ a.metric:hover {
     padding-inline: var(--space-5);
   }
 }
+
+/* ---- Compose email ------------------------------------------------------ */
+
+/* The rendered message, shown before it goes out. Framed like a quotation
+   rather than styled like the app, because what matters is that it reads as
+   somebody else's inbox and not as another form on this page. */
+.mail-preview {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  border-inline-start: 3px solid var(--accent);
+}
+
+.mail-preview__label {
+  margin: 0 0 var(--space-3);
+  font-size: var(--step-00);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.mail-preview__subject {
+  margin: 0 0 var(--space-3);
+  font-weight: 600;
+}
+
+.mail-preview__body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  /* Pre-wrapped: it is sent as plain text, so the preview has to show the
+     line breaks that will actually arrive. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
+.sendlog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sendlog__item {
+  display: grid;
+  gap: 0.15rem;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.sendlog__item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.sendlog__status {
+  font-size: var(--step-00);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Never colour alone: the word is the label, the colour only reinforces it. */
+.sendlog__status--sent { color: var(--calm); }
+.sendlog__status--failed { color: var(--exploited); }
+.sendlog__status--skipped { color: var(--text-dim); }
+
+.sendlog__subject {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.sendlog__meta,
+.sendlog__error {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.sendlog__error { color: var(--exploited); }

@@ -21,12 +21,15 @@
   <span class="mhero__glow mhero__glow--one" data-parallax="-0.3" aria-hidden="true"></span>
 
   <div class="wrap">
-    <div class="mhero__inner">
-      <p class="mhero__eyebrow">
-        <span class="pill pill--calm pill--sm">Go</span>
-        One static binary, zero dependencies
-      </p>
+    {# Outside .mhero__inner so it occupies a grid row of its own, which is
+       what makes the terminal align with the headline rather than with the
+       top of the column. #}
+    <p class="mhero__eyebrow cli-hero__eyebrow">
+      <span class="pill pill--calm pill--sm">Go</span>
+      One static binary, zero dependencies
+    </p>
 
+    <div class="mhero__inner">
       <h1 class="mhero__headline">
         Thousands of advisories.<br>
         <em>The few that<br>reach you.</em>

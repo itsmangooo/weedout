@@ -26,6 +26,7 @@
   <a class="tab" href="/admin/inbox" {% if admin_section == 'inbox' %}aria-selected="true"{% endif %}>
     Inbox{% if unread %} <span class="pill pill--sm pill--high">{{ unread }}</span>{% endif %}
   </a>
+  <a class="tab" href="/admin/email" {% if admin_section == 'email' %}aria-selected="true"{% endif %}>Compose</a>
   <a class="tab" href="/admin/docs" {% if admin_section == 'docs' %}aria-selected="true"{% endif %}>Docs</a>
   <a class="tab" href="/admin/audit" {% if admin_section == 'audit' %}aria-selected="true"{% endif %}>Audit log</a>
 </nav>
