@@ -441,6 +441,13 @@ class TrackedTarget(TimestampMixin, Base):
         enum_column(Severity, "severity"), nullable=True
     )
 
+    #: Alert when EPSS is at or above this, or null to never gate on it.
+    #:
+    #: Null by default and for everybody until asked. EPSS is re-scored daily,
+    #: and a finding drifting over a threshold overnight would interrupt
+    #: somebody because a model moved rather than because a vulnerability did.
+    epss_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     #: The `.weedout.yml` most recently pushed with a scan.
     #:
     #: Stored rather than read from disk because the server never sees the
@@ -726,6 +733,35 @@ class KevRecord(TimestampMixin, Base):
         return f"<KevRecord {self.cve_id}>"
 
 
+class EpssScore(Base):
+    """FIRST's modelled probability that a CVE will be exploited.
+
+    Its own table rather than a column on `vulnerabilities`, for two reasons.
+    EPSS is keyed on CVE and an advisory can carry several; and the whole set is
+    re-scored daily, which as an upsert against a 260,000-row advisory table
+    would rewrite far more than it changes.
+    """
+
+    __tablename__ = "epss_scores"
+
+    cve_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+
+    #: Probability of exploitation in the next 30 days, 0.0 to 1.0.
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    #: Where it sits against every other scored CVE.
+    percentile: Mapped[float] = mapped_column(Float, nullable=False)
+
+    #: The day FIRST scored it, which is not the day we fetched it. Worth
+    #: keeping both: a stale mirror and a stale model are different problems.
+    scored_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=utcnow, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<EpssScore {self.cve_id} {self.score:.5f}>"
+
+
 class FeedSync(Base):
     """When each upstream feed was last pulled, and whether it worked.
 
@@ -809,6 +845,14 @@ class CVEMatch(TimestampMixin, Base):
     reachability: Mapped[Reachability] = mapped_column(
         enum_column(Reachability, "reachability"), nullable=False
     )
+
+    #: EPSS at the time of the scan, for the CVE this advisory carries.
+    #:
+    #: A snapshot, not a live value: it is what the finding was scored at when
+    #: it was last seen, so a row that has not been re-scanned does not silently
+    #: change its story. Null when the CVE is unscored, which is most of them.
+    epss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    epss_percentile: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     #: True when an ignore rule covered this and it was raised anyway, because
     #: the advisory is now on CISA's known-exploited list. Stored rather than

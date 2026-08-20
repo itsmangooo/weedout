@@ -71,6 +71,8 @@ class ParsedPolicy:
 
     direct_threshold: Severity | None = None
     transitive_threshold: Severity | None = None
+    #: Probability at or above which to alert, 0.0 to 1.0. None gates nothing.
+    epss_threshold: float | None = None
     ignores: tuple[IgnoreEntry, ...] = ()
     warnings: tuple[str, ...] = field(default_factory=tuple)
     #: Set when the document could not be used at all. The scan continues on
@@ -80,7 +82,10 @@ class ParsedPolicy:
     @property
     def is_empty(self) -> bool:
         return (
-            self.direct_threshold is None and self.transitive_threshold is None and not self.ignores
+            self.direct_threshold is None
+            and self.transitive_threshold is None
+            and self.epss_threshold is None
+            and not self.ignores
         )
 
     @property
@@ -121,7 +126,7 @@ def parse_policy(content: str | bytes | None) -> ParsedPolicy:
         return ParsedPolicy(error="The policy file should be a mapping of settings.")
 
     warnings: list[str] = []
-    known = {"version", "severity", "ignore"}
+    known = {"version", "severity", "ignore", "epss"}
     for key in document:
         if key not in known:
             warnings.append(f"Ignoring unknown setting {key!r}.")
@@ -132,12 +137,46 @@ def parse_policy(content: str | bytes | None) -> ParsedPolicy:
     ignores, ignore_warnings = _read_ignores(document.get("ignore"))
     warnings.extend(ignore_warnings)
 
+    epss, epss_warnings = _read_epss(document.get("epss"))
+    warnings.extend(epss_warnings)
+
     return ParsedPolicy(
         direct_threshold=direct,
         transitive_threshold=transitive,
+        epss_threshold=epss,
         ignores=tuple(ignores),
         warnings=tuple(warnings),
     )
+
+
+def _read_epss(block: object) -> tuple[float | None, list[str]]:
+    """`epss: {alert_above: 0.5}` -- a probability, not a percentage.
+
+    Both spellings of the same number are plausible to write, so a value above
+    1 is read as a percentage rather than silently clamped: somebody writing
+    `alert_above: 50` means half, and treating that as "always alert" would be
+    the loudest possible misreading.
+    """
+    if block is None:
+        return None, []
+    if not isinstance(block, dict):
+        return None, ["`epss` should be a mapping; ignoring it."]
+
+    warnings = [f"Ignoring unknown epss setting {key!r}." for key in block if key != "alert_above"]
+
+    raw = block.get("alert_above")
+    if raw is None:
+        return None, warnings
+    if isinstance(raw, bool) or not isinstance(raw, int | float):
+        return None, [*warnings, "`epss.alert_above` should be a number; ignoring it."]
+
+    value = float(raw)
+    if value > 1.0:
+        value = value / 100.0
+    if not (0.0 < value <= 1.0):
+        return None, [*warnings, "`epss.alert_above` should be between 0 and 1; ignoring it."]
+
+    return value, warnings
 
 
 def _read_severity(block: object) -> tuple[Severity | None, Severity | None, list[str]]:

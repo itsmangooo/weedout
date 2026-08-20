@@ -32,6 +32,17 @@
       <span class="finding__version">{{ match.package_version }}</span>
       <span class="pill pill--{{ match.severity.value }}">{{ match.severity.label }}</span>
       {% if match.is_kev %}<span class="pill pill--exploited">KEV</span>{% endif %}
+      {# A different kind of statement from the severity pill beside it, so it
+         is shaped differently: a labelled value rather than a coloured word.
+         "High severity" and "high EPSS" mean different things, and a reader who
+         has to work out which one a colour refers to will eventually get it
+         wrong. #}
+      {% if match.epss_score is not none %}
+        <span class="signal signal--epss" title="Modelled probability of exploitation in the next 30 days (FIRST EPSS)">
+          <span class="signal__label">EPSS</span>
+          <span class="signal__value">{{ (match.epss_score * 100)|round(1) }}%</span>
+        </span>
+      {% endif %}
       <span class="finding__cve">{{ cve }}</span>
     </span>
 

@@ -104,6 +104,11 @@ async def build_policy(
             or target.transitive_threshold
             or policy.transitive_threshold
         ),
+        # `or` is wrong for a float that can legitimately be 0-ish, so this is
+        # explicit about which source spoke.
+        epss_threshold=(
+            parsed.epss_threshold if parsed.epss_threshold is not None else target.epss_threshold
+        ),
         # Unioned rather than replaced: a file that says nothing about an
         # identifier is not asking for it to be un-ignored.
         ignored_ids=normalise_ids([*from_settings, *from_file]),

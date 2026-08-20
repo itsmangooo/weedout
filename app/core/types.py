@@ -153,6 +153,8 @@ class ActionableReason(StrEnum):
 
     #: The package itself is malware. Outranks everything, including severity.
     MALICIOUS_PACKAGE = "malicious_package"
+    #: Scored likely to be exploited, on a project that asked to gate on that.
+    LIKELY_TO_BE_EXPLOITED = "likely_to_be_exploited"
     EXPLOITED_IN_WILD = "exploited_in_wild"
     CRITICAL_IN_PRODUCTION = "critical_in_production"
     HIGH_SEVERITY_DIRECT = "high_severity_direct"
@@ -161,6 +163,7 @@ class ActionableReason(StrEnum):
     def label(self) -> str:
         return {
             "malicious_package": "Malicious package — remove it",
+            "likely_to_be_exploited": "Scored likely to be exploited (EPSS)",
             "exploited_in_wild": "Actively exploited (CISA KEV)",
             "critical_in_production": "Critical severity, ships to production",
             "high_severity_direct": "High severity, direct dependency",
@@ -442,6 +445,12 @@ class MatchDecision:
     fixed_version: str | None = None
     actionable_reason: ActionableReason | None = None
     suppression_reason: SuppressionReason | None = None
+
+    #: EPSS for this advisory's CVE, when there is one. Carried on every
+    #: decision whether or not the project gates on it -- the number is useful
+    #: to read even when it changes nothing.
+    epss_score: float | None = None
+    epss_percentile: float | None = None
 
     #: True when a rule said to ignore this and it was surfaced anyway.
     #:

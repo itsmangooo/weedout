@@ -31,7 +31,7 @@ from app.core.matching import DEFAULT_POLICY, MatchPolicy, triage_all
 from app.core.types import AlertStatus, Dependency, ScanResult, Verdict
 from app.logging_config import get_logger
 from app.models import CVEMatch, DependencyRecord, ScanRun, TrackedTarget, User, utcnow
-from app.services.feed_service import load_kev_index
+from app.services.feed_service import load_epss_index, load_kev_index
 from app.services.mirror_service import (
     find_local_vulnerabilities,
     mirror_is_populated,
@@ -253,9 +253,20 @@ async def _run_pipeline(
         cve for vulns in by_dependency.values() for vuln in vulns for cve in vuln.cve_ids
     ]
     kev_index = await load_kev_index(db, referenced_cves)
+    # Loaded for every scan, not only where the project gates on it: the score
+    # is shown on every finding, and a number that appears only for people who
+    # switched on a threshold would be a worse explanation than none.
+    epss_index = await load_epss_index(db, referenced_cves)
 
     return (
-        triage_all(dependencies, by_dependency, kev_index, policy, errors=tuple(errors)),
+        triage_all(
+            dependencies,
+            by_dependency,
+            kev_index,
+            policy,
+            errors=tuple(errors),
+            epss_index=epss_index,
+        ),
         dependencies,
     )
 
@@ -333,6 +344,8 @@ async def _reconcile_matches(
                 depth=decision.dependency.depth,
                 via=list(decision.dependency.via),
                 ignore_overridden=decision.ignore_overridden,
+                epss_score=decision.epss_score,
+                epss_percentile=decision.epss_percentile,
                 verdict=decision.verdict,
                 severity=decision.severity,
                 is_kev=decision.kev,
@@ -366,6 +379,10 @@ async def _reconcile_matches(
         existing.depth = decision.dependency.depth
         existing.via = list(decision.dependency.via)
         existing.ignore_overridden = decision.ignore_overridden
+        # Re-scored daily, so this is refreshed on every scan rather than
+        # frozen at whatever it was the day the finding first appeared.
+        existing.epss_score = decision.epss_score
+        existing.epss_percentile = decision.epss_percentile
 
         if existing.status is AlertStatus.RESOLVED:
             # It came back (a downgrade, or a manifest revert).

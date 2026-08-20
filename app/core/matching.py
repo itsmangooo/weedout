@@ -81,6 +81,15 @@ class MatchPolicy:
     #: look better.
     max_depth: int | None = None
 
+    #: Gate on EPSS above this probability, or None to gate on nothing.
+    #:
+    #: Off by default, and that is a decision rather than an oversight. EPSS is
+    #: a model output that is retrained and re-scored daily; a finding drifting
+    #: over a threshold overnight would interrupt somebody because a number
+    #: moved, not because a vulnerability did. Shown on every finding, gating
+    #: only where a project has asked for it.
+    epss_threshold: float | None = None
+
     #: CVE and advisory ids this project has chosen not to hear about.
     #:
     #: Compared case-insensitively; `normalise_ids` is what callers should use
@@ -128,6 +137,7 @@ def triage(
     vulnerability: Vulnerability,
     kev_index: dict[str, KevEntry] | set[str] | None = None,
     policy: MatchPolicy = DEFAULT_POLICY,
+    epss_index: dict[str, tuple[float, float]] | None = None,
 ) -> MatchDecision:
     """Decide the fate of one (dependency, vulnerability) pair.
 
@@ -153,6 +163,7 @@ def triage(
         )
 
     fixed_version = first_fixed_version(dependency.ecosystem, dependency.version, affected_entry)
+    epss_score, epss_percentile = _epss_for(vulnerability, epss_index)
     base = MatchDecision(
         dependency=dependency,
         vulnerability=vulnerability,
@@ -160,6 +171,8 @@ def triage(
         severity=vulnerability.severity,
         kev=is_kev,
         fixed_version=fixed_version,
+        epss_score=epss_score,
+        epss_percentile=epss_percentile,
     )
 
     # A withdrawn advisory is retracted by its own publisher. Never alert on it,
@@ -208,6 +221,19 @@ def triage(
         # as the reason, so "what am I not being told about?" has an answer.
         return replace(base, suppression_reason=SuppressionReason.IGNORED_BY_RULE)
 
+    # Only where the project asked. See MatchPolicy.epss_threshold for why this
+    # is not on by default.
+    if (
+        policy.epss_threshold is not None
+        and epss_score is not None
+        and epss_score >= policy.epss_threshold
+    ):
+        return replace(
+            base,
+            verdict=Verdict.ACTIONABLE,
+            actionable_reason=ActionableReason.LIKELY_TO_BE_EXPLOITED,
+        )
+
     reachability = dependency.reachability
 
     if not reachability.ships_to_production and not policy.alert_on_dev_dependencies:
@@ -237,12 +263,32 @@ def triage(
     return replace(base, suppression_reason=SuppressionReason.BELOW_SEVERITY_THRESHOLD)
 
 
+def _epss_for(
+    vulnerability: Vulnerability, index: dict[str, tuple[float, float]] | None
+) -> tuple[float | None, float | None]:
+    """The highest EPSS among this advisory's CVEs.
+
+    An advisory can alias several. Taking the highest rather than the first is
+    the conservative reading: if any of the vulnerabilities it describes is
+    likely to be exploited, the advisory is.
+    """
+    if not index:
+        return None, None
+    best: tuple[float, float] | None = None
+    for cve in vulnerability.cve_ids:
+        found = index.get(cve.upper())
+        if found and (best is None or found[0] > best[0]):
+            best = found
+    return best if best else (None, None)
+
+
 def triage_all(
     dependencies: list[Dependency],
     vulnerabilities_by_dependency: dict[tuple[str, str, str], list[Vulnerability]],
     kev_index: dict[str, KevEntry] | set[str] | None = None,
     policy: MatchPolicy = DEFAULT_POLICY,
     errors: tuple[str, ...] = (),
+    epss_index: dict[str, tuple[float, float]] | None = None,
 ) -> ScanResult:
     """Triage every dependency against its candidate advisories.
 
@@ -263,7 +309,7 @@ def triage_all(
             continue
 
         for vulnerability in vulnerabilities_by_dependency.get(dependency.key, []):
-            decision = triage(dependency, vulnerability, kev_index, policy)
+            decision = triage(dependency, vulnerability, kev_index, policy, epss_index)
             if decision.verdict is Verdict.ACTIONABLE:
                 actionable.append(decision)
             elif decision.verdict is Verdict.SUPPRESSED:

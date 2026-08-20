@@ -7186,3 +7186,31 @@ a.metric:hover {
   color: var(--text-dim);
   font-size: 0.8125rem;
 }
+
+/* ---- Signals ------------------------------------------------------------ */
+
+/* A signal is not a severity, so it does not look like one. Severity is a
+   coloured word; a signal is a labelled number. The distinction has to survive
+   a glance, because "high severity" and "high EPSS" answer different questions
+   and a reader who has to decode which is which will eventually get it wrong. */
+.signal {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.signal__label {
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.signal__value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-weight: 500;
+}

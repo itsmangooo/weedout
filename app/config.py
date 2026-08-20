@@ -101,6 +101,10 @@ class Settings(BaseSettings):
     kev_feed_url: str = (
         "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
     )
+    #: FIRST republishes this once a day, so asking more often is traffic
+    #: for nothing.
+    epss_feed_url: str = "https://epss.cyentia.com/epss_scores-current.csv.gz"
+    epss_refresh_hours: int = 24
     osv_api_url: str = "https://api.osv.dev"
     feed_timeout_seconds: float = 30.0
     feed_user_agent: str = "weedout/0.1 (+https://github.com/weedout-dev)"

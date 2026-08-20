@@ -226,6 +226,29 @@
           </select>
         </div>
       </div>
+      <div class="field">
+        <label for="epss_threshold">Alert on likelihood</label>
+        <select class="select" id="epss_threshold" name="epss_threshold">
+          <option value="">Never — show the score, don't alert on it</option>
+          <option value="0.5" {% if target.epss_threshold == 0.5 %}selected{% endif %}>
+            EPSS 50% and above
+          </option>
+          <option value="0.2" {% if target.epss_threshold == 0.2 %}selected{% endif %}>
+            EPSS 20% and above
+          </option>
+          <option value="0.1" {% if target.epss_threshold == 0.1 %}selected{% endif %}>
+            EPSS 10% and above
+          </option>
+        </select>
+        <p class="field__hint">
+          EPSS is FIRST's modelled probability that a vulnerability will be
+          exploited in the next 30 days. It is shown on every finding either
+          way. Off by default on purpose: it is re-scored daily, and a finding
+          drifting over a line overnight would wake you for a number that
+          moved rather than a vulnerability that did.
+        </p>
+      </div>
+
       <p class="field__hint">
         Exploitation always wins. A finding on CISA's known-exploited list
         alerts whatever these say.

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.core.types import Tier
 from app.db import session_scope
+from app.feeds.epss import EpssFeedError
 from app.feeds.kev import KevFeedError
 from app.logging_config import get_logger
 from app.models import User, utcnow
@@ -29,7 +30,7 @@ from app.services.admin_service import PAYING_STATUSES
 from app.services.alert_service import send_new_match_digest
 from app.services.auth_service import purge_expired_sessions
 from app.services.backup_service import BackupError, record_outcome, run_backup
-from app.services.feed_service import refresh_kev_catalog
+from app.services.feed_service import refresh_epss_scores, refresh_kev_catalog
 from app.services.mirror_service import sync_all_ecosystems
 from app.services.password_reset_service import purge_expired_reset_tokens
 from app.services.rate_limit_service import purge_expired_rate_limits
@@ -68,21 +69,36 @@ async def advisory_lock(db: AsyncSession, key: int) -> AsyncIterator[bool]:
 
 
 async def refresh_feeds_task() -> int:
-    """Refresh the CISA KEV catalog. Returns the number of rows stored."""
+    """Refresh the CISA KEV catalog and the EPSS scores.
+
+    Two independent feeds under one lock and one schedule. Independent
+    deliberately: EPSS being unreachable must not cost the KEV refresh, because
+    KEV is what promotes a finding to an alert and EPSS only annotates one.
+    """
+    stored = 0
     try:
         async with session_scope() as db:
             async with advisory_lock(db, LOCK_FEED_REFRESH) as acquired:
                 if not acquired:
-                    log.debug("kev.refresh_skipped_locked")
+                    log.debug("feeds.refresh_skipped_locked")
                     return 0
-                return await refresh_kev_catalog(db)
-    except KevFeedError as exc:
-        # Already recorded on the FeedSync row; the previous snapshot stands.
-        log.error("job.kev_refresh_failed", error=str(exc))
-        return 0
+
+                try:
+                    stored += await refresh_kev_catalog(db)
+                except KevFeedError as exc:
+                    # Already recorded on the FeedSync row; the previous
+                    # snapshot stands.
+                    log.error("job.kev_refresh_failed", error=str(exc))
+
+                try:
+                    stored += await refresh_epss_scores(db)
+                except EpssFeedError as exc:
+                    log.error("job.epss_refresh_failed", error=str(exc))
+
+                return stored
     except Exception as exc:
-        log.exception("job.kev_refresh_crashed", error=str(exc))
-        return 0
+        log.exception("job.feed_refresh_crashed", error=str(exc))
+        return stored
 
 
 async def sync_mirror_task() -> dict[str, int]:

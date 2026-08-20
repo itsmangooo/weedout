@@ -329,12 +329,28 @@ class IgnoreRuleForm(BaseModel):
 
 
 class ThresholdForm(BaseModel):
-    """A project's own severity floors. Blank means "use the default"."""
+    """A project's own alerting floors. Blank means "use the default"."""
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
     direct: str = ""
     transitive: str = ""
+    #: EPSS probability, 0 to 1. Blank means never gate on it.
+    epss_threshold: str = ""
+
+    @field_validator("epss_threshold")
+    @classmethod
+    def _a_probability(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            return ""
+        try:
+            number = float(cleaned)
+        except ValueError:
+            raise ValueError("The EPSS threshold should be a number between 0 and 1.") from None
+        if not (0.0 < number <= 1.0):
+            raise ValueError("The EPSS threshold should be between 0 and 1.")
+        return cleaned
 
     @field_validator("direct", "transitive")
     @classmethod

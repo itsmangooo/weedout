@@ -25,7 +25,7 @@ Tests need Postgres running or **they silently skip** — a green run with
 Desktop on this machine stops on its own; restart it from
 `C:\Program Files\Docker\Docker\Docker Desktop.exe`.
 
-Current state: **1236 passed, 14 skipped, ruff clean.**
+Current state: **1262 passed, 14 skipped, ruff clean.**
 
 ---
 
@@ -160,6 +160,15 @@ copied onto `Alert` rows (those carry `discord:{target_id}`).
   `overridden_at`, so the author sees it stopped applying rather than assuming
   it held. Verified end to end: 3 actionable → 0 with rules → 2 back after a
   KEV listing, with the non-listed rule still holding.
+- **EPSS (all tiers to read, Pro to gate on)** — `app/core/epss.py` parses
+  FIRST's daily CSV; `refresh_epss_scores` upserts it beside the KEV refresh
+  under the same lock, independently so one feed failing does not cost the
+  other. 362,881 real scores verified against the live feed. The score is on
+  every finding (`CVEMatch.epss_score`, denormalised) and **gates nothing until
+  a project sets `epss_threshold`** — the agreed decision, pinned by tests.
+  Rendered as `.signal--epss`, a labelled number rather than a coloured word,
+  because "high severity" and "high EPSS" answer different questions.
+  `.weedout.yml` takes `epss: {alert_above: 0.5}`, and `50` is read as 50%.
 - **Dependency chains** — `Dependency.depth` / `.via`, persisted on both
   `DependencyRecord` and `CVEMatch` (denormalised, so a finding keeps its route
   after the next parse replaces the dependency rows). Rendered as "Found via
@@ -186,7 +195,6 @@ mistake to avoid repeating.
 
 | Feature | State |
 |---|---|
-| EPSS scores | Nothing. |
 | Typosquat heuristic (name similarity, no advisory) | Nothing. Malicious-package *advisories* are handled — see below. |
 | Unmaintained package risk | Nothing. |
 | Provenance checks | Nothing. |
@@ -217,10 +225,12 @@ Also unresolved:
 
 ## Next steps, in the order I would do them
 
-1. **EPSS.** Surface as its own signal. **Do not fold it into severity tiering
-   silently** — the user asked for this to be flagged. Suggest adding it as an
-   off-by-default `MatchPolicy` flag so turning it on is a deliberate act.
-2. The rest of the table above.
+1. **Typosquat heuristic** — edit distance against top packages per
+   ecosystem. Pure core, Pro-gated. Malicious *advisories* are already handled.
+2. **Unmaintained + provenance** — these need a `package_metadata` cache with a
+   TTL and a refresh job: they are per-package outbound HTTP to the npm and
+   PyPI registries, which must never happen inline in a scan.
+3. The rest of the table above.
 
 ---
 

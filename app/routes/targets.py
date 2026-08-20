@@ -842,6 +842,7 @@ async def set_thresholds(
     target_id: int,
     direct: Annotated[str, Form()] = "",
     transitive: Annotated[str, Form()] = "",
+    epss_threshold: Annotated[str, Form()] = "",
 ):
     target = await get_target_for_user(db, user.id, target_id)
     if target is None:
@@ -852,18 +853,19 @@ async def set_thresholds(
         return refusal
 
     try:
-        form = ThresholdForm(direct=direct, transitive=transitive)
+        form = ThresholdForm(direct=direct, transitive=transitive, epss_threshold=epss_threshold)
     except ValidationError as exc:
         return await _settings_error(request, db, user, target, first_error(exc))
 
     target.direct_threshold = Severity(form.direct) if form.direct else None
     target.transitive_threshold = Severity(form.transitive) if form.transitive else None
+    target.epss_threshold = float(form.epss_threshold) if form.epss_threshold else None
     target.updated_at = utcnow()
     await db.commit()
 
     log.info("target.thresholds_set", target_id=target.id, user_id=user.id)
     return await _render_settings(
-        request, db, user, target, success="Severity thresholds saved. They apply on the next scan."
+        request, db, user, target, success="Thresholds saved. They apply on the next scan."
     )
 
 
