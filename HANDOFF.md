@@ -25,7 +25,7 @@ Tests need Postgres running or **they silently skip** — a green run with
 Desktop on this machine stops on its own; restart it from
 `C:\Program Files\Docker\Docker\Docker Desktop.exe`.
 
-Current state: **1305 passed, 14 skipped, ruff clean.**
+Current state: **1329 passed, 14 skipped, ruff clean.**
 
 ---
 
@@ -181,6 +181,17 @@ copied onto `Alert` rows (those carry `discord:{target_id}`).
   Results land in `SupplyChainFinding`, a separate table with its own
   `SignalLevel` (concerning / notable / informational) that deliberately shares
   no words with `Severity`.
+- **Unmaintained / single-maintainer / provenance (Pro)** — the only checks
+  that need somebody else's server, so they run off a `PackageMetadata` cache
+  filled by `refresh_package_metadata_task` (hourly, TTL 7 days, 300/run, 8
+  concurrent). A scan reads the cache and never reaches the network.
+  **`None` means "not known", never zero and never no.** PyPI's JSON API has no
+  maintainer count, so it stays unknown there rather than being guessed from a
+  free-text author field; provenance is npm-only. A package with no cache row,
+  or one whose fetch failed, raises no signal — which is not the same as coming
+  back clean, and the tests say so.
+  Verified live: sigstore reports provenance, left-pad is 8 years stale and
+  deprecated, PyPI's unknowns stay null.
 - **Dependency chains** — `Dependency.depth` / `.via`, persisted on both
   `DependencyRecord` and `CVEMatch` (denormalised, so a finding keeps its route
   after the next parse replaces the dependency rows). Rendered as "Found via
@@ -207,8 +218,6 @@ mistake to avoid repeating.
 
 | Feature | State |
 |---|---|
-| Unmaintained package risk | Nothing. |
-| Provenance checks | Nothing. |
 | Admin: xlsx findings export | Nothing. Needs `openpyxl`. |
 | Admin: DB backup download | Nothing. `backup_service.run_backup` exists for the scheduled job. |
 | Advisory curation queue | Nothing. |
@@ -236,9 +245,9 @@ Also unresolved:
 
 ## Next steps, in the order I would do them
 
-1. **Unmaintained + provenance** — these need a `package_metadata` cache with a
-   TTL and a refresh job: they are per-package outbound HTTP to the npm and
-   PyPI registries, which must never happen inline in a scan.
+1. **Pricing / landing / docs copy.** Now unblocked: every Pro feature the
+   earlier brief listed is real. Write it from `app/tiers.py`, and check the
+   claims against the code rather than against the brief.
 2. The rest of the table above.
 
 ---

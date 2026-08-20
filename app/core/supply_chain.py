@@ -26,9 +26,11 @@ from app.core.types import Ecosystem
 
 __all__ = [
     "POPULAR",
+    "PackageFacts",
     "SignalKind",
     "SignalLevel",
     "SupplyChainSignal",
+    "assess_facts",
     "check_typosquat",
     "edit_distance",
 ]
@@ -452,3 +454,133 @@ def check_typosquat(name: str, ecosystem: Ecosystem) -> SupplyChainSignal | None
         )
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Signals that need facts from a registry
+#
+# These are the ones that cannot be answered from the manifest alone: how long
+# ago the last release was, how many people can publish, whether the build is
+# attested. The facts arrive as a plain dataclass filled by a cache, never by a
+# call from inside a scan -- a 300-package manifest would otherwise become 300
+# outbound requests on the request path.
+# ---------------------------------------------------------------------------
+
+#: Two years with no release. Long enough that a maintained-but-quiet library
+#: is not swept up: plenty of small packages are simply finished, and calling
+#: those abandoned would make the signal meaningless.
+UNMAINTAINED_AFTER_DAYS = 730
+
+
+@dataclass(frozen=True, slots=True)
+class PackageFacts:
+    """What a registry says about a package.
+
+    Every field is optional because every registry answers a different subset,
+    and inventing a value we were not told is how a supply-chain signal becomes
+    a lie. `None` means "not known", never "zero" or "no".
+    """
+
+    ecosystem: Ecosystem
+    name: str
+    latest_version: str | None = None
+    #: Days since the most recent release, or None if the registry did not say.
+    days_since_release: int | None = None
+    #: How many accounts can publish. npm reports this; PyPI's JSON API does
+    #: not, so it stays None there rather than being guessed from an author
+    #: string.
+    maintainer_count: int | None = None
+    #: Whether the latest version carries a build attestation. None where the
+    #: ecosystem has no such concept, which is not the same as False.
+    has_provenance: bool | None = None
+    #: The registry's own deprecation notice, if there is one.
+    deprecated: str | None = None
+
+
+def assess_facts(facts: PackageFacts) -> list[SupplyChainSignal]:
+    """Signals derivable from what a registry told us.
+
+    Silent about anything it was not told. A package whose metadata could not be
+    fetched produces no signals rather than a reassuring absence of them -- the
+    caller is responsible for knowing the difference, and the interface says so.
+    """
+    signals: list[SupplyChainSignal] = []
+
+    if facts.deprecated:
+        signals.append(
+            SupplyChainSignal(
+                kind=SignalKind.UNMAINTAINED,
+                level=SignalLevel.CONCERNING,
+                detail=(
+                    f"The maintainers have marked {facts.name} deprecated: "
+                    f"{facts.deprecated.strip()[:200]}"
+                ),
+                data={"reason": "deprecated"},
+            )
+        )
+    elif (
+        facts.days_since_release is not None and facts.days_since_release >= UNMAINTAINED_AFTER_DAYS
+    ):
+        years = facts.days_since_release / 365.25
+        signals.append(
+            SupplyChainSignal(
+                kind=SignalKind.UNMAINTAINED,
+                level=SignalLevel.NOTABLE,
+                detail=(
+                    f"{facts.name} has had no release in {years:.1f} years. That is "
+                    "not a fault on its own — plenty of small libraries are simply "
+                    "finished — but nobody is shipping a fix if one turns out to be "
+                    "needed."
+                ),
+                data={
+                    "days_since_release": facts.days_since_release,
+                    "latest_version": facts.latest_version,
+                },
+            )
+        )
+
+    if facts.maintainer_count == 1:
+        signals.append(
+            SupplyChainSignal(
+                kind=SignalKind.SINGLE_MAINTAINER,
+                level=SignalLevel.INFORMATIONAL,
+                detail=(
+                    f"One account can publish {facts.name}. Worth knowing rather "
+                    "than worth acting on: it means one compromised account is "
+                    "enough, and it means one person's circumstances are enough."
+                ),
+                data={"maintainer_count": 1},
+            )
+        )
+
+    # Only ever reported where the ecosystem has the concept. `None` means "no
+    # such thing here", which is a different statement from "not attested".
+    if facts.has_provenance is True:
+        signals.append(
+            SupplyChainSignal(
+                kind=SignalKind.PROVENANCE_VERIFIED,
+                level=SignalLevel.INFORMATIONAL,
+                detail=(
+                    f"{facts.name} {facts.latest_version or ''} was published with a "
+                    "build attestation, so the registry can show which repository and "
+                    "workflow produced it."
+                ).replace("  ", " "),
+                data={"provenance": True},
+            )
+        )
+    elif facts.has_provenance is False:
+        signals.append(
+            SupplyChainSignal(
+                kind=SignalKind.PROVENANCE_MISSING,
+                level=SignalLevel.INFORMATIONAL,
+                detail=(
+                    f"{facts.name} has no build attestation, so there is nothing "
+                    "linking the published package to the source it claims to come "
+                    "from. Most packages do not have one yet; this is context, not a "
+                    "problem."
+                ),
+                data={"provenance": False},
+            )
+        )
+
+    return signals

@@ -20,6 +20,7 @@ from app.jobs.tasks import (
     backup_task,
     expire_subscriptions_task,
     refresh_feeds_task,
+    refresh_package_metadata_task,
     run_scan_cycle,
     sweep_sessions_task,
     sync_mirror_task,
@@ -57,6 +58,16 @@ def build_scheduler(settings: Settings) -> AsyncIOScheduler:
         trigger=IntervalTrigger(hours=settings.mirror_refresh_hours),
         id="sync_mirror",
         name="Sync the local advisory mirror",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        refresh_package_metadata_task,
+        # Hourly, but each run only touches packages whose cache has aged past
+        # package_metadata_ttl_days, so a steady state is a handful of requests.
+        trigger=IntervalTrigger(hours=1),
+        id="refresh_package_metadata",
+        name="Top up the package-metadata cache",
         replace_existing=True,
     )
 

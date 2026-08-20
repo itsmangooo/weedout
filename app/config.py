@@ -105,6 +105,10 @@ class Settings(BaseSettings):
     #: for nothing.
     epss_feed_url: str = "https://epss.cyentia.com/epss_scores-current.csv.gz"
     epss_refresh_hours: int = 24
+    #: How long a cached package-metadata row stays usable. Release
+    #: cadence and maintainer counts do not change hourly, and every
+    #: refresh is a request against somebody else's registry.
+    package_metadata_ttl_days: int = 7
     osv_api_url: str = "https://api.osv.dev"
     feed_timeout_seconds: float = 30.0
     feed_user_agent: str = "weedout/0.1 (+https://github.com/weedout-dev)"

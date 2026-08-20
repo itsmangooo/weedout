@@ -18,10 +18,17 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.supply_chain import SupplyChainSignal, check_typosquat
+from app.core.supply_chain import (
+    PackageFacts,
+    SupplyChainSignal,
+    assess_facts,
+    check_typosquat,
+)
 from app.core.types import AlertStatus, Dependency
+from app.feeds.registry import supports_metadata
 from app.logging_config import get_logger
 from app.models import SupplyChainFinding, TrackedTarget, utcnow
+from app.services.package_metadata_service import facts_for
 
 log = get_logger(__name__)
 
@@ -39,7 +46,7 @@ class SupplyChainOutcome:
         return self.raised + self.still_open
 
 
-def assess(dependency: Dependency) -> list[SupplyChainSignal]:
+def assess(dependency: Dependency, facts: PackageFacts | None = None) -> list[SupplyChainSignal]:
     """Every signal that applies to one package.
 
     Pure, and deliberately so: the checks that need the network -- how long ago
@@ -54,6 +61,12 @@ def assess(dependency: Dependency) -> list[SupplyChainSignal]:
     if typosquat is not None:
         signals.append(typosquat)
 
+    # Absent facts produce no signals rather than reassuring ones. "We have not
+    # asked the registry about this package" and "we asked and it is fine" are
+    # different answers, and only one of them is safe to imply.
+    if facts is not None:
+        signals.extend(assess_facts(facts))
+
     return signals
 
 
@@ -63,6 +76,10 @@ async def reconcile_signals(
     """Bring the stored signals in line with what this scan found."""
     outcome = SupplyChainOutcome()
     now = utcnow()
+
+    known = await facts_for(
+        db, [(d.ecosystem, d.name) for d in dependencies if supports_metadata(d.ecosystem)]
+    )
 
     existing = {
         (row.package_name, row.kind): row
@@ -76,7 +93,7 @@ async def reconcile_signals(
     seen: set[tuple[str, object]] = set()
 
     for dependency in dependencies:
-        for signal in assess(dependency):
+        for signal in assess(dependency, known.get((dependency.ecosystem, dependency.name))):
             key = (dependency.name, signal.kind)
             seen.add(key)
 

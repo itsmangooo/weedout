@@ -32,6 +32,7 @@ from app.services.auth_service import purge_expired_sessions
 from app.services.backup_service import BackupError, record_outcome, run_backup
 from app.services.feed_service import refresh_epss_scores, refresh_kev_catalog
 from app.services.mirror_service import sync_all_ecosystems
+from app.services.package_metadata_service import refresh_package_metadata
 from app.services.password_reset_service import purge_expired_reset_tokens
 from app.services.rate_limit_service import purge_expired_rate_limits
 from app.services.scan_service import due_targets, scan_target
@@ -51,6 +52,8 @@ __all__ = [
 LOCK_SCAN_CYCLE = 0x4E4F495345_01
 LOCK_FEED_REFRESH = 0x4E4F495345_02
 LOCK_BACKUP = 0x4E4F495345_03
+#: Its own key, so an npm sweep cannot block the feed refresh behind it.
+LOCK_PACKAGE_METADATA = 0x4E4F495345_04
 
 
 @asynccontextmanager
@@ -99,6 +102,27 @@ async def refresh_feeds_task() -> int:
     except Exception as exc:
         log.exception("job.feed_refresh_crashed", error=str(exc))
         return stored
+
+
+async def refresh_package_metadata_task() -> int:
+    """Top up the package-metadata cache. Returns the number fetched.
+
+    Separate from the feed refresh because it is a different kind of work: many
+    small requests to two third-party registries rather than one large file
+    from a feed. Sharing a schedule would mean an npm outage delaying the KEV
+    catalogue.
+    """
+    try:
+        async with session_scope() as db:
+            async with advisory_lock(db, LOCK_PACKAGE_METADATA) as acquired:
+                if not acquired:
+                    log.debug("package_metadata.refresh_skipped_locked")
+                    return 0
+                report = await refresh_package_metadata(db)
+                return report.fetched
+    except Exception as exc:
+        log.exception("job.package_metadata_crashed", error=str(exc))
+        return 0
 
 
 async def sync_mirror_task() -> dict[str, int]:

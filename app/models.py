@@ -926,6 +926,52 @@ class CVEMatch(TimestampMixin, Base):
         return f"<CVEMatch {self.package_name}@{self.package_version} {self.vulnerability_id}>"
 
 
+class PackageMetadata(Base):
+    """What a registry last told us about a package.
+
+    A cache, and the reason one exists at all: the unmaintained, maintainer and
+    provenance signals need a request per package, and a scan of a 300-package
+    manifest cannot make 300 outbound calls on the request path. A job fills
+    this on a schedule; scans read it and never reach the network.
+
+    Every column is nullable on purpose. Registries answer different subsets --
+    PyPI's JSON API has no maintainer count -- and `None` means "not known",
+    never zero and never no. Inventing a value we were not told is how a
+    supply-chain signal becomes a lie.
+    """
+
+    __tablename__ = "package_metadata"
+    __table_args__ = (
+        UniqueConstraint("ecosystem", "name", name="uq_package_metadata_identity"),
+        Index("ix_package_metadata_staleness", "fetched_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ecosystem: Mapped[Ecosystem] = mapped_column(
+        enum_column(Ecosystem, "ecosystem"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+
+    latest_version: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    days_since_release: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    maintainer_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    has_provenance: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    deprecated: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    #: Set when the last fetch failed. The row is kept either way, so a failing
+    #: package is retried on a schedule rather than hammered on every scan, and
+    #: so the interface can say "not checked" instead of implying "checked and
+    #: fine".
+    fetch_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    fetched_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=utcnow, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<PackageMetadata {self.ecosystem}:{self.name}>"
+
+
 class SupplyChainFinding(Base):
     """An observation about a package that is not a vulnerability in it.
 
