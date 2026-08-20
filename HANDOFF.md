@@ -25,7 +25,7 @@ Tests need Postgres running or **they silently skip** — a green run with
 Desktop on this machine stops on its own; restart it from
 `C:\Program Files\Docker\Docker\Docker Desktop.exe`.
 
-Current state: **1262 passed, 14 skipped, ruff clean.**
+Current state: **1305 passed, 14 skipped, ruff clean.**
 
 ---
 
@@ -169,6 +169,18 @@ copied onto `Alert` rows (those carry `discord:{target_id}`).
   Rendered as `.signal--epss`, a labelled number rather than a coloured word,
   because "high severity" and "high EPSS" answer different questions.
   `.weedout.yml` takes `epss: {alert_above: 0.5}`, and `50` is read as 50%.
+- **Typosquat detection (Pro)** — `app/core/supply_chain.py`. Not naive edit
+  distance, which flags `preact` as a typo of `react`: it reports only the
+  shapes attackers actually use (transposition, confusable characters,
+  one-character length change, separator swap), skips names under 5 characters
+  because short names are dense, skips scoped npm packages, and carries an
+  explicit `KNOWN_DISTINCT` list of legitimate near-neighbours. Bounded at
+  distance **2**, not 1 — Levenshtein scores a transposition as two edits, so a
+  limit of 1 silently drops `lodahs`. Tests sweep every popular package and
+  every known neighbour for false positives.
+  Results land in `SupplyChainFinding`, a separate table with its own
+  `SignalLevel` (concerning / notable / informational) that deliberately shares
+  no words with `Severity`.
 - **Dependency chains** — `Dependency.depth` / `.via`, persisted on both
   `DependencyRecord` and `CVEMatch` (denormalised, so a finding keeps its route
   after the next parse replaces the dependency rows). Rendered as "Found via
@@ -195,7 +207,6 @@ mistake to avoid repeating.
 
 | Feature | State |
 |---|---|
-| Typosquat heuristic (name similarity, no advisory) | Nothing. Malicious-package *advisories* are handled — see below. |
 | Unmaintained package risk | Nothing. |
 | Provenance checks | Nothing. |
 | Admin: xlsx findings export | Nothing. Needs `openpyxl`. |
@@ -225,12 +236,10 @@ Also unresolved:
 
 ## Next steps, in the order I would do them
 
-1. **Typosquat heuristic** — edit distance against top packages per
-   ecosystem. Pure core, Pro-gated. Malicious *advisories* are already handled.
-2. **Unmaintained + provenance** — these need a `package_metadata` cache with a
+1. **Unmaintained + provenance** — these need a `package_metadata` cache with a
    TTL and a refresh job: they are per-package outbound HTTP to the npm and
    PyPI registries, which must never happen inline in a scan.
-3. The rest of the table above.
+2. The rest of the table above.
 
 ---
 

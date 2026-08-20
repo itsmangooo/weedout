@@ -7214,3 +7214,55 @@ a.metric:hover {
   color: var(--text-muted);
   font-weight: 500;
 }
+
+/* ---- Supply-chain signals ----------------------------------------------- */
+
+/* Visually distinct from a finding row on purpose. A finding is a claim about
+   a version; a signal is a claim about a package, and the two must not be read
+   as points on one scale. No severity colours here at all -- the edge marker
+   is weight, and the level is spelled out in words. */
+.signals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.signals__item {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--glass-border);
+  border-inline-start: 3px solid var(--surface-3);
+}
+
+.signals__item:last-child {
+  border-bottom: 0;
+}
+
+.signals__item--concerning {
+  border-inline-start-color: var(--text-muted);
+}
+
+.signals__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.signals__pkg {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.signals__level {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.signals__detail {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}

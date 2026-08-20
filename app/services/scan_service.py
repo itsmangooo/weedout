@@ -38,7 +38,8 @@ from app.services.mirror_service import (
     mirror_is_stale,
 )
 from app.services.rules_service import build_policy, record_overrides
-from app.tiers import scan_interval_for
+from app.services.supply_chain_service import reconcile_signals
+from app.tiers import can_use_custom_rules, scan_interval_for
 
 log = get_logger(__name__)
 
@@ -143,6 +144,13 @@ async def scan_target(
     scan_result, dependencies = result
 
     new_matches, resolved_count = await _reconcile_matches(db, target, scan_result)
+
+    # Supply-chain signals are Pro-only and separate from CVE matching. Gated
+    # here rather than inside the assessment so that a lapsed subscription
+    # stops raising them without deleting the ones already on the project --
+    # the same shape as every other tier check.
+    if can_use_custom_rules(tier):
+        await reconcile_signals(db, target, dependencies)
 
     target.dependency_count = len(dependencies)
     target.unreached_by_depth = scan_result.unreached_by_depth

@@ -179,6 +179,44 @@
     </div>
   {% endif %}
 
+  {# ---------------------------------------------------------------------
+     Supply chain
+
+     Its own section, above Recent checks and below the findings, because it
+     answers a different question: not "is this version vulnerable?" but "is
+     depending on this package a good idea?". It uses its own words for how
+     much attention something deserves -- never "high" or "critical" -- so the
+     two scales cannot be added together by eye.
+     --------------------------------------------------------------------- #}
+  {% if supply_chain %}
+    <div class="card u-mt-5">
+      <div class="card__head">
+        <div>
+          <h2>Supply chain</h2>
+          <p class="panel__intro u-mt-0">
+            Not vulnerabilities. Things about these packages worth a second
+            look before you ship them.
+          </p>
+        </div>
+      </div>
+
+      <ul class="signals">
+        {% for finding in supply_chain %}
+          <li class="signals__item signals__item--{{ finding.level.value }}">
+            <div class="signals__head">
+              <span class="signals__pkg mono">{{ finding.package_name }}</span>
+              <span class="signal">
+                <span class="signal__label">{{ finding.kind.label }}</span>
+              </span>
+              <span class="signals__level">{{ finding.level.label }}</span>
+            </div>
+            <p class="signals__detail">{{ finding.detail }}</p>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
   {% if recent_runs %}
     <section class="section-gap">
       <div class="card card--flush">

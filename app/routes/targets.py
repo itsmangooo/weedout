@@ -39,6 +39,7 @@ from app.services.api_key_service import (
 from app.services.discord_service import post_webhook
 from app.services.rules_service import list_rules
 from app.services.scan_service import scan_target
+from app.services.supply_chain_service import open_signals
 from app.services.target_service import (
     TargetLimitReached,
     UnsupportedManifest,
@@ -256,6 +257,7 @@ async def target_detail(
             "dependencies": dependencies,
             "recent_runs": recent_runs,
             "limits": limits_for(user.tier),
+            "supply_chain": await open_signals(db, target.id),
             # A newly created key is passed straight into the template by the
             # POST handler below. It is never a query parameter: that would put
             # a live credential into browser history, the Referer header, and

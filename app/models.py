@@ -42,6 +42,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.supply_chain import SignalKind, SignalLevel
 from app.core.types import (
     ActionableReason,
     AlertStatus,
@@ -513,6 +514,9 @@ class TrackedTarget(TimestampMixin, Base):
     ignore_rules: Mapped[list[IgnoreRule]] = relationship(
         back_populates="target", cascade="all, delete-orphan", passive_deletes=True
     )
+    supply_chain_findings: Mapped[list[SupplyChainFinding]] = relationship(
+        back_populates="target", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     @property
     def has_manifest(self) -> bool:
@@ -920,6 +924,76 @@ class CVEMatch(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<CVEMatch {self.package_name}@{self.package_version} {self.vulnerability_id}>"
+
+
+class SupplyChainFinding(Base):
+    """An observation about a package that is not a vulnerability in it.
+
+    Its own table rather than a `CVEMatch` with a special verdict, because it
+    is a different kind of statement. A match says "this version is affected by
+    that advisory" and is keyed on the pair; this says "depending on this
+    package is worth a second look" and is keyed on the package alone. Folding
+    them together would mean every query about vulnerabilities had to remember
+    to exclude the things that are not vulnerabilities.
+
+    The level scale is separate too, and deliberately does not share words with
+    `Severity`. A single-maintainer package is not a "medium vulnerability".
+    """
+
+    __tablename__ = "supply_chain_findings"
+    __table_args__ = (
+        UniqueConstraint("target_id", "package_name", "kind", name="uq_supply_chain_identity"),
+        Index("ix_supply_chain_open", "target_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    target_id: Mapped[int] = mapped_column(
+        ForeignKey("tracked_targets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    ecosystem: Mapped[Ecosystem] = mapped_column(
+        enum_column(Ecosystem, "ecosystem"), nullable=False
+    )
+    package_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    package_version: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+
+    kind: Mapped[SignalKind] = mapped_column(enum_column(SignalKind, "signal_kind"), nullable=False)
+    level: Mapped[SignalLevel] = mapped_column(
+        enum_column(SignalLevel, "signal_level"), nullable=False
+    )
+
+    #: A whole sentence, written when the signal was raised. Stored rather than
+    #: rebuilt at render time so it cannot drift from the data that produced it.
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: The specifics, for the interface: which package it resembles, how old the
+    #: last release is, and so on.
+    data: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
+    #: Reuses AlertStatus so "dismiss" means the same thing here as on a
+    #: finding. A dismissal survives re-scans, which is the whole point: being
+    #: told twice that you chose this package on purpose is how a signal gets
+    #: switched off entirely.
+    status: Mapped[AlertStatus] = mapped_column(
+        enum_column(AlertStatus, "alert_status"),
+        nullable=False,
+        default=AlertStatus.OPEN,
+        server_default=AlertStatus.OPEN.value,
+    )
+    dismiss_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    first_seen_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=utcnow, server_default=func.now()
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=utcnow, server_default=func.now()
+    )
+
+    target: Mapped[TrackedTarget] = relationship(back_populates="supply_chain_findings")
+
+    def __repr__(self) -> str:
+        return f"<SupplyChainFinding {self.kind} {self.package_name}>"
 
 
 class ScanRun(Base):
