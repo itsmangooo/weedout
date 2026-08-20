@@ -36,3 +36,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 *.swp
+
+# A pip-freeze of the whole virtualenv, including dev tooling. pyproject.toml
+# is where this project declares what it depends on; a frozen snapshot beside
+# it would rot and then disagree with it.
+/requirements.txt

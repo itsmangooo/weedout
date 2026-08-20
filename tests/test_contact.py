@@ -1,0 +1,277 @@
+"""The contact form and the admin inbox.
+
+Two properties matter here and neither is obvious from reading the handler:
+
+* An anonymous visitor can send a message. This is the whole point -- "I cannot
+  sign up" and "I cannot log in" are reports that by definition come from
+  somebody without a session -- and it is the property most easily broken by a
+  later refactor that adds `CurrentUser` to the route.
+* An authenticated sender's address comes from their session and not from the
+  form, so the form cannot be used to put words in an account's mouth.
+"""
+
+from __future__ import annotations
+
+import pytest
+from sqlalchemy import select
+
+from app.core.types import ContactCategory, EmailStatus, MessageStatus, Tier
+from app.models import ContactMessage, EmailLog, User
+from app.security import hash_password
+from tests.conftest import set_csrf
+
+
+@pytest.fixture
+async def admin_user(db) -> User:
+    record = User(
+        email="inbox-admin@example.com",
+        password_hash=hash_password("correct-horse-battery"),
+        tier=Tier.FREE,
+        is_admin=True,
+    )
+    db.add(record)
+    await db.flush()
+    return record
+
+
+@pytest.fixture
+async def admin_client(client, admin_user):
+    csrf = set_csrf(client)
+    response = await client.post(
+        "/login",
+        data={
+            "email": admin_user.email,
+            "password": "correct-horse-battery",
+            "csrf_token": csrf,
+        },
+    )
+    assert response.status_code == 303
+    return client
+
+
+class TestAnyoneCanSend:
+    async def test_the_form_is_reachable_logged_out(self, client):
+        response = await client.get("/contact")
+        assert response.status_code == 200
+        assert "What happened?" in response.text
+
+    async def test_an_anonymous_visitor_can_send_a_message(self, client, db):
+        csrf = set_csrf(client)
+        response = await client.post(
+            "/contact",
+            data={
+                "csrf_token": csrf,
+                "email": "stranger@example.com",
+                "category": "bug",
+                "message": "The signup page returns a 500 when the email has a plus sign.",
+            },
+        )
+        assert response.status_code == 200
+        assert "Message received" in response.text
+
+        row = (await db.execute(select(ContactMessage))).scalars().one()
+        assert row.email == "stranger@example.com"
+        assert row.user_id is None
+        assert row.category is ContactCategory.BUG
+        assert row.status is MessageStatus.NEW
+
+    async def test_an_authenticated_sender_needs_no_address(self, auth_client, db, user):
+        csrf = set_csrf(auth_client)
+        response = await auth_client.post(
+            "/contact",
+            data={
+                "csrf_token": csrf,
+                "category": "feedback",
+                "message": "The filtered tab is the best part and I would like it first.",
+            },
+        )
+        assert response.status_code == 200
+
+        row = (await db.execute(select(ContactMessage))).scalars().one()
+        assert row.email == user.email
+        assert row.user_id == user.id
+
+    async def test_the_form_cannot_speak_for_an_account(self, auth_client, db, user):
+        """A signed-in sender's address comes from the session, not the form."""
+        csrf = set_csrf(auth_client)
+        await auth_client.post(
+            "/contact",
+            data={
+                "csrf_token": csrf,
+                "email": "someone-else@example.com",
+                "category": "billing",
+                "message": "Please refund the subscription on this account, thanks.",
+            },
+        )
+        row = (await db.execute(select(ContactMessage))).scalars().one()
+        assert row.email == user.email
+        assert row.email != "someone-else@example.com"
+
+    async def test_a_blank_category_is_not_an_error(self, client, db):
+        csrf = set_csrf(client)
+        response = await client.post(
+            "/contact",
+            data={
+                "csrf_token": csrf,
+                "email": "stranger@example.com",
+                "category": "",
+                "message": "Nothing is broken, I just wanted to say the CLI is nice.",
+            },
+        )
+        assert response.status_code == 200
+        row = (await db.execute(select(ContactMessage))).scalars().one()
+        assert row.category is ContactCategory.OTHER
+
+    async def test_a_one_word_message_is_refused_in_plain_english(self, client, db):
+        csrf = set_csrf(client)
+        response = await client.post(
+            "/contact",
+            data={"csrf_token": csrf, "email": "a@example.com", "message": "broken"},
+        )
+        assert response.status_code == 400
+        assert "at least a sentence" in response.text
+        # And nothing was stored.
+        assert (await db.execute(select(ContactMessage))).scalars().first() is None
+
+    async def test_an_anonymous_sender_must_leave_an_address(self, client, db):
+        csrf = set_csrf(client)
+        response = await client.post(
+            "/contact",
+            data={
+                "csrf_token": csrf,
+                "email": "not-an-address",
+                "message": "This is a long enough message to pass the length check.",
+            },
+        )
+        assert response.status_code == 400
+        assert "address to reply to" in response.text
+        assert (await db.execute(select(ContactMessage))).scalars().first() is None
+
+    async def test_the_message_survives_a_mail_failure(self, client, db, monkeypatch):
+        """A broken mail provider must not cost us the report.
+
+        The row is committed before the notification is attempted, so the only
+        thing a failure changes is that `notified_at` stays null -- which is
+        what the inbox shows as "not emailed".
+        """
+        from app.mail import EmailError
+
+        async def explode(*args, **kwargs):
+            raise EmailError("smtp is having an afternoon")
+
+        monkeypatch.setattr("app.services.email_service.send_email", explode)
+        monkeypatch.setattr("app.config.Settings.admin_email", "admin@example.com", raising=False)
+
+        csrf = set_csrf(client)
+        response = await client.post(
+            "/contact",
+            data={
+                "csrf_token": csrf,
+                "email": "stranger@example.com",
+                "message": "Something went wrong on the dashboard and I cannot tell what.",
+            },
+        )
+        assert response.status_code == 200
+        assert "Message received" in response.text
+
+        row = (await db.execute(select(ContactMessage))).scalars().one()
+        assert row.notified_at is None
+
+        # And the failure is in the send log rather than only in stderr.
+        logged = (await db.execute(select(EmailLog))).scalars().all()
+        assert [entry.status for entry in logged] == [EmailStatus.FAILED]
+
+
+class TestTheInbox:
+    async def test_a_non_admin_cannot_reach_the_inbox(self, auth_client):
+        response = await auth_client.get("/admin/inbox", follow_redirects=False)
+        assert response.status_code in (303, 403, 404)
+
+    async def test_a_logged_out_visitor_cannot_reach_the_inbox(self, client):
+        response = await client.get("/admin/inbox", follow_redirects=False)
+        assert response.status_code in (303, 403, 404)
+
+    async def test_the_admin_sees_a_message(self, admin_client, db):
+        db.add(
+            ContactMessage(
+                email="stranger@example.com",
+                message="The alerts page shows a finding twice.",
+                category=ContactCategory.BUG,
+            )
+        )
+        await db.commit()
+
+        response = await admin_client.get("/admin/inbox")
+        assert response.status_code == 200
+        assert "stranger@example.com" in response.text
+        assert "shows a finding twice" in response.text
+
+    async def test_opening_a_message_marks_it_read(self, admin_client, db):
+        row = ContactMessage(
+            email="stranger@example.com", message="Something to read.", category=ContactCategory.BUG
+        )
+        db.add(row)
+        await db.commit()
+        assert row.status is MessageStatus.NEW
+
+        response = await admin_client.get(f"/admin/inbox/{row.id}")
+        assert response.status_code == 200
+
+        await db.refresh(row)
+        assert row.status is MessageStatus.READ
+
+    async def test_resolving_records_who_and_writes_an_audit_entry(self, admin_client, db):
+        from app.models import AdminAuditLog
+
+        row = ContactMessage(email="stranger@example.com", message="Please look at this.")
+        db.add(row)
+        await db.commit()
+
+        csrf = set_csrf(admin_client)
+        response = await admin_client.post(
+            f"/admin/inbox/{row.id}/status",
+            data={"csrf_token": csrf, "status": "resolved", "note": "Fixed in 08a2671."},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+
+        await db.refresh(row)
+        assert row.status is MessageStatus.RESOLVED
+        assert row.handled_by_email == "inbox-admin@example.com"
+        assert row.handled_at is not None
+        assert row.admin_note == "Fixed in 08a2671."
+
+        entries = (
+            (
+                await db.execute(
+                    select(AdminAuditLog).where(AdminAuditLog.action == "contact.status_changed")
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(entries) == 1
+        assert entries[0].details["message_id"] == row.id
+
+    async def test_reopening_clears_the_handled_marks(self, admin_client, db):
+        """Otherwise the page keeps claiming somebody dealt with it."""
+        row = ContactMessage(email="stranger@example.com", message="Please look at this again.")
+        db.add(row)
+        await db.commit()
+
+        csrf = set_csrf(admin_client)
+        for status in ("resolved", "new"):
+            await admin_client.post(
+                f"/admin/inbox/{row.id}/status",
+                data={"csrf_token": csrf, "status": status},
+                follow_redirects=False,
+            )
+
+        await db.refresh(row)
+        assert row.status is MessageStatus.NEW
+        assert row.handled_at is None
+        assert row.handled_by_email is None
+
+    async def test_a_missing_message_is_a_404_not_a_500(self, admin_client):
+        response = await admin_client.get("/admin/inbox/999999")
+        assert response.status_code == 404

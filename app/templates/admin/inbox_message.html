@@ -1,0 +1,105 @@
+{% extends "admin/_layout.html" %}
+
+{% block admin_actions %}
+  <div class="btn-row">
+    <a class="btn" href="/admin/inbox">Back to inbox</a>
+    {# The reply path is a normal mailbox on purpose. Building threading,
+       notifications and spam handling in here would be a support desk, and
+       this is a queue. #}
+    <a class="btn btn--primary" href="mailto:{{ message.email }}?subject=Re:%20your%20message%20to%20Weedout">
+      Reply by email
+    </a>
+  </div>
+{% endblock %}
+
+{% block admin_content %}
+
+<div class="detail-grid">
+  <div>
+    <div class="card">
+      <div class="card__head">
+        <div>
+          <h2 class="panel__title">{{ message.category.label }}</h2>
+          <p class="field__hint u-mt-0">
+            From <strong>{{ message.email }}</strong>,
+            {{ message.created_at|relative_time }}
+          </p>
+        </div>
+        <span class="pill pill--{{ message.status.value }}">{{ message.status.label }}</span>
+      </div>
+
+      {# Pre-wrapped rather than paragraph-split: somebody pasting a stack
+         trace or a lockfile excerpt should see it the way they typed it. #}
+      <pre class="message-body">{{ message.message }}</pre>
+    </div>
+
+    <div class="card u-mt-4">
+      <h2 class="panel__title">Triage</h2>
+      <form method="post" action="/admin/inbox/{{ message.id }}/status">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="field">
+          <label for="status">Status</label>
+          <select class="select" id="status" name="status">
+            {% for value, label in [('new', 'Unread'), ('read', 'Read'), ('resolved', 'Resolved')] %}
+              <option value="{{ value }}" {% if message.status.value == value %}selected{% endif %}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="note">Note to self</label>
+          <textarea class="textarea textarea--prose" id="note" name="note" rows="3"
+                    placeholder="What you did about it.">{{ message.admin_note or '' }}</textarea>
+          <p class="field__hint">Never shown to the sender.</p>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn--primary" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <aside>
+    <div class="card">
+      <h2 class="panel__title">Context</h2>
+      <dl class="datalist datalist--tight">
+        <dt>Account</dt>
+        <dd>
+          {% if message.user_id %}
+            <a href="/admin/users/{{ message.user_id }}">{{ message.email }}</a>
+          {% else %}
+            <span class="dim">Logged out</span>
+          {% endif %}
+        </dd>
+
+        <dt>Page</dt>
+        <dd class="mono">{{ message.page_url or '—' }}</dd>
+
+        <dt>Browser</dt>
+        <dd>{{ message.user_agent|device_name }}</dd>
+
+        <dt>Received</dt>
+        <dd>{{ message.created_at|absolute_time }}</dd>
+
+        <dt>Admin notified</dt>
+        <dd>
+          {% if message.notified_at %}
+            {{ message.notified_at|relative_time }}
+          {% else %}
+            <span class="dim">No — the notification email failed</span>
+          {% endif %}
+        </dd>
+
+        {% if message.handled_at %}
+          <dt>Handled</dt>
+          <dd>{{ message.handled_by_email }}, {{ message.handled_at|relative_time }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+  </aside>
+</div>
+{% endblock %}

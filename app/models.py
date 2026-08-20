@@ -45,8 +45,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.types import (
     ActionableReason,
     AlertStatus,
+    AudienceKind,
+    ContactCategory,
     Ecosystem,
+    EmailStatus,
+    EmailTrigger,
     ManifestKind,
+    MessageStatus,
     Reachability,
     Severity,
     SuppressionReason,
@@ -926,6 +931,169 @@ class AdminAuditLog(Base):
 
     def __repr__(self) -> str:
         return f"<AdminAuditLog {self.action} by={self.actor_email} target={self.target_email}>"
+
+
+class EmailLog(Base):
+    """One attempt to send one message to one address.
+
+    Written whatever the outcome, including for messages a preference held
+    back. A log that only records successes cannot answer either of the two
+    questions it exists for: "did they get it?" and "why did they get four?"
+
+    `recipient` is stored rather than only `user_id` because plenty of what
+    goes out has no account behind it -- the admin notification for a
+    logged-out bug report, a password reset for an address that turned out not
+    to exist.
+    """
+
+    __tablename__ = "email_log"
+    __table_args__ = (
+        Index("ix_email_log_recipient_created", "recipient", "created_at"),
+        Index("ix_email_log_trigger_created", "trigger", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    recipient: Mapped[str] = mapped_column(String(320), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    #: The template name, or "custom" for something an admin composed.
+    template: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    subject: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    trigger: Mapped[EmailTrigger] = mapped_column(
+        enum_column(EmailTrigger, "email_trigger"), nullable=False
+    )
+    status: Mapped[EmailStatus] = mapped_column(
+        enum_column(EmailStatus, "email_status"), nullable=False, index=True
+    )
+
+    #: Set for a manual send, so "who mailed everybody" is answerable.
+    actor_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    #: The delivery backend's complaint, or the reason it was skipped.
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    #: Groups the rows produced by one audience send, so a batch can be read as
+    #: one event instead of six hundred.
+    batch_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=utcnow, server_default=func.now(), index=True
+    )
+
+    def __repr__(self) -> str:
+        return f"<EmailLog {self.template} to={self.recipient} {self.status}>"
+
+
+class EmailCampaign(Base):
+    """A message an administrator composed and sent to an audience.
+
+    Separate from `EmailLog` because the two answer different questions. This
+    row is "what did we decide to send, to whom, and how many did that turn out
+    to be" -- one row per send. The log holds one row per address.
+    """
+
+    __tablename__ = "email_campaigns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    subject: Mapped[str] = mapped_column(String(500), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+
+    audience: Mapped[AudienceKind] = mapped_column(
+        enum_column(AudienceKind, "audience_kind"), nullable=False
+    )
+    #: Set when `audience` is ONE.
+    audience_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+
+    actor_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    batch_id: Mapped[str] = mapped_column(String(32), nullable=False, unique=True, index=True)
+
+    recipient_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sent_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=utcnow, server_default=func.now(), index=True
+    )
+
+    def __repr__(self) -> str:
+        return f"<EmailCampaign {self.subject!r} to={self.audience} n={self.recipient_count}>"
+
+
+class ContactMessage(Base):
+    """Something a person wanted to tell us.
+
+    Deliberately not tied to an account. Two of the situations most worth
+    hearing about -- "I cannot sign up" and "I cannot log in" -- are exactly the
+    ones where requiring an account would swallow the report. `user_id` is set
+    when we know who it was and left null otherwise; `email` is always
+    populated, because a message we cannot reply to is barely a message.
+
+    There is no reply feature here on purpose. Replies go out from a normal
+    mailbox, so this table is a capture point and a queue, not half a support
+    desk that would need its own threading, notifications and spam handling.
+    """
+
+    __tablename__ = "contact_messages"
+    __table_args__ = (Index("ix_contact_messages_status_created", "status", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    #: Null for a logged-out visitor, and nulled rather than cascaded if the
+    #: account is deleted -- the report stays useful without its author.
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    #: Captured from the session when authenticated, typed by hand otherwise.
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+
+    category: Mapped[ContactCategory] = mapped_column(
+        enum_column(ContactCategory, "contact_category"),
+        nullable=False,
+        default=ContactCategory.OTHER,
+        server_default=ContactCategory.OTHER.value,
+    )
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+
+    status: Mapped[MessageStatus] = mapped_column(
+        enum_column(MessageStatus, "message_status"),
+        nullable=False,
+        default=MessageStatus.NEW,
+        server_default=MessageStatus.NEW.value,
+        index=True,
+    )
+
+    #: What the sender was looking at. Answers "which page is broken" without
+    #: asking them to describe it.
+    page_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    #: Whether the admin notification email left the building. A message that
+    #: arrived while mail was down is still here; this says nobody was told.
+    notified_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+
+    handled_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    handled_by_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=utcnow, server_default=func.now(), index=True
+    )
+
+    user: Mapped[User | None] = relationship()
+
+    @property
+    def preview(self) -> str:
+        """First line, trimmed -- what the inbox list shows."""
+        first = self.message.strip().splitlines()[0] if self.message.strip() else ""
+        return first[:110] + ("\u2026" if len(first) > 110 else "")
+
+    def __repr__(self) -> str:
+        return f"<ContactMessage {self.id} from={self.email} status={self.status}>"
 
 
 class RateLimitHit(Base):

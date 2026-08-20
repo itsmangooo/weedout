@@ -1,0 +1,86 @@
+{% extends "admin/_layout.html" %}
+
+{% block admin_content %}
+
+<nav class="tabs tabs--sub" aria-label="Message status">
+  {% for value, label in [('new', 'Unread'), ('read', 'Read'),
+                          ('resolved', 'Resolved'), ('all', 'Everything')] %}
+    <a class="tab" href="/admin/inbox?show={{ value }}"
+       {% if show == value %}aria-selected="true"{% endif %}>
+      {{ label }}
+      {% if value == 'new' and unread %}<span class="pill pill--sm">{{ unread }}</span>{% endif %}
+    </a>
+  {% endfor %}
+</nav>
+
+{% if not messages %}
+  <div class="card">
+    <div class="empty">
+      <span class="empty__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <h2>{{ 'Nothing waiting' if show == 'new' else 'Nothing here' }}</h2>
+      <p>
+        {% if show == 'new' %}
+          Every message has been read. New ones arrive here and by email.
+        {% else %}
+          No messages with this status yet.
+        {% endif %}
+      </p>
+    </div>
+  </div>
+{% else %}
+  <div class="card card--flush">
+    <div class="table-scroll">
+      <table class="table" data-sortable data-context-menu="message">
+      <thead>
+        <tr>
+          <th scope="col">From</th>
+          <th scope="col">About</th>
+          <th scope="col">Message</th>
+          <th scope="col">Received</th>
+          <th scope="col"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for message in messages %}
+          <tr data-row-url="/admin/inbox/{{ message.id }}"
+              data-email="{{ message.email }}"
+              {% if message.status.value == 'new' %}class="is-unread"{% endif %}>
+            <td>
+              <a href="/admin/inbox/{{ message.id }}">{{ message.email }}</a>
+              {% if not message.user_id %}
+                <span class="dim u-text-xs">no account</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="pill pill--sm pill--{{ message.category.value }}">
+                {{ message.category.label }}
+              </span>
+            </td>
+            <td class="cell-wrap">{{ message.preview }}</td>
+            <td>
+              <span title="{{ message.created_at|absolute_time }}">
+                {{ message.created_at|relative_time }}
+              </span>
+              {% if not message.notified_at %}
+                {# The message is here either way; this says the email about it
+                   never left, which is a mail problem, not a lost report. #}
+                <span class="pill pill--sm pill--high" title="The admin notification email failed">
+                  not emailed
+                </span>
+              {% endif %}
+            </td>
+            <td class="cell-actions">
+              <a class="btn btn--sm" href="/admin/inbox/{{ message.id }}">Open</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="dim u-text-xs u-mt-4">
+    Showing {{ messages|length }} of {{ total }}.
+  </p>
+{% endif %}
+{% endblock %}

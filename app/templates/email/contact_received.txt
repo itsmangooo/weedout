@@ -1,0 +1,12 @@
+Subject: [Weedout] {{ category }} from {{ from_email }}
+
+{{ category }} from {{ from_email }}
+Has an account: {{ account }}
+Page: {{ page_url }}
+
+------------------------------------------------------------
+{{ message }}
+------------------------------------------------------------
+
+Reply to {{ from_email }} directly. Mark it handled here:
+{{ inbox_url }}

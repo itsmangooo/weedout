@@ -15,10 +15,19 @@
 # Nothing here force-pushes and nothing rewrites history. If a push is
 # rejected, that means someone else moved the branch and the fix is to look,
 # not to overwrite.
+#
+# Divergence is checked before anything is committed. Doing it afterwards
+# leaves a commit behind on every rejected run, and three of those with the
+# same message and the same tree look like a real conflict when they are not.
 
 [CmdletBinding()]
 param(
     [string]$Message = "",
+    # The CLI repository's own subject. Falls back to -Message, but the run
+    # stops and asks when both repositories are dirty: one message describing
+    # two unrelated changes is how install.ps1 got committed under a commit
+    # about the contact form.
+    [string]$CliMessage = "",
     # Skip the test suites. For a docs-only change where the wait is not
     # buying anything.
     [switch]$SkipTests,
@@ -114,6 +123,30 @@ function Get-Dirty($repo) {
 # ---------------------------------------------------------------------------
 # 3. Commit and push
 # ---------------------------------------------------------------------------
+
+function Test-UpToDate($repo, $label) {
+    # Called before anything is committed. A branch that is behind its remote
+    # cannot fast-forward, and finding that out after the commit is what
+    # leaves duplicate commits lying around for the next run to trip over.
+    Push-Location $repo
+    try {
+        $branch = (git rev-parse --abbrev-ref HEAD).Trim()
+        # No 2>&1: redirecting a native command's stderr under PowerShell 5.1
+        # wraps each line in an ErrorRecord, which $ErrorActionPreference=Stop
+        # then treats as fatal even when git exited 0.
+        git fetch origin $branch --quiet | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "$label  -  could not reach origin; pushing may fail"
+            return
+        }
+        $behind = (git rev-list --count "HEAD..origin/$branch").Trim()
+        if ($behind -ne "0") {
+            Fail ("$label is $behind commit(s) behind origin/$branch. " +
+                  "Pull and look at what changed before committing on top.")
+        }
+    }
+    finally { Pop-Location }
+}
 
 function Publish($repo, $label, $commitMessage) {
     Push-Location $repo
@@ -230,7 +263,21 @@ else {
 }
 
 Write-Step "Publishing"
-if ($cliDirty) { Publish $CliRepo "weedout-cli" $Message }
+
+if ($cliDirty -and $appDirty -and -not $CliMessage) {
+    Fail ("Both repositories have changes. Pass -CliMessage so the CLI commit " +
+          "says what changed in the CLI, rather than inheriting the web app's " +
+          "subject line.")
+}
+
+# Both checked before either is committed, so a stale branch stops the run
+# while there is still nothing to unpick.
+if ($cliDirty) { Test-UpToDate $CliRepo "weedout-cli" }
+if ($appDirty) { Test-UpToDate $AppRepo "weedout" }
+
+if ($cliDirty) {
+    Publish $CliRepo "weedout-cli" $(if ($CliMessage) { $CliMessage } else { $Message })
+}
 if ($appDirty) { Publish $AppRepo "weedout" $Message }
 
 Write-Host "`nDone." -ForegroundColor Green

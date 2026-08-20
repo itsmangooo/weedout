@@ -20,7 +20,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.core.types import AlertStatus, Ecosystem, Tier
+from app.core.types import AlertStatus, ContactCategory, Ecosystem, MessageStatus, Tier
 
 MAX_NAME_LENGTH = 200
 
@@ -238,6 +238,46 @@ class ApiKeyForm(BaseModel):
 # an unbounded per_page is a one-request denial of service against a table that
 # grows without limit.
 # ---------------------------------------------------------------------------
+
+
+class ContactForm(BaseModel):
+    """A message from anybody -- signed in or not.
+
+    `email` is optional here because the route supplies the session's address
+    when there is one. Requiring it in the model would mean an authenticated
+    sender could type a different address into a hidden field and have the
+    reply go there.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    message: Annotated[str, Field(max_length=8000)]
+    category: ContactCategory = ContactCategory.OTHER
+    email: Annotated[str, Field(max_length=320)] = ""
+
+    @field_validator("message")
+    @classmethod
+    def _require_something_to_read(cls, value: str) -> str:
+        text = value.strip()
+        if len(text) < 10:
+            raise ValueError("Tell us a bit more -- at least a sentence.")
+        return text
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def _default_the_category(cls, value: object) -> object:
+        # A blank select is "Something else", not a validation error. Nobody
+        # reporting a bug should be stopped to classify it first.
+        return ContactCategory.OTHER if value in ("", None) else value
+
+
+class ContactStatusForm(BaseModel):
+    """An admin moving a message through the queue."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    status: MessageStatus
+    note: Annotated[str, Field(max_length=2000)] = ""
 
 
 class UserListQuery(BaseModel):

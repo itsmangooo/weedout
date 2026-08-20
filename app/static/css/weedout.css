@@ -3135,6 +3135,73 @@ samp,
   font-feature-settings: "liga" 0, "clig" 0, "calt" 0;
 }
 
+/* ---- Contact form and the admin inbox ----------------------------------- */
+
+/* .textarea is monospace because it holds Markdown and lockfiles. A message
+   from a person is prose, and prose set in a terminal font reads as a
+   transcript of something rather than as somebody talking. */
+/* Two classes because the base .textarea rule is declared later in this file;
+   one class would tie on specificity and lose on source order. */
+.textarea.textarea--prose {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  min-height: 9rem;
+}
+
+.contact-card {
+  max-width: 44rem;
+}
+
+/* Pre-wrapped: somebody pasting a stack trace or a lockfile excerpt should see
+   it the way they typed it, and a long unbroken token must not widen the page. */
+.message-body {
+  margin: 0;
+  padding: var(--space-4);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+/* Unread is carried by weight and a marker, never by colour alone. */
+tr.is-unread td:first-child {
+  font-weight: 600;
+}
+
+tr.is-unread td:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-inline-end: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+
+.cell-wrap {
+  max-width: 32rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
+.cell-actions {
+  text-align: end;
+  white-space: nowrap;
+}
+
+.pill--bug { color: var(--high); }
+.pill--feedback { color: var(--accent); }
+.pill--billing { color: var(--text-muted); }
+.pill--other { color: var(--text-dim); }
+.pill--new { color: var(--accent); }
+.pill--read { color: var(--text-muted); }
+.pill--resolved { color: var(--calm); }
+
 /* ---- Markup mockups, in place of screenshots ----------------------------
    Screenshots of your own product go stale the day you change it, and the
    landing page was still showing an interface from before the redesign. These

@@ -66,6 +66,15 @@
           <span class="sidenav__label">Settings</span>
         </a>
 
+        {# Reachable from every page in the app, and from the public footer for
+           people who are not signed in. Somebody who cannot log in is exactly
+           who needs to be able to tell us so. #}
+        <a class="sidenav__item" href="/contact" data-jump="Contact"
+           {% if request.url.path == '/contact' %}aria-current="page"{% endif %}>
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="icon"><rect x="2" y="3.5" width="12" height="9" rx="1.5"/><path d="m2.5 4.5 5.5 4 5.5-4"/></svg>
+          <span class="sidenav__label">Contact</span>
+        </a>
+
         {% if user.is_admin %}
           {# Convenience only. The access control is `require_admin` on the
              router — hiding this link protects nothing by itself. #}

@@ -201,6 +201,97 @@ class Tier(StrEnum):
         return self.value.capitalize()
 
 
+class ContactCategory(StrEnum):
+    """What a visitor says their message is about.
+
+    Self-declared and never trusted for routing decisions -- it orders the
+    inbox, nothing more. "Other" is the default because forcing a choice on
+    somebody trying to report a bug is a good way not to hear about the bug.
+    """
+
+    BUG = "bug"
+    FEEDBACK = "feedback"
+    BILLING = "billing"
+    OTHER = "other"
+
+    @property
+    def label(self) -> str:
+        return {
+            ContactCategory.BUG: "Bug report",
+            ContactCategory.FEEDBACK: "Feedback",
+            ContactCategory.BILLING: "Billing",
+            ContactCategory.OTHER: "Something else",
+        }[self]
+
+
+class MessageStatus(StrEnum):
+    """Where a contact message is in the one-person triage loop."""
+
+    NEW = "new"
+    READ = "read"
+    RESOLVED = "resolved"
+
+    @property
+    def label(self) -> str:
+        return self.value.capitalize()
+
+
+class EmailTrigger(StrEnum):
+    """What caused an email to be sent.
+
+    The distinction that matters is whether a human chose to send it. A bug in
+    an automatic trigger mails everybody once per scan; a mistake in a manual
+    send mails everybody once. Both are worth being able to tell apart in the
+    log afterwards, at a glance, without reading the subject line.
+    """
+
+    #: A transactional email the application decided to send: a password reset,
+    #: a findings digest, the admin bootstrap password.
+    SYSTEM = "system"
+    #: An administrator composed it and pressed send.
+    ADMIN_MANUAL = "admin_manual"
+
+    @property
+    def label(self) -> str:
+        return "Automatic" if self is EmailTrigger.SYSTEM else "Sent by admin"
+
+
+class EmailStatus(StrEnum):
+    """Whether the message was handed off to a delivery backend.
+
+    Deliberately not "delivered". Nothing here knows whether it landed in an
+    inbox -- only whether our side accepted responsibility for it. Claiming
+    more than that in a log people will use for debugging would be a lie.
+    """
+
+    SENT = "sent"
+    FAILED = "failed"
+    #: Held back on purpose: a preference said no, or a dry run.
+    SKIPPED = "skipped"
+
+    @property
+    def label(self) -> str:
+        return self.value.capitalize()
+
+
+class AudienceKind(StrEnum):
+    """Who a manual admin send goes to."""
+
+    ALL = "all"
+    PRO = "pro"
+    FREE = "free"
+    ONE = "one"
+
+    @property
+    def label(self) -> str:
+        return {
+            AudienceKind.ALL: "Every user",
+            AudienceKind.PRO: "Pro users",
+            AudienceKind.FREE: "Free users",
+            AudienceKind.ONE: "One address",
+        }[self]
+
+
 @dataclass(frozen=True, slots=True)
 class Dependency:
     """One resolved dependency of a tracked target.

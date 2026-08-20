@@ -29,6 +29,7 @@ from app.routes import (
     api,
     auth,
     billing,
+    contact,
     docs,
     events,
     health,
@@ -156,6 +157,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(targets.router)
     app.include_router(alerts.router)
     app.include_router(billing.router)
+    app.include_router(contact.router)
     app.include_router(docs.router)
     app.include_router(admin.router)
     app.include_router(api.router)

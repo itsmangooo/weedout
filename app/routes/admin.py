@@ -18,10 +18,12 @@ from pydantic import ValidationError
 
 from app.charts import build_signup_chart
 from app.config import get_settings
-from app.core.types import Tier
+from app.core.types import MessageStatus, Tier
 from app.deps import CsrfProtected, CurrentAdmin, DbSession, redirect, require_admin
 from app.logging_config import get_logger
+from app.models import ContactMessage
 from app.schemas import (
+    ContactStatusForm,
     DeleteUserForm,
     DocPageForm,
     SignupChartQuery,
@@ -47,6 +49,11 @@ from app.services.admin_service import (
     suspend_user,
     unsuspend_user,
     user_detail,
+)
+from app.services.contact_service import (
+    count_unread,
+    list_messages,
+    mark_status,
 )
 from app.services.docs_service import (
     DocsError,
@@ -505,6 +512,111 @@ def _docs_edit_with_error(request: Request, page, values: dict, message: str):
 # ---------------------------------------------------------------------------
 # Audit trail
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Inbox — messages from the contact form
+# ---------------------------------------------------------------------------
+
+
+@router.get("/inbox")
+async def inbox(
+    request: Request,
+    db: DbSession,
+    admin: CurrentAdmin,
+    show: str = Query("new"),
+):
+    """The contact queue.
+
+    Defaults to unread rather than to everything, because the question this
+    page exists to answer is "is anybody waiting on me?" and an all-time list
+    buries that under six months of resolved threads.
+    """
+    status = None
+    if show in {s.value for s in MessageStatus}:
+        status = MessageStatus(show)
+    elif show != "all":
+        show = "new"
+        status = MessageStatus.NEW
+
+    page = await list_messages(db, status=status, limit=100)
+    return render(
+        request,
+        "admin/inbox.html",
+        {
+            "page_title": "Inbox",
+            "admin_section": "inbox",
+            "messages": page.messages,
+            "total": page.total,
+            "unread": page.unread,
+            "show": show,
+        },
+    )
+
+
+@router.get("/inbox/{message_id}")
+async def inbox_message(request: Request, db: DbSession, admin: CurrentAdmin, message_id: int):
+    message = await db.get(ContactMessage, message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="No such message")
+
+    # Opening it counts as reading it. Making the admin press a second button
+    # to say so would mean the unread count drifts from reality within a day.
+    if message.status is MessageStatus.NEW:
+        message.status = MessageStatus.READ
+        await db.commit()
+
+    return render(
+        request,
+        "admin/inbox_message.html",
+        {
+            "page_title": "Message",
+            "admin_section": "inbox",
+            "message": message,
+            "unread": await count_unread(db),
+        },
+    )
+
+
+@router.post("/inbox/{message_id}/status", dependencies=[CsrfProtected])
+async def inbox_set_status(
+    request: Request,
+    db: DbSession,
+    admin: CurrentAdmin,
+    message_id: int,
+    status: Annotated[str, Form()] = "",
+    note: Annotated[str, Form()] = "",
+):
+    message = await db.get(ContactMessage, message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="No such message")
+
+    try:
+        form = ContactStatusForm(status=status, note=note)
+    except ValidationError as exc:
+        return render(
+            request,
+            "admin/inbox_message.html",
+            {
+                "page_title": "Message",
+                "admin_section": "inbox",
+                "message": message,
+                "unread": await count_unread(db),
+                "error": _first_error(exc),
+            },
+            status_code=400,
+        )
+
+    await mark_status(db, message, form.status, admin=admin, note=form.note)
+    record_audit(
+        db,
+        actor=admin,
+        action="contact.status_changed",
+        details={"message_id": message.id, "status": form.status.value},
+        ip_address=_client_ip(request),
+    )
+    await db.commit()
+    return redirect(f"/admin/inbox/{message.id}")
 
 
 @router.get("/audit")

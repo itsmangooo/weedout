@@ -195,18 +195,20 @@ class TestAnonymousIsRedirected:
 
 class TestAdminIsAllowed:
     async def test_admin_reaches_every_get_route(self, admin_client, db, admin_user):
-        from app.models import DocPage
+        from app.models import ContactMessage, DocPage
 
         # Detail routes need a record to resolve, or they 404 for a reason that
         # has nothing to do with access control.
         page = DocPage(slug="fixture-page", title="Fixture", content="# Hi", published=True)
         db.add(page)
+        message = ContactMessage(email="fixture@example.com", message="A fixture message.")
+        db.add(message)
         await db.flush()
 
         routes = [(m, p) for m, p in admin_routes(admin_client._transport.app) if m == "GET"]
         failures = []
         for _, path in routes:
-            url = concrete(path, user_id=admin_user.id, page_id=page.id)
+            url = concrete(path, user_id=admin_user.id, page_id=page.id, message_id=message.id)
             response = await admin_client.get(url)
             if response.status_code != 200:
                 failures.append(f"GET {url} -> {response.status_code}")
