@@ -5,7 +5,13 @@ Restraint is the feature. Three rules keep the mail volume honest:
 * Only matches that triage marked actionable are ever sent.
 * Each match notifies once — `CVEMatch.notified_at` is the guard, so a scan that
   re-confirms yesterday's finding sends nothing.
-* One scan produces one digest email, not one email per CVE.
+* One scan produces one digest per channel, not one message per CVE.
+
+Two channels exist: email, and a per-project Discord webhook on the Pro plan.
+They are delivered independently and recorded independently, so a broken
+webhook cannot stop the email carrying the same news. `notified_at` is set if
+*any* channel got through — the guard means "this person has been told", and a
+retry because one of two channels failed would re-send on the one that worked.
 """
 
 from __future__ import annotations
@@ -14,10 +20,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.core.discord import DigestFinding, build_digest_payload
 from app.core.types import ActionableReason, AlertStatus, Verdict
 from app.logging_config import get_logger
 from app.mail import EmailError, send_email
 from app.models import Alert, CVEMatch, TrackedTarget, User, VulnerabilityRecord, utcnow
+from app.services.discord_service import post_webhook
+from app.tiers import can_use_webhooks
 
 log = get_logger(__name__)
 
@@ -59,6 +68,40 @@ async def send_new_match_digest(
     subject = _subject(target, sendable)
     text = _render_text(settings.base_url, target, sendable, cve_by_vuln_id)
 
+    delivered_any = False
+
+    if await _deliver_email(db, user, target, sendable, subject, text, settings):
+        delivered_any = True
+
+    # Independent of the email, and after it: the email is the channel every
+    # plan has, and a webhook that hangs for its full timeout should not delay
+    # the message that always goes out.
+    if await _deliver_discord(db, user, target, sendable, cve_by_vuln_id, settings):
+        delivered_any = True
+
+    if not delivered_any:
+        # notified_at stays unset, so the next scan retries rather than dropping
+        # it. Nobody heard about this finding.
+        return 0
+
+    now = utcnow()
+    for match in sendable:
+        match.notified_at = now
+
+    log.info("alert.sent", user_id=user.id, target_id=target.id, matches=len(sendable))
+    return len(sendable)
+
+
+async def _deliver_email(
+    db: AsyncSession,
+    user: User,
+    target: TrackedTarget,
+    sendable: list[CVEMatch],
+    subject: str,
+    text: str,
+    settings,
+) -> bool:
+    """The digest email. Returns whether it was handed off for delivery."""
     alerts = [
         Alert(
             user_id=user.id,
@@ -81,18 +124,87 @@ async def send_new_match_digest(
             alert.status = "failed"
             alert.error = str(exc)[:2000]
         log.error("alert.delivery_failed", user_id=user.id, target_id=target.id, error=str(exc))
-        # notified_at stays unset, so the next scan retries rather than dropping it.
-        return 0
+        return False
 
     now = utcnow()
     for alert in alerts:
         alert.status = "sent"
         alert.sent_at = now
-    for match in sendable:
-        match.notified_at = now
+    return True
 
-    log.info("alert.sent", user_id=user.id, target_id=target.id, matches=len(sendable))
-    return len(sendable)
+
+async def _deliver_discord(
+    db: AsyncSession,
+    user: User,
+    target: TrackedTarget,
+    sendable: list[CVEMatch],
+    cve_by_vuln_id: dict[str, str],
+    settings,
+) -> bool:
+    """The Discord webhook, if this project has one and the plan allows it.
+
+    Tier is checked here rather than at the point the URL is saved, so a
+    subscription that lapses stops the posts without anybody having to remember
+    to clear the field — and starts them again on renewal without the user
+    re-entering a credential they already gave us.
+    """
+    if not target.discord_webhook_url:
+        return False
+
+    if not can_use_webhooks(user.tier):
+        log.info("alert.discord_skipped_tier", user_id=user.id, target_id=target.id)
+        return False
+
+    payload = build_digest_payload(
+        project=target.name,
+        findings=[
+            DigestFinding(
+                package=match.package_name,
+                version=match.package_version,
+                cve=cve_by_vuln_id.get(match.vulnerability_id, match.vulnerability_id),
+                severity=str(match.severity),
+                exploited=bool(match.is_kev),
+                fixed_version=match.fixed_version,
+            )
+            for match in sendable
+        ],
+        dashboard_url=f"{settings.base_url.rstrip('/')}/targets/{target.id}",
+    )
+
+    alerts = [
+        Alert(
+            user_id=user.id,
+            match_id=match.id,
+            channel="discord",
+            # The destination is the channel, not the credential. Storing the
+            # webhook URL on every alert row would scatter a secret across a
+            # table nobody thinks of as holding one.
+            destination=f"discord:{target.id}",
+            subject=f"{len(sendable)} findings in {target.name}"[:500],
+            status="pending",
+        )
+        for match in sendable
+    ]
+    for alert in alerts:
+        db.add(alert)
+    await db.flush()
+
+    result = await post_webhook(target.discord_webhook_url, payload, settings=settings)
+
+    now = utcnow()
+    if result.ok:
+        for alert in alerts:
+            alert.status = "sent"
+            alert.sent_at = now
+        target.discord_last_sent_at = now
+        target.discord_last_error = None
+        return True
+
+    for alert in alerts:
+        alert.status = "failed"
+        alert.error = (result.error or "Delivery failed")[:2000]
+    target.discord_last_error = (result.error or "Delivery failed")[:500]
+    return False
 
 
 def _subject(target: TrackedTarget, matches: list[CVEMatch]) -> str:

@@ -160,6 +160,104 @@
   </p>
 </div>
 
+{# ---------------------------------------------------------------------------
+   Discord
+
+   Per project, because a webhook URL addresses one channel and somebody
+   tracking six projects wants six channels rather than one firehose.
+   --------------------------------------------------------------------------- #}
+<div class="card">
+  <h2 class="panel__title">Discord</h2>
+
+  {% if limits.webhook_alerts %}
+    {% if target.has_discord %}
+      <dl class="datalist">
+        <dt>Webhook</dt>
+        <dd class="mono">{{ target.discord_webhook_url|mask_webhook }}</dd>
+        <dt>Last delivered</dt>
+        <dd>
+          {% if target.discord_last_sent_at %}
+            {{ target.discord_last_sent_at|relative_time }}
+          {% else %}
+            <span class="dim">Nothing sent yet</span>
+          {% endif %}
+        </dd>
+      </dl>
+
+      {% if target.discord_last_error %}
+        {# Shown rather than swallowed: a webhook deleted in Discord otherwise
+           fails silently, and the first anyone notices is the day a critical
+           finding does not arrive. #}
+        <p class="notice notice--error u-mt-3">{{ target.discord_last_error }}</p>
+      {% endif %}
+
+      <p class="panel__intro">
+        Alerts post here at the same moment the email goes out — only for
+        findings that are critical or being exploited in the wild.
+      </p>
+
+      <div class="btn-row">
+        <form method="post" action="/targets/{{ target.id }}/discord/test">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn" type="submit">Send a test</button>
+        </form>
+        <form method="post" action="/targets/{{ target.id }}/discord/remove">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn--ghost" type="submit">Remove</button>
+        </form>
+      </div>
+
+      <details class="u-mt-4">
+        <summary class="field__hint">Replace the webhook</summary>
+        <form method="post" action="/targets/{{ target.id }}/discord" class="u-mt-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="field">
+            <label for="webhook_url_replace">New webhook URL</label>
+            <input class="input mono" id="webhook_url_replace" name="webhook_url" type="url"
+                   placeholder="https://discord.com/api/webhooks/…" required>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn--primary" type="submit">Save</button>
+          </div>
+        </form>
+      </details>
+
+    {% else %}
+      <p class="panel__intro">
+        Post alerts to a channel. In Discord:
+        <strong>Server Settings → Integrations → Webhooks → New Webhook</strong>,
+        pick the channel, then <strong>Copy Webhook URL</strong>.
+      </p>
+
+      <form method="post" action="/targets/{{ target.id }}/discord">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="field">
+          <label for="webhook_url">Webhook URL</label>
+          <input class="input mono" id="webhook_url" name="webhook_url" type="url"
+                 placeholder="https://discord.com/api/webhooks/…" required
+                 autocomplete="off" spellcheck="false">
+          <p class="field__hint">
+            Treated as a credential: anyone holding it can post to that channel,
+            so it is stored once and never shown in full again.
+          </p>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn--primary" type="submit">Save webhook</button>
+        </div>
+      </form>
+    {% endif %}
+
+  {% else %}
+    {# The upgrade path, not a disabled form. A control that looks usable and
+       refuses on submit wastes somebody's time to make a sales point. #}
+    <p class="panel__intro u-mb-0">
+      Discord alerts are part of <a href="/pricing">Pro</a>. Findings that are
+      critical or exploited in the wild post to a channel you choose, at the
+      same moment the email goes out.
+    </p>
+  {% endif %}
+</div>
+
 {# Replacing the manifest, for a project that already has one. The first upload
    happens on Overview, where the empty state explains itself. #}
 {% if target.has_manifest %}

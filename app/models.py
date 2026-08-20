@@ -430,6 +430,23 @@ class TrackedTarget(TimestampMixin, Base):
     next_scan_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True, index=True)
     last_scan_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    #: A Discord webhook, per project rather than per account.
+    #:
+    #: A webhook URL addresses one channel, and somebody tracking six projects
+    #: wants six channels rather than one firehose. It is also a credential --
+    #: anyone holding it can post to that channel -- so it is written once and
+    #: never rendered back in full; `app.core.discord.mask_webhook_url` is what
+    #: the settings page shows.
+    discord_webhook_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+    #: Set on the last successful post, so the settings page can say when this
+    #: channel last actually heard from us rather than only that a URL is saved.
+    discord_last_sent_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+
+    #: Why the last attempt failed, or null. Kept so a webhook Discord has since
+    #: deleted shows as broken on the page instead of silently never arriving.
+    discord_last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     user: Mapped[User] = relationship(back_populates="targets")
     dependencies: Mapped[list[DependencyRecord]] = relationship(
         back_populates="target", cascade="all, delete-orphan", passive_deletes=True
@@ -448,6 +465,10 @@ class TrackedTarget(TimestampMixin, Base):
     def has_manifest(self) -> bool:
         """Has anything been uploaded or pushed for this project yet?"""
         return bool(self.manifest_content)
+
+    @property
+    def has_discord(self) -> bool:
+        return bool(self.discord_webhook_url)
 
     @property
     def has_been_scanned(self) -> bool:

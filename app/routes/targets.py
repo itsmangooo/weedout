@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from sqlalchemy import desc, func, select
 
 from app.config import get_settings
+from app.core.discord import InvalidWebhookURL, build_test_payload, parse_webhook_url
 from app.core.types import AlertStatus, Verdict
 from app.deps import CsrfProtected, CurrentUser, DbSession, redirect
 from app.logging_config import get_logger
@@ -31,6 +32,7 @@ from app.services.api_key_service import (
     keys_for_target,
     revoke_api_key,
 )
+from app.services.discord_service import post_webhook
 from app.services.scan_service import scan_target
 from app.services.target_service import (
     TargetLimitReached,
@@ -43,7 +45,7 @@ from app.services.target_service import (
     replace_manifest,
 )
 from app.templating import render
-from app.tiers import can_add_target, limits_for
+from app.tiers import can_add_target, can_use_webhooks, limits_for
 
 log = get_logger(__name__)
 
@@ -595,6 +597,111 @@ async def _tab_counts(db: DbSession, target_id: int) -> dict[str, int]:
         )
     ).one()
     return dict(zip(("open", "filtered", "dismissed", "resolved"), row, strict=True))
+
+
+# ---------------------------------------------------------------------------
+# Discord webhook
+#
+# The URL is a credential and a request destination, so it gets treated as
+# both: validated against an allowlist of Discord's own hosts before it is
+# stored (see app.core.discord for why an allowlist rather than a blocklist),
+# and never rendered back in full afterwards.
+# ---------------------------------------------------------------------------
+
+
+@router.post("/targets/{target_id}/discord", dependencies=[CsrfProtected])
+async def save_discord_webhook(
+    request: Request,
+    db: DbSession,
+    user: CurrentUser,
+    target_id: int,
+    webhook_url: Annotated[str, Form()] = "",
+):
+    target = await get_target_for_user(db, user.id, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="That project doesn't exist.")
+
+    if not can_use_webhooks(user.tier):
+        return await _settings_error(
+            request, db, user, target, "Discord alerts are part of the Pro plan."
+        )
+
+    try:
+        webhook = parse_webhook_url(webhook_url)
+    except InvalidWebhookURL as exc:
+        return await _settings_error(request, db, user, target, str(exc))
+
+    target.discord_webhook_url = webhook.url
+    # A new URL has not failed yet, and carrying the old error forward would
+    # show a freshly pasted webhook as broken.
+    target.discord_last_error = None
+    target.discord_last_sent_at = None
+    target.updated_at = utcnow()
+    await db.commit()
+
+    # Never the URL itself: this line goes to a log aggregator.
+    log.info("target.discord_saved", target_id=target.id, user_id=user.id)
+    return await _render_settings(
+        request,
+        db,
+        user,
+        target,
+        success="Discord webhook saved. Send a test to check it reaches the right channel.",
+    )
+
+
+@router.post("/targets/{target_id}/discord/test", dependencies=[CsrfProtected])
+async def test_discord_webhook(request: Request, db: DbSession, user: CurrentUser, target_id: int):
+    """Post a message that says it is a test.
+
+    Worth its own button. The failure this catches -- a webhook pointing at the
+    wrong channel, or one somebody deleted in Discord last week -- is otherwise
+    discovered on the day a critical finding lands and nobody hears about it.
+    """
+    target = await get_target_for_user(db, user.id, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="That project doesn't exist.")
+
+    if not target.discord_webhook_url:
+        return await _settings_error(request, db, user, target, "Add a webhook URL first.")
+    if not can_use_webhooks(user.tier):
+        return await _settings_error(
+            request, db, user, target, "Discord alerts are part of the Pro plan."
+        )
+
+    result = await post_webhook(target.discord_webhook_url, build_test_payload(project=target.name))
+
+    if result.ok:
+        target.discord_last_sent_at = utcnow()
+        target.discord_last_error = None
+        await db.commit()
+        return await _render_settings(
+            request, db, user, target, success="Test message sent. Check the channel."
+        )
+
+    target.discord_last_error = (result.error or "Delivery failed")[:500]
+    await db.commit()
+    return await _settings_error(
+        request, db, user, target, result.error or "The test message did not go through."
+    )
+
+
+@router.post("/targets/{target_id}/discord/remove", dependencies=[CsrfProtected])
+async def remove_discord_webhook(
+    request: Request, db: DbSession, user: CurrentUser, target_id: int
+):
+    target = await get_target_for_user(db, user.id, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="That project doesn't exist.")
+
+    target.discord_webhook_url = None
+    target.discord_last_error = None
+    target.discord_last_sent_at = None
+    target.updated_at = utcnow()
+    await db.commit()
+
+    log.info("target.discord_removed", target_id=target.id, user_id=user.id)
+    return await _render_settings(request, db, user, target, success="Discord webhook removed.")
 
 
 async def _render_settings(

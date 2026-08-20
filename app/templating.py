@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.assets import asset
 from app.config import get_settings
+from app.core.discord import mask_webhook_url
 from app.core.explain import (
     confidence_note,
     fix_command,
@@ -147,6 +148,9 @@ templates.env.filters["severity_class"] = severity_class
 templates.env.globals["asset"] = asset
 templates.env.filters["device_name"] = device_name
 templates.env.filters["pluralize"] = pluralize
+# A webhook URL is a credential. Once saved it is never shown in full again,
+# the same way an API key is not.
+templates.env.filters["mask_webhook"] = mask_webhook_url
 
 # Explanation helpers, so the alert views call one function instead of
 # assembling prose in the template.

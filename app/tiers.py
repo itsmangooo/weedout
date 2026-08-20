@@ -68,15 +68,13 @@ PLANS: dict[Tier, PlanLimits] = {
         max_targets=None,
         scan_interval=timedelta(hours=4),
         email_alerts=True,
-        # Not built yet — the flag exists so the plan table is the single place
-        # that will need touching when it is.
         webhook_alerts=True,
         history_days=365,
         features=(
             "Unlimited projects",
             "Checked every 4 hours",
             "Email alerts",
-            "Slack & Discord webhooks",
+            "Discord alerts",
             "Full alert history",
         ),
     ),
