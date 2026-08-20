@@ -151,6 +151,8 @@ class Verdict(StrEnum):
 class ActionableReason(StrEnum):
     """Why an alert was worth interrupting someone for."""
 
+    #: The package itself is malware. Outranks everything, including severity.
+    MALICIOUS_PACKAGE = "malicious_package"
     EXPLOITED_IN_WILD = "exploited_in_wild"
     CRITICAL_IN_PRODUCTION = "critical_in_production"
     HIGH_SEVERITY_DIRECT = "high_severity_direct"
@@ -158,6 +160,7 @@ class ActionableReason(StrEnum):
     @property
     def label(self) -> str:
         return {
+            "malicious_package": "Malicious package — remove it",
             "exploited_in_wild": "Actively exploited (CISA KEV)",
             "critical_in_production": "Critical severity, ships to production",
             "high_severity_direct": "High severity, direct dependency",
@@ -382,6 +385,21 @@ class Vulnerability:
     cwe_ids: tuple[str, ...] = ()
     withdrawn: bool = False
     published: str | None = None
+
+    @property
+    def is_malicious(self) -> bool:
+        """Is this advisory saying the package *is* malware?
+
+        OSV publishes these with a `MAL-` prefix and no CVSS score, because
+        "this package steals your environment variables" is not a severity
+        rating -- there is nothing to score and no version to upgrade to. The
+        answer is always to remove it.
+
+        They arrive through the same ecosystem exports as everything else, so
+        they are already in the mirror; recognising them is a matter of reading
+        the identifier rather than of fetching anything new.
+        """
+        return self.id.upper().startswith("MAL-")
 
     @property
     def cve_ids(self) -> tuple[str, ...]:

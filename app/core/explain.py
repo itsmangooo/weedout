@@ -40,6 +40,9 @@ def risk_sentence(decision: MatchDecision) -> str:
         summary = re.sub(r"\s+", " ", summary).rstrip(".")
         return f"{summary}."
 
+    if decision.vulnerability.is_malicious:
+        return f"{decision.dependency.name} {decision.dependency.version} was published as malware."
+
     severity = _SEVERITY_PHRASE[decision.severity]
     return (
         f"A {severity} vulnerability was published for "
@@ -57,6 +60,16 @@ def why_surfaced(decision: MatchDecision, kev_entry: KevEntry | None = None) -> 
 
     if decision.is_suppressed:
         return _explain_suppression(decision)
+
+    if decision.actionable_reason is ActionableReason.MALICIOUS_PACKAGE:
+        return (
+            f"{dep.name} is not a package with a vulnerability in it — the package "
+            "itself is malicious. It was published to the registry to run code on "
+            "machines that install it, which includes developer laptops and CI "
+            "runners as well as anything you ship. There is no version to upgrade "
+            "to; remove it and treat any credential that machine could reach as "
+            "exposed."
+        )
 
     if decision.actionable_reason is ActionableReason.EXPLOITED_IN_WILD:
         base = (
@@ -151,6 +164,17 @@ def fix_command(decision: MatchDecision) -> str | None:
 def fix_sentence(decision: MatchDecision) -> str:
     """What to do about it, in prose."""
     dep = decision.dependency
+
+    # Never "upgrade": there is no good version of a malicious package, and a
+    # later release of one is just newer malware.
+    if decision.actionable_reason is ActionableReason.MALICIOUS_PACKAGE:
+        return (
+            f"Remove {dep.name} from your dependencies and reinstall from a clean "
+            "lockfile. Then rotate anything the install could have read — tokens in "
+            "the environment, SSH keys, and any credential your CI runner holds. "
+            "Upgrading is not a fix here; there is no safe version of this package."
+        )
+
     if decision.fixed_version:
         base = (
             f"Upgrade {dep.name} from {dep.version} to {decision.fixed_version} or later. "

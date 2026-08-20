@@ -25,7 +25,7 @@ Tests need Postgres running or **they silently skip** — a green run with
 Desktop on this machine stops on its own; restart it from
 `C:\Program Files\Docker\Docker\Docker Desktop.exe`.
 
-Current state: **1217 passed, 14 skipped, ruff clean.**
+Current state: **1236 passed, 14 skipped, ruff clean.**
 
 ---
 
@@ -42,6 +42,15 @@ pipeline that treats every non-zero as "vulnerabilities found" eventually
 treats an expired key as a security finding, and somebody deletes the step.
 The GitHub Action inherits this; every configuration error in its scripts
 exits 2, never 1.
+
+**Malicious packages outrank everything except a withdrawal.** OSV publishes
+them as `MAL-` advisories with no CVSS score, so a severity ladder files them as
+`unknown` — under every threshold. They were being reported as "below severity
+threshold and not exploited", i.e. as noise. `Vulnerability.is_malicious` is
+checked before KEV, before reachability, and before any ignore rule, and it is
+**not** tier-gated: this is CVE matching working correctly, not one of the four
+Pro signals, and a malware alert behind a paywall is indefensible. The mirror
+holds ~231k of these, so the data was always there.
 
 **`notified_at` means "this person has been told."** Alerts go over two
 independent channels (email, Discord). It is set if *either* succeeds, because
@@ -178,7 +187,7 @@ mistake to avoid repeating.
 | Feature | State |
 |---|---|
 | EPSS scores | Nothing. |
-| Malicious / typosquat detection | Nothing. |
+| Typosquat heuristic (name similarity, no advisory) | Nothing. Malicious-package *advisories* are handled — see below. |
 | Unmaintained package risk | Nothing. |
 | Provenance checks | Nothing. |
 | Admin: xlsx findings export | Nothing. Needs `openpyxl`. |

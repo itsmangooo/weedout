@@ -167,6 +167,29 @@ def triage(
     if vulnerability.withdrawn:
         return replace(base, suppression_reason=SuppressionReason.WITHDRAWN)
 
+    # Before everything except withdrawal.
+    #
+    # A malicious-package advisory carries no CVSS score, because there is
+    # nothing to score: the package is malware and the fix is to remove it. Run
+    # through the severity ladder below it lands as UNKNOWN, falls under every
+    # threshold, and gets filed as "below severity threshold and not exploited"
+    # -- which is how a product whose entire pitch is telling you what matters
+    # would file a package that steals your environment variables as noise.
+    #
+    # Not gated on reachability either. Malware in a dev-only dependency runs
+    # on developer machines and in CI, which is where the credentials are.
+    #
+    # And not silenceable by a local rule, for the same reason a KEV listing is
+    # not: an ignore is a judgement about a risk, and this is not the risk it
+    # was a judgement about.
+    if vulnerability.is_malicious:
+        return replace(
+            base,
+            verdict=Verdict.ACTIONABLE,
+            actionable_reason=ActionableReason.MALICIOUS_PACKAGE,
+            ignore_overridden=policy.ignores(vulnerability),
+        )
+
     if is_kev and policy.always_alert_on_kev:
         # Deliberately before the ignore check. An ignore rule is a judgement
         # about a risk, made at a moment in time; a KEV listing is new

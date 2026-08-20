@@ -29,7 +29,7 @@ from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.core.policy import MAX_POLICY_BYTES, parse_policy
-from app.core.types import AlertStatus, Severity, Verdict
+from app.core.types import ActionableReason, AlertStatus, Severity, Verdict
 from app.deps import CurrentApiKey, DbSession
 from app.logging_config import get_logger
 from app.models import CVEMatch, ScanRun, utcnow
@@ -237,6 +237,17 @@ async def _severity_counts(db, target_id: int) -> dict[str, int]:
     for severity, count in rows:
         counts[str(severity).lower()] = count
 
+    counts["malicious"] = (
+        await db.scalar(
+            select(func.count(CVEMatch.id)).where(
+                CVEMatch.target_id == target_id,
+                CVEMatch.verdict == Verdict.ACTIONABLE,
+                CVEMatch.status == AlertStatus.OPEN,
+                CVEMatch.actionable_reason == ActionableReason.MALICIOUS_PACKAGE,
+            )
+        )
+    ) or 0
+
     counts["exploited"] = (
         await db.scalar(
             select(func.count(CVEMatch.id)).where(
@@ -275,6 +286,7 @@ async def _blocking_findings(db, target_id: int) -> list[dict]:
                 CVEMatch.fixed_version,
                 CVEMatch.severity,
                 CVEMatch.is_kev,
+                CVEMatch.actionable_reason,
             )
             .join(VulnerabilityRecord, VulnerabilityRecord.id == CVEMatch.vulnerability_id)
             .where(
@@ -282,7 +294,11 @@ async def _blocking_findings(db, target_id: int) -> list[dict]:
                 CVEMatch.verdict == Verdict.ACTIONABLE,
                 CVEMatch.status == AlertStatus.OPEN,
                 CVEMatch.severity.in_((Severity.CRITICAL, Severity.HIGH))
-                | CVEMatch.is_kev.is_(True),
+                | CVEMatch.is_kev.is_(True)
+                # Malware carries no CVSS score, so a severity filter alone
+                # drops it -- which would leave the worst finding this scanner
+                # can produce out of the list a pipeline gates on.
+                | (CVEMatch.actionable_reason == ActionableReason.MALICIOUS_PACKAGE),
             )
             .order_by(CVEMatch.is_kev.desc(), SEVERITY_RANK.desc(), CVEMatch.package_name)
             .limit(MAX_INLINE_FINDINGS)
@@ -297,6 +313,10 @@ async def _blocking_findings(db, target_id: int) -> list[dict]:
             "fixed_in": fixed,
             "severity": str(severity).lower(),
             "exploited": bool(is_kev),
+            # Its own field rather than a severity value. A client that has not
+            # been taught about this yet still sees `exploited: false` and a
+            # severity it understands, rather than a level it cannot rank.
+            "malicious": reason == ActionableReason.MALICIOUS_PACKAGE,
         }
-        for cve_ids, package, version, fixed, severity, is_kev in rows
+        for cve_ids, package, version, fixed, severity, is_kev, reason in rows
     ]
