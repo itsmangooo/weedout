@@ -25,6 +25,7 @@ from app.core.explain import (
     why_surfaced,
 )
 from app.core.types import Severity
+from app.core.webhooks import describe_url
 from app.deps import CSRF_COOKIE_NAME, issue_csrf_token
 from app.tiers import PLANS, limits_for
 
@@ -151,6 +152,8 @@ templates.env.filters["pluralize"] = pluralize
 # A webhook URL is a credential. Once saved it is never shown in full again,
 # the same way an API key is not.
 templates.env.filters["mask_webhook"] = mask_webhook_url
+# Host and path only: the query string is where people put tokens.
+templates.env.filters["describe_endpoint"] = describe_url
 
 # Explanation helpers, so the alert views call one function instead of
 # assembling prose in the template.

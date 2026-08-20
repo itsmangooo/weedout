@@ -17,7 +17,8 @@ from dataclasses import dataclass
 import httpx
 
 from app.config import Settings
-from app.core.discord import InvalidWebhookURL, parse_webhook_url
+from app.core.discord import parse_webhook_url
+from app.core.webhooks import InvalidWebhookURL, WebhookKind, validate_custom_url
 from app.logging_config import get_logger
 
 log = get_logger(__name__)
@@ -57,10 +58,27 @@ _PERMANENT = {
 }
 
 
+def _revalidate(url: str, kind: str) -> tuple[str, str]:
+    """Check a stored URL again and return (url, an id safe to log).
+
+    Re-validated on the way out, not just on the way in. Between the form and
+    here the value has been through a database, and this is the last point at
+    which an unexpected destination can be stopped. For a custom endpoint it is
+    also the freshest DNS answer available, which is the narrowest the rebinding
+    window can be made without pinning the address at connect time.
+    """
+    if kind == WebhookKind.CUSTOM:
+        target = validate_custom_url(url)
+        return target.url, target.host
+    webhook = parse_webhook_url(url)
+    return webhook.url, webhook.webhook_id
+
+
 async def post_webhook(
     url: str,
     payload: dict,
     *,
+    kind: str = WebhookKind.DISCORD,
     settings: Settings | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> DeliveryResult:
@@ -69,16 +87,13 @@ async def post_webhook(
     # test configuration; nothing in this function needs a setting today.
     _ = settings
 
-    # Re-validated on the way out, not just on the way in. Between the form and
-    # here the value has been through the database, and this is the last point
-    # at which an unexpected destination can be stopped.
     try:
-        webhook = parse_webhook_url(url)
+        destination, safe_id = _revalidate(url, kind)
     except InvalidWebhookURL as exc:
-        log.error("discord.invalid_stored_url", reason=str(exc))
+        log.error("webhook.invalid_stored_url", kind=str(kind), reason=str(exc))
         return DeliveryResult(
             ok=False,
-            error="The saved webhook URL is not valid. Paste it again.",
+            error=f"The saved webhook URL is no longer usable: {exc}",
             permanent=True,
         )
 
@@ -92,7 +107,7 @@ async def post_webhook(
 
     try:
         response = await client.post(
-            webhook.url,
+            destination,
             json=payload,
             headers={"Content-Type": "application/json", "User-Agent": "weedout"},
         )
@@ -108,16 +123,15 @@ async def post_webhook(
 
     status = response.status_code
 
-    # 204 is the documented success. 200 happens with ?wait=true, which we do
-    # not send, but accepting it costs nothing and guessing wrongly would report
-    # a delivered message as failed.
-    if status in (200, 204):
-        log.info("discord.sent", webhook_id=webhook.webhook_id, status=status)
+    # Any 2xx. Discord documents 204; a custom endpoint might answer 200 or
+    # 202, and guessing wrongly would report a delivered message as failed.
+    if 200 <= status < 300:
+        log.info("discord.sent", webhook_id=safe_id, status=status)
         return DeliveryResult(ok=True, status=status)
 
     if status == 429:
         retry_after = _retry_after(response)
-        log.warning("discord.rate_limited", webhook_id=webhook.webhook_id, retry=retry_after)
+        log.warning("discord.rate_limited", webhook_id=safe_id, retry=retry_after)
         return DeliveryResult(
             ok=False,
             status=status,
@@ -126,10 +140,15 @@ async def post_webhook(
         )
 
     if status in _PERMANENT:
-        log.warning("discord.rejected", webhook_id=webhook.webhook_id, status=status)
-        return DeliveryResult(ok=False, status=status, error=_PERMANENT[status], permanent=True)
+        log.warning("webhook.rejected", webhook_id=safe_id, status=status)
+        message = (
+            _PERMANENT[status]
+            if kind == WebhookKind.DISCORD
+            else f"That endpoint answered {status} and rejected the message."
+        )
+        return DeliveryResult(ok=False, status=status, error=message, permanent=True)
 
-    log.warning("discord.failed", webhook_id=webhook.webhook_id, status=status)
+    log.warning("discord.failed", webhook_id=safe_id, status=status)
     return DeliveryResult(
         ok=False,
         status=status,

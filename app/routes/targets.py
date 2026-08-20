@@ -13,8 +13,9 @@ from pydantic import ValidationError
 from sqlalchemy import desc, func, select
 
 from app.config import get_settings
-from app.core.discord import InvalidWebhookURL, build_test_payload, parse_webhook_url
+from app.core.discord import build_test_payload, parse_webhook_url
 from app.core.types import AlertStatus, Verdict
+from app.core.webhooks import InvalidWebhookURL, WebhookKind, validate_custom_url
 from app.deps import CsrfProtected, CurrentUser, DbSession, redirect
 from app.logging_config import get_logger
 from app.models import SEVERITY_RANK, CVEMatch, DependencyRecord, ScanRun, utcnow
@@ -616,6 +617,7 @@ async def save_discord_webhook(
     user: CurrentUser,
     target_id: int,
     webhook_url: Annotated[str, Form()] = "",
+    webhook_kind: Annotated[str, Form()] = "discord",
 ):
     target = await get_target_for_user(db, user.id, target_id)
     if target is None:
@@ -626,12 +628,22 @@ async def save_discord_webhook(
             request, db, user, target, "Discord alerts are part of the Pro plan."
         )
 
+    kind = WebhookKind.CUSTOM if webhook_kind == WebhookKind.CUSTOM else WebhookKind.DISCORD
+
     try:
-        webhook = parse_webhook_url(webhook_url)
+        # Two rules, because the two can be guarded differently. Discord is an
+        # allowlist of four hostnames; a custom endpoint is somebody else's
+        # server, so it is a deny-list of every address a request must not
+        # reach. See app/core/webhooks.py for why that asymmetry is deliberate.
+        if kind is WebhookKind.CUSTOM:
+            stored = validate_custom_url(webhook_url).url
+        else:
+            stored = parse_webhook_url(webhook_url).url
     except InvalidWebhookURL as exc:
         return await _settings_error(request, db, user, target, str(exc))
 
-    target.discord_webhook_url = webhook.url
+    target.webhook_kind = kind.value
+    target.discord_webhook_url = stored
     # A new URL has not failed yet, and carrying the old error forward would
     # show a freshly pasted webhook as broken.
     target.discord_last_error = None
@@ -640,13 +652,14 @@ async def save_discord_webhook(
     await db.commit()
 
     # Never the URL itself: this line goes to a log aggregator.
-    log.info("target.discord_saved", target_id=target.id, user_id=user.id)
+    # Never the URL itself: this line goes to a log aggregator.
+    log.info("target.webhook_saved", target_id=target.id, user_id=user.id, kind=kind.value)
     return await _render_settings(
         request,
         db,
         user,
         target,
-        success="Discord webhook saved. Send a test to check it reaches the right channel.",
+        success=("Webhook saved. Send a test to check it reaches the right place."),
     )
 
 
@@ -669,7 +682,17 @@ async def test_discord_webhook(request: Request, db: DbSession, user: CurrentUse
             request, db, user, target, "Discord alerts are part of the Pro plan."
         )
 
-    result = await post_webhook(target.discord_webhook_url, build_test_payload(project=target.name))
+    payload = (
+        {
+            "source": "weedout",
+            "event": "webhook.test",
+            "project": target.name,
+            "message": "This is a test from Weedout. Real alerts carry findings.",
+        }
+        if target.webhook_kind == WebhookKind.CUSTOM
+        else build_test_payload(project=target.name)
+    )
+    result = await post_webhook(target.discord_webhook_url, payload, kind=target.webhook_kind)
 
     if result.ok:
         target.discord_last_sent_at = utcnow()
@@ -695,13 +718,14 @@ async def remove_discord_webhook(
         raise HTTPException(status_code=404, detail="That project doesn't exist.")
 
     target.discord_webhook_url = None
+    target.webhook_kind = WebhookKind.DISCORD.value
     target.discord_last_error = None
     target.discord_last_sent_at = None
     target.updated_at = utcnow()
     await db.commit()
 
-    log.info("target.discord_removed", target_id=target.id, user_id=user.id)
-    return await _render_settings(request, db, user, target, success="Discord webhook removed.")
+    log.info("target.webhook_removed", target_id=target.id, user_id=user.id)
+    return await _render_settings(request, db, user, target, success="Webhook removed.")
 
 
 async def _render_settings(

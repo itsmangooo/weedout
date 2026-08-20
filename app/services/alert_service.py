@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.core.discord import DigestFinding, build_digest_payload
 from app.core.types import ActionableReason, AlertStatus, Verdict
+from app.core.webhooks import WebhookKind, build_custom_payload
 from app.logging_config import get_logger
 from app.mail import EmailError, send_email
 from app.models import Alert, CVEMatch, TrackedTarget, User, VulnerabilityRecord, utcnow
@@ -155,31 +156,35 @@ async def _deliver_discord(
         log.info("alert.discord_skipped_tier", user_id=user.id, target_id=target.id)
         return False
 
-    payload = build_digest_payload(
-        project=target.name,
-        findings=[
-            DigestFinding(
-                package=match.package_name,
-                version=match.package_version,
-                cve=cve_by_vuln_id.get(match.vulnerability_id, match.vulnerability_id),
-                severity=str(match.severity),
-                exploited=bool(match.is_kev),
-                fixed_version=match.fixed_version,
-            )
-            for match in sendable
-        ],
-        dashboard_url=f"{settings.base_url.rstrip('/')}/targets/{target.id}",
+    findings = [
+        DigestFinding(
+            package=match.package_name,
+            version=match.package_version,
+            cve=cve_by_vuln_id.get(match.vulnerability_id, match.vulnerability_id),
+            severity=str(match.severity),
+            exploited=bool(match.is_kev),
+            fixed_version=match.fixed_version,
+        )
+        for match in sendable
+    ]
+    dashboard_url = f"{settings.base_url.rstrip('/')}/targets/{target.id}"
+
+    # Discord wants an embed; anybody else's endpoint wants plain JSON they can
+    # write a handler against.
+    build = (
+        build_custom_payload if target.webhook_kind == WebhookKind.CUSTOM else build_digest_payload
     )
+    payload = build(project=target.name, findings=findings, dashboard_url=dashboard_url)
 
     alerts = [
         Alert(
             user_id=user.id,
             match_id=match.id,
-            channel="discord",
+            channel=target.webhook_kind,
             # The destination is the channel, not the credential. Storing the
             # webhook URL on every alert row would scatter a secret across a
             # table nobody thinks of as holding one.
-            destination=f"discord:{target.id}",
+            destination=f"{target.webhook_kind}:{target.id}",
             subject=f"{len(sendable)} findings in {target.name}"[:500],
             status="pending",
         )
@@ -189,7 +194,9 @@ async def _deliver_discord(
         db.add(alert)
     await db.flush()
 
-    result = await post_webhook(target.discord_webhook_url, payload, settings=settings)
+    result = await post_webhook(
+        target.discord_webhook_url, payload, kind=target.webhook_kind, settings=settings
+    )
 
     now = utcnow()
     if result.ok:

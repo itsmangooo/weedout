@@ -167,13 +167,22 @@
    tracking six projects wants six channels rather than one firehose.
    --------------------------------------------------------------------------- #}
 <div class="card">
-  <h2 class="panel__title">Discord</h2>
+  <h2 class="panel__title">Webhook alerts</h2>
 
   {% if limits.webhook_alerts %}
-    {% if target.has_discord %}
+    {% if target.has_webhook %}
       <dl class="datalist">
+        <dt>Sends to</dt>
+        <dd>{{ 'Discord' if target.webhook_kind == 'discord' else 'A custom endpoint' }}</dd>
         <dt>Webhook</dt>
-        <dd class="mono">{{ target.discord_webhook_url|mask_webhook }}</dd>
+        <dd class="mono">
+          {% if target.webhook_kind == 'discord' %}
+            {{ target.discord_webhook_url|mask_webhook }}
+          {% else %}
+            {# Host and path only. The query string is where people put tokens. #}
+            {{ target.discord_webhook_url|describe_endpoint }}
+          {% endif %}
+        </dd>
         <dt>Last delivered</dt>
         <dd>
           {% if target.discord_last_sent_at %}
@@ -192,8 +201,8 @@
       {% endif %}
 
       <p class="panel__intro">
-        Alerts post here at the same moment the email goes out — only for
-        findings that are critical or being exploited in the wild.
+        Alerts go out here at the same moment the email does — only for findings
+        that are critical or being exploited in the wild.
       </p>
 
       <div class="btn-row">
@@ -212,6 +221,13 @@
         <form method="post" action="/targets/{{ target.id }}/discord" class="u-mt-3">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <div class="field">
+            <label for="webhook_kind_replace">Where</label>
+            <select class="select" id="webhook_kind_replace" name="webhook_kind">
+              <option value="discord" {% if target.webhook_kind == 'discord' %}selected{% endif %}>Discord</option>
+              <option value="custom" {% if target.webhook_kind == 'custom' %}selected{% endif %}>A custom endpoint</option>
+            </select>
+          </div>
+          <div class="field">
             <label for="webhook_url_replace">New webhook URL</label>
             <input class="input mono" id="webhook_url_replace" name="webhook_url" type="url"
                    placeholder="https://discord.com/api/webhooks/…" required>
@@ -224,13 +240,26 @@
 
     {% else %}
       <p class="panel__intro">
-        Post alerts to a channel. In Discord:
+        Post alerts somewhere your team already looks. For Discord:
         <strong>Server Settings → Integrations → Webhooks → New Webhook</strong>,
         pick the channel, then <strong>Copy Webhook URL</strong>.
       </p>
 
       <form method="post" action="/targets/{{ target.id }}/discord">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="field">
+          <label for="webhook_kind">Where</label>
+          <select class="select" id="webhook_kind" name="webhook_kind">
+            <option value="discord">Discord — posts a formatted message</option>
+            <option value="custom">A custom endpoint — posts JSON</option>
+          </select>
+          <p class="field__hint">
+            A custom endpoint has to be reachable from the public internet over
+            https. Addresses inside a private network are refused.
+          </p>
+        </div>
+
         <div class="field">
           <label for="webhook_url">Webhook URL</label>
           <input class="input mono" id="webhook_url" name="webhook_url" type="url"
@@ -251,9 +280,9 @@
     {# The upgrade path, not a disabled form. A control that looks usable and
        refuses on submit wastes somebody's time to make a sales point. #}
     <p class="panel__intro u-mb-0">
-      Discord alerts are part of <a href="/pricing">Pro</a>. Findings that are
-      critical or exploited in the wild post to a channel you choose, at the
-      same moment the email goes out.
+      Webhook alerts are part of <a href="/pricing">Pro</a>. Findings that are
+      critical or exploited in the wild post to Discord or to an endpoint of
+      your own, at the same moment the email goes out.
     </p>
   {% endif %}
 </div>

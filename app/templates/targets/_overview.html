@@ -224,14 +224,13 @@
           <span class="dim u-text-xs">{{ dependencies|length }} · show</span>
         </summary>
 
-        {# Filter and sort happen on the rows already in the page. The server
-           has answered this question once; re-asking it to reorder a list of
-           dependencies would be work nobody needs done twice. #}
+        {# Sorting happens on the rows already in the page: the server has
+           answered this question once, and re-asking it to reorder a list would
+           be work nobody needs done twice. There is no filter box -- the
+           sidebar's palette is the only place in this application you search
+           from. #}
         <div class="table-filter">
-          <input class="table-filter__input" type="search" data-filters="deps-body"
-                 data-count="deps-count" aria-label="Filter dependencies"
-                 placeholder="Filter by package name…">
-          <span class="table-filter__count" id="deps-count" aria-live="polite">
+          <span class="table-filter__count">
             {{ dependencies|length }} {{ dependencies|length|pluralize('row') }}
           </span>
         </div>

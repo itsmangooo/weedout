@@ -22,6 +22,8 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
+from app.core.webhooks import InvalidWebhookURL
+
 __all__ = [
     "DISCORD_HOSTS",
     "InvalidWebhookURL",
@@ -63,8 +65,11 @@ COLOUR_HIGH = 0xFFB224
 COLOUR_CALM = 0x6D4DE8
 
 
-class InvalidWebhookURL(ValueError):
-    """The URL is not a Discord webhook. Carries a message for the user."""
+#: Re-exported, not redefined. Two classes with this name meant
+#: `except InvalidWebhookURL` in the delivery service silently stopped catching
+#: the Discord one, and a bad stored URL would have crashed a scan instead of
+#: being recorded against the project.
+InvalidWebhookURL = InvalidWebhookURL
 
 
 @dataclass(frozen=True, slots=True)

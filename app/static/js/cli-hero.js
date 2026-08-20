@@ -43,10 +43,17 @@
     "varying float v_fade;",
     "",
     "void main() {",
-    "  float speed = 0.03 + a_seed.y * 0.05;",
+    // Rising embers. The previous values (0.03 to 0.08) crossed the hero in
+    // twelve to thirty-three seconds -- one to three pixels a second, which is
+    // motion in the arithmetic and stillness to anybody looking at it. These
+    // cross in five to nine, which reads as drift without pulling the eye off
+    // the headline.
+    "  float speed = 0.11 + a_seed.y * 0.09;",
     // Drift upward and wrap, so the field never empties.
     "  float y = fract(a_seed.y + u_time * speed);",
-    "  float x = a_seed.x + sin((u_time * 0.15) + a_seed.y * 6.2831) * 0.03;",
+    // A slow lateral sway so the field does not read as a rising grid. The
+    // period was forty-two seconds, which is to say invisible; this is twelve.
+    "  float x = a_seed.x + sin((u_time * 0.5) + a_seed.y * 6.2831) * 0.025;",
     "  vec2 pos = vec2(x, y) * 2.0 - 1.0;",
     // Correct for viewport aspect so points stay round.
     "  gl_Position = vec4(pos, 0.0, 1.0);",

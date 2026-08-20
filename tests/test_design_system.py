@@ -380,3 +380,21 @@ class TestMarketingPagesGetTheFullWindow:
                     opening = section.strip().splitlines()[0][:60]
                     offenders.append(f"{rel(path)}: {opening}")
         assert not offenders, f"sections with no column of their own: {offenders}"
+
+    def test_no_page_carries_its_own_search_box(self):
+        """The sidebar palette is the only place you search from.
+
+        In-page filter inputs were the second and third search boxes, and
+        having three of them is what made "where do I search" a question. The
+        counts they sat beside are not search boxes and are still there.
+        """
+        offenders = []
+        for path in TEMPLATES.rglob("*.html"):
+            text = path.read_text(encoding="utf-8")
+            for marker in ('type="search"', "data-filters="):
+                if marker in text and "admin/users.html" not in rel(path):
+                    offenders.append(f"{rel(path)}: {marker}")
+        assert not offenders, (
+            "these add a second search entry point; the sidebar palette is the "
+            f"only one: {offenders}"
+        )

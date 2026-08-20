@@ -430,7 +430,15 @@ class TrackedTarget(TimestampMixin, Base):
     next_scan_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True, index=True)
     last_scan_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    #: A Discord webhook, per project rather than per account.
+    #: Which shape the destination expects: a Discord embed, or plain JSON to
+    #: somebody's own endpoint. Stored rather than sniffed from the URL, because
+    #: guessing from a hostname is how a custom endpoint that happens to be
+    #: proxied through Discord's domain gets the wrong body.
+    webhook_kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="discord", server_default="discord"
+    )
+
+    #: The destination, per project rather than per account.
     #:
     #: A webhook URL addresses one channel, and somebody tracking six projects
     #: wants six channels rather than one firehose. It is also a credential --
@@ -467,7 +475,7 @@ class TrackedTarget(TimestampMixin, Base):
         return bool(self.manifest_content)
 
     @property
-    def has_discord(self) -> bool:
+    def has_webhook(self) -> bool:
         return bool(self.discord_webhook_url)
 
     @property

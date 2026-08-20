@@ -558,3 +558,134 @@ class TestDelivery:
             result = await post_webhook(VALID, {"content": "hi"}, client=client)
 
         assert "abcdefghijklmnopqrstuvwxyz012345" not in (result.error or "")
+
+
+class TestCustomEndpoints:
+    """The other kind, where an allowlist is not available.
+
+    A custom endpoint is somebody else's server, so the host cannot be known in
+    advance and the guard has to be a deny-list of where a request must never
+    go. That is a weaker control than the Discord allowlist, which is exactly
+    why it gets its own tests.
+    """
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://example.com/hook",
+            "https://127.0.0.1/hook",
+            "https://10.0.0.5/hook",
+            "https://192.168.1.1/hook",
+            "https://172.16.0.1/hook",
+            "https://169.254.169.254/latest/meta-data/",
+            "https://[::1]/hook",
+            "https://[::ffff:127.0.0.1]/hook",
+            "https://0.0.0.0/hook",
+            "https://example.com:8080/hook",
+            "https://user:pass@example.com/hook",
+            "https://example.com/hook\nX-Injected: 1",
+            "",
+        ],
+    )
+    def test_internal_and_malformed_destinations_are_refused(self, url):
+        from app.core.webhooks import InvalidWebhookURL, validate_custom_url
+
+        with pytest.raises(InvalidWebhookURL):
+            validate_custom_url(url, resolve=False)
+
+    def test_the_metadata_address_is_named_as_private(self):
+        """169.254.169.254 is the one an SSRF is usually aiming at."""
+        from app.core.webhooks import InvalidWebhookURL, validate_custom_url
+
+        with pytest.raises(InvalidWebhookURL) as caught:
+            validate_custom_url("https://169.254.169.254/latest/", resolve=False)
+        assert "private network" in str(caught.value)
+
+    def test_a_public_https_endpoint_is_allowed(self):
+        from app.core.webhooks import validate_custom_url
+
+        target = validate_custom_url("https://hooks.example.com/a/b", resolve=False)
+        assert target.host == "hooks.example.com"
+
+    def test_the_custom_payload_is_flat_json(self):
+        from app.core.discord import DigestFinding
+        from app.core.webhooks import build_custom_payload
+
+        payload = build_custom_payload(
+            project="acme",
+            findings=[
+                DigestFinding(
+                    package="lodash",
+                    version="4.17.15",
+                    cve="CVE-2021-23337",
+                    severity="critical",
+                    exploited=True,
+                    fixed_version="4.17.21",
+                )
+            ],
+            dashboard_url="https://weedout.dev/targets/1",
+        )
+        assert payload["event"] == "findings.new"
+        assert payload["counts"] == {"total": 1, "exploited": 1, "critical": 1, "high": 0}
+        assert payload["findings"][0]["fixed_in"] == "4.17.21"
+        # No Discord shapes leaking into a body somebody else has to parse.
+        assert "embeds" not in payload
+
+    def test_describe_url_hides_the_query_string(self):
+        """Which is where people put tokens."""
+        from app.core.webhooks import describe_url
+
+        assert "secret" not in describe_url("https://hooks.example.com/a?token=secret")
+
+    async def test_a_custom_endpoint_gets_json_not_an_embed(self, db, pro_user, monkeypatch):
+        from app.services.alert_service import send_new_match_digest
+        from app.services.discord_service import DeliveryResult
+
+        seen = {}
+
+        async def fake_post(url, payload, **kwargs):
+            seen["payload"] = payload
+            seen["kind"] = kwargs.get("kind")
+            return DeliveryResult(ok=True, status=200)
+
+        monkeypatch.setattr("app.services.alert_service.post_webhook", fake_post)
+
+        from app.services.scan_service import scan_target
+        from tests.test_scan_pipeline import LODASH_ADVISORY, make_target, seed_mirror
+
+        await seed_mirror(db, LODASH_ADVISORY)
+        target = await make_target(db, pro_user)
+        target.discord_webhook_url = "https://hooks.example.com/weedout"
+        target.webhook_kind = "custom"
+        outcome = await scan_target(db, target)
+
+        await send_new_match_digest(db, pro_user, target, outcome.new_matches)
+
+        assert seen["kind"] == "custom"
+        assert seen["payload"]["source"] == "weedout"
+        assert "embeds" not in seen["payload"]
+
+    async def test_the_alert_row_records_which_kind(self, db, pro_user, monkeypatch):
+        from app.services.alert_service import send_new_match_digest
+        from app.services.discord_service import DeliveryResult
+
+        async def fake_post(url, payload, **kwargs):
+            return DeliveryResult(ok=True, status=200)
+
+        monkeypatch.setattr("app.services.alert_service.post_webhook", fake_post)
+
+        from app.services.scan_service import scan_target
+        from tests.test_scan_pipeline import LODASH_ADVISORY, make_target, seed_mirror
+
+        await seed_mirror(db, LODASH_ADVISORY)
+        target = await make_target(db, pro_user)
+        target.discord_webhook_url = "https://hooks.example.com/weedout"
+        target.webhook_kind = "custom"
+        outcome = await scan_target(db, target)
+
+        await send_new_match_digest(db, pro_user, target, outcome.new_matches)
+
+        alerts = (await db.scalars(select(Alert).where(Alert.user_id == pro_user.id))).all()
+        assert sorted(a.channel for a in alerts) == ["custom", "email"]
+        for alert in alerts:
+            assert "hooks.example.com" not in alert.destination

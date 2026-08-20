@@ -18,10 +18,7 @@
 <div class="card card--flush">
   {% if matches %}
     <div class="table-filter">
-      <input class="table-filter__input" type="search" data-filters="alerts-list"
-             data-count="alerts-count" aria-label="Filter findings"
-             placeholder="Filter by package, CVE or project…">
-      <span class="table-filter__count" id="alerts-count" aria-live="polite">
+      <span class="table-filter__count">
         {{ matches|length }} {{ matches|length|pluralize('finding') }}
       </span>
     </div>
