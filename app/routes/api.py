@@ -28,6 +28,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import func, select
 
 from app.config import get_settings
+from app.core.policy import MAX_POLICY_BYTES, parse_policy
 from app.core.types import AlertStatus, Severity, Verdict
 from app.deps import CurrentApiKey, DbSession
 from app.logging_config import get_logger
@@ -100,6 +101,7 @@ async def scan(
     db: DbSession,
     key: CurrentApiKey,
     manifest: Annotated[UploadFile | None, File()] = None,
+    policy: Annotated[UploadFile | None, File()] = None,
 ):
     """Scan a lockfile against the project this key belongs to.
 
@@ -118,6 +120,26 @@ async def scan(
         )
 
     raw = await manifest.read()
+
+    # `.weedout.yml`, if the pipeline sent one. The server never sees the
+    # repository -- only the file that was uploaded -- so the policy has to
+    # travel with the scan. That is also what makes CI the source of truth: the
+    # file that ran in the pipeline is the file that applied.
+    if policy is not None and policy.filename:
+        policy_raw = await policy.read()
+        if len(policy_raw) > MAX_POLICY_BYTES:
+            raise _fail(
+                HTTP_CONTENT_TOO_LARGE,
+                "policy_too_large",
+                "That .weedout.yml is too large to read.",
+            )
+        parsed = parse_policy(policy_raw)
+        target.policy_file = policy_raw.decode("utf-8", "replace")
+        target.policy_file_updated_at = utcnow()
+        # Recorded rather than raised. A policy file that will not parse means
+        # every rule in it stops applying, which can only produce more alerts
+        # than intended -- so the scan proceeds and says what happened.
+        target.policy_file_error = parsed.error
 
     # Size first: a file that is too large is too large regardless of what is
     # in it, and checking its contents first would report a five-megabyte file

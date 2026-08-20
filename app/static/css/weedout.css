@@ -7105,3 +7105,84 @@ a.metric:hover {
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
+
+/* ---- Scan rules --------------------------------------------------------- */
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.field-row > .field {
+  flex: 1 1 12rem;
+  /* min-width: auto is the flex default, and an unbreakable value in one of
+     these would otherwise widen the row past the card. */
+  min-width: 0;
+}
+
+.field-row > .field--grow {
+  flex: 2 1 18rem;
+}
+
+.rule-divider {
+  margin: var(--space-6) 0 var(--space-5);
+  border: 0;
+  border-top: 1px solid var(--glass-border);
+}
+
+.panel__subtitle {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 var(--space-3);
+}
+
+.rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rules__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.rules__item > div {
+  min-width: 0;
+}
+
+.rules__item:last-child {
+  border-bottom: 0;
+}
+
+/* An overridden rule is not an error, but it is no longer doing what its
+   author intended, so it stops looking like the others. */
+.rules__item--overridden {
+  border-inline-start: 3px solid var(--exploited);
+  padding-inline-start: var(--space-3);
+}
+
+.rules__id {
+  font-weight: 600;
+}
+
+.rules__reason,
+.rules__meta {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.rules__reason {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.rules__meta {
+  color: var(--text-dim);
+  font-size: 0.8125rem;
+}

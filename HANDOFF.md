@@ -25,7 +25,7 @@ Tests need Postgres running or **they silently skip** — a green run with
 Desktop on this machine stops on its own; restart it from
 `C:\Program Files\Docker\Docker\Docker Desktop.exe`.
 
-Current state: **1189 passed, 14 skipped, ruff clean.**
+Current state: **1217 passed, 14 skipped, ruff clean.**
 
 ---
 
@@ -138,6 +138,19 @@ copied onto `Alert` rows (those carry `discord:{target_id}`).
   `unreached_by_depth`, never folded into the suppressed count: "not checked"
   and "checked and found nothing" must not look the same. Verified end to end —
   same lockfile, Free scanned 2 and found 0, Pro scanned 3 and found 6.
+- **Custom scan rules (Pro)** — per-project severity thresholds and ignore
+  rules with a required reason, plus `.weedout.yml` pushed from CI. The file
+  beats the interface, per setting rather than all-or-nothing: a file that says
+  nothing about ignores does not wipe out ignores set in the interface, and the
+  two sets are unioned. A broken policy file is discarded whole and **fails
+  open** — every rule in it stops applying, which can only mean more alerts,
+  never fewer. `yaml.safe_load` only.
+  **An ignore never survives a KEV listing.** A rule is a judgement about a
+  risk at a moment in time; confirmed exploitation is new information about the
+  same risk. The override is flagged on the match and marks the rule
+  `overridden_at`, so the author sees it stopped applying rather than assuming
+  it held. Verified end to end: 3 actionable → 0 with rules → 2 back after a
+  KEV listing, with the non-listed rule still holding.
 - **Dependency chains** — `Dependency.depth` / `.via`, persisted on both
   `DependencyRecord` and `CVEMatch` (denormalised, so a finding keeps its route
   after the next parse replaces the dependency rows). Rendered as "Found via
@@ -164,8 +177,6 @@ mistake to avoid repeating.
 
 | Feature | State |
 |---|---|
-| Custom scan rules / severity overrides / CVE suppression | Nothing. |
-| `.weedout.yml` policy file | Nothing. The CLI's `.weedout` holds an API key and URL — a different thing. |
 | EPSS scores | Nothing. |
 | Malicious / typosquat detection | Nothing. |
 | Unmaintained package risk | Nothing. |
@@ -197,15 +208,10 @@ Also unresolved:
 
 ## Next steps, in the order I would do them
 
-1. **Custom scan rules.** Suppression with a required reason and an audit
-   trail. **Judgment call to decide and document, not guess:** should a
-   suppressed CVE auto-resurface when it becomes KEV-listed? My recommendation
-   is yes — a suppression is a judgement about a risk profile that has since
-   changed — but it must be stated in the docs either way.
-2. **EPSS.** Surface as its own signal. **Do not fold it into severity tiering
+1. **EPSS.** Surface as its own signal. **Do not fold it into severity tiering
    silently** — the user asked for this to be flagged. Suggest adding it as an
    off-by-default `MatchPolicy` flag so turning it on is a deliberate act.
-3. The rest of the table above.
+2. The rest of the table above.
 
 ---
 

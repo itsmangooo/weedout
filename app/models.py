@@ -430,6 +430,30 @@ class TrackedTarget(TimestampMixin, Base):
     next_scan_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True, index=True)
     last_scan_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    #: Severity floor for a direct dependency, overriding the default. Null
+    #: means "use the default", which is what every project starts with and
+    #: what a Free project always has.
+    direct_threshold: Mapped[Severity | None] = mapped_column(
+        enum_column(Severity, "severity"), nullable=True
+    )
+    #: The same for a dependency further down the tree.
+    transitive_threshold: Mapped[Severity | None] = mapped_column(
+        enum_column(Severity, "severity"), nullable=True
+    )
+
+    #: The `.weedout.yml` most recently pushed with a scan.
+    #:
+    #: Stored rather than read from disk because the server never sees the
+    #: repository -- only the manifest that was uploaded. The CLI sends this
+    #: alongside it, which is also what makes CI the source of truth: the file
+    #: that ran in the pipeline is the file that applied.
+    policy_file: Mapped[str | None] = mapped_column(Text, nullable=True)
+    policy_file_updated_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    #: Anything wrong with it, from the last parse. Shown on the project rather
+    #: than swallowed: a policy file that failed to parse silently reverts every
+    #: rule in it, and the author needs to know that happened.
+    policy_file_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     #: How many packages the last scan did not reach, because the owner's plan
     #: stops at a given depth.
     #:
@@ -477,6 +501,9 @@ class TrackedTarget(TimestampMixin, Base):
         back_populates="target", cascade="all, delete-orphan", passive_deletes=True
     )
     api_keys: Mapped[list[ApiKey]] = relationship(
+        back_populates="target", cascade="all, delete-orphan", passive_deletes=True
+    )
+    ignore_rules: Mapped[list[IgnoreRule]] = relationship(
         back_populates="target", cascade="all, delete-orphan", passive_deletes=True
     )
 
@@ -783,6 +810,14 @@ class CVEMatch(TimestampMixin, Base):
         enum_column(Reachability, "reachability"), nullable=False
     )
 
+    #: True when an ignore rule covered this and it was raised anyway, because
+    #: the advisory is now on CISA's known-exploited list. Stored rather than
+    #: derived: the rule can be deleted afterwards, and the finding still has to
+    #: be able to explain itself.
+    ignore_overridden: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     #: Denormalised alongside the package name and for the same reason: a
     #: finding has to keep saying how the package got into the tree even after
     #: the dependency rows are replaced by the next parse.
@@ -994,6 +1029,57 @@ class AdminAuditLog(Base):
 
     def __repr__(self) -> str:
         return f"<AdminAuditLog {self.action} by={self.actor_email} target={self.target_email}>"
+
+
+class IgnoreRule(Base):
+    """One advisory a project has chosen not to hear about.
+
+    Distinct from dismissing a finding, and the difference is worth keeping.
+    Dismissing says "I have looked at this one and I am not acting on it" about
+    a finding that exists. A rule says "do not raise this again on this
+    project", including for findings that do not exist yet -- a package
+    upgraded into range next month is covered by the rule without anybody
+    revisiting it.
+
+    A rule never deletes anything. Matching findings stay on the Filtered tab
+    with the rule named as the reason, because "what am I not being told about?"
+    has to have an answer.
+
+    The reason is required by the schema rather than by convention. Six months
+    on it is the only thing that makes the entry reviewable, and the person who
+    wrote it is the only one who can supply it.
+    """
+
+    __tablename__ = "ignore_rules"
+    __table_args__ = (UniqueConstraint("target_id", "identifier", name="uq_ignore_rule_identity"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    target_id: Mapped[int] = mapped_column(
+        ForeignKey("tracked_targets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    #: A CVE or advisory id, upper-cased on the way in. Matched against every
+    #: alias an advisory carries, so ignoring the CVE also silences the GHSA
+    #: that aliases it.
+    identifier: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+    #: Who and when, so the rule carries its own audit trail alongside the one
+    #: in admin_audit_log. Denormalised for the same reason that log is: the
+    #: entry has to stay readable after the account is gone.
+    created_by_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=utcnow, server_default=func.now()
+    )
+
+    #: Set when a KEV listing overrode this rule, so the settings page can show
+    #: that it stopped applying rather than leaving somebody to assume it held.
+    overridden_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+
+    target: Mapped[TrackedTarget] = relationship(back_populates="ignore_rules")
+
+    def __repr__(self) -> str:
+        return f"<IgnoreRule {self.identifier} target={self.target_id}>"
 
 
 class EmailLog(Base):

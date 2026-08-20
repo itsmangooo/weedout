@@ -24,6 +24,10 @@ dependencies = [
     "aiosmtplib>=3.0",
     "structlog>=24.4",
     "packaging>=24.2",
+    # Only ever used through `yaml.safe_load`, never `yaml.load`: the input is
+    # a .weedout.yml out of somebody else's repository, and full YAML can
+    # construct arbitrary Python objects. See app/core/policy.py.
+    "pyyaml>=6.0",
     # `linkify` turns bare URLs in docs into links; it is an optional extra of
     # markdown-it-py and the parser raises at render time without it.
     "markdown-it-py[linkify]>=3.0",

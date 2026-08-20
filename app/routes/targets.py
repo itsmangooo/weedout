@@ -14,16 +14,19 @@ from sqlalchemy import desc, func, select
 
 from app.config import get_settings
 from app.core.discord import build_test_payload, parse_webhook_url
-from app.core.types import AlertStatus, Verdict
+from app.core.policy import parse_policy
+from app.core.types import AlertStatus, Severity, Verdict
 from app.core.webhooks import InvalidWebhookURL, WebhookKind, validate_custom_url
 from app.deps import CsrfProtected, CurrentUser, DbSession, redirect
 from app.logging_config import get_logger
-from app.models import SEVERITY_RANK, CVEMatch, DependencyRecord, ScanRun, utcnow
+from app.models import SEVERITY_RANK, CVEMatch, DependencyRecord, IgnoreRule, ScanRun, utcnow
 from app.schemas import (
+    IgnoreRuleForm,
     NewProjectForm,
     PasteManifestForm,
     RenameProjectForm,
     TargetCreateForm,
+    ThresholdForm,
     first_error,
 )
 from app.services.alert_service import mark_delivered_in_app
@@ -34,6 +37,7 @@ from app.services.api_key_service import (
     revoke_api_key,
 )
 from app.services.discord_service import post_webhook
+from app.services.rules_service import list_rules
 from app.services.scan_service import scan_target
 from app.services.target_service import (
     TargetLimitReached,
@@ -46,7 +50,7 @@ from app.services.target_service import (
     replace_manifest,
 )
 from app.templating import render
-from app.tiers import can_add_target, can_use_webhooks, limits_for
+from app.tiers import can_add_target, can_use_custom_rules, can_use_webhooks, limits_for
 
 log = get_logger(__name__)
 
@@ -239,8 +243,6 @@ async def target_detail(
         # is where its "no manifest yet" state and the upload form live.
         active = "overview"
 
-    api_keys = await keys_for_target(db, target.id) if active == "settings" else []
-
     return render(
         request,
         "targets/detail.html",
@@ -253,13 +255,13 @@ async def target_detail(
             "active_view": active,
             "dependencies": dependencies,
             "recent_runs": recent_runs,
-            "api_keys": api_keys,
             "limits": limits_for(user.tier),
             # A newly created key is passed straight into the template by the
             # POST handler below. It is never a query parameter: that would put
             # a live credential into browser history, the Referer header, and
             # any proxy log between here and the user.
             "new_api_key": new_api_key,
+            **await _settings_context(db, target, only_if=active == "settings"),
         },
     )
 
@@ -728,6 +730,164 @@ async def remove_discord_webhook(
     return await _render_settings(request, db, user, target, success="Webhook removed.")
 
 
+# ---------------------------------------------------------------------------
+# Scan rules
+#
+# Pro only, and checked here as well as at scan time. Two checks rather than
+# one because they answer different questions: this one stops a Free account
+# creating a rule, and the one in rules_service stops a rule created while the
+# subscription was live from continuing to apply after it lapses.
+# ---------------------------------------------------------------------------
+
+
+async def _require_rules_access(request, db, user, target):
+    """Returns a response to send instead, or None to carry on."""
+    if not can_use_custom_rules(user.tier):
+        return await _settings_error(
+            request, db, user, target, "Custom scan rules are part of the Pro plan."
+        )
+    return None
+
+
+@router.post("/targets/{target_id}/rules", dependencies=[CsrfProtected])
+async def add_ignore_rule(
+    request: Request,
+    db: DbSession,
+    user: CurrentUser,
+    target_id: int,
+    identifier: Annotated[str, Form()] = "",
+    reason: Annotated[str, Form()] = "",
+):
+    target = await get_target_for_user(db, user.id, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="That project doesn't exist.")
+
+    refusal = await _require_rules_access(request, db, user, target)
+    if refusal is not None:
+        return refusal
+
+    try:
+        form = IgnoreRuleForm(identifier=identifier, reason=reason)
+    except ValidationError as exc:
+        return await _settings_error(request, db, user, target, first_error(exc))
+
+    existing = [r for r in await list_rules(db, target.id) if r.identifier == form.identifier]
+    if existing:
+        return await _settings_error(
+            request, db, user, target, f"{form.identifier} is already ignored on this project."
+        )
+
+    db.add(
+        IgnoreRule(
+            target_id=target.id,
+            identifier=form.identifier,
+            reason=form.reason,
+            created_by_email=user.email,
+        )
+    )
+    target.updated_at = utcnow()
+    await db.commit()
+
+    log.info(
+        "target.ignore_rule_added",
+        target_id=target.id,
+        user_id=user.id,
+        identifier=form.identifier,
+    )
+    return await _render_settings(
+        request,
+        db,
+        user,
+        target,
+        success=(
+            f"{form.identifier} will be filed instead of alerted on. "
+            "It stays on the Filtered tab, and a KEV listing still overrides it."
+        ),
+    )
+
+
+@router.post("/targets/{target_id}/rules/{rule_id}/delete", dependencies=[CsrfProtected])
+async def remove_ignore_rule(
+    request: Request, db: DbSession, user: CurrentUser, target_id: int, rule_id: int
+):
+    target = await get_target_for_user(db, user.id, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="That project doesn't exist.")
+
+    rule = await db.get(IgnoreRule, rule_id)
+    # Ownership through the project, not through the rule id: a rule that
+    # belongs to somebody else's project is a 404 for the same reason their
+    # project is.
+    if rule is None or rule.target_id != target.id:
+        raise HTTPException(status_code=404, detail="No such rule.")
+
+    identifier = rule.identifier
+    await db.delete(rule)
+    target.updated_at = utcnow()
+    await db.commit()
+
+    log.info(
+        "target.ignore_rule_removed", target_id=target.id, user_id=user.id, identifier=identifier
+    )
+    return await _render_settings(
+        request, db, user, target, success=f"{identifier} is no longer ignored."
+    )
+
+
+@router.post("/targets/{target_id}/thresholds", dependencies=[CsrfProtected])
+async def set_thresholds(
+    request: Request,
+    db: DbSession,
+    user: CurrentUser,
+    target_id: int,
+    direct: Annotated[str, Form()] = "",
+    transitive: Annotated[str, Form()] = "",
+):
+    target = await get_target_for_user(db, user.id, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="That project doesn't exist.")
+
+    refusal = await _require_rules_access(request, db, user, target)
+    if refusal is not None:
+        return refusal
+
+    try:
+        form = ThresholdForm(direct=direct, transitive=transitive)
+    except ValidationError as exc:
+        return await _settings_error(request, db, user, target, first_error(exc))
+
+    target.direct_threshold = Severity(form.direct) if form.direct else None
+    target.transitive_threshold = Severity(form.transitive) if form.transitive else None
+    target.updated_at = utcnow()
+    await db.commit()
+
+    log.info("target.thresholds_set", target_id=target.id, user_id=user.id)
+    return await _render_settings(
+        request, db, user, target, success="Severity thresholds saved. They apply on the next scan."
+    )
+
+
+async def _settings_context(db, target, *, only_if: bool = True) -> dict:
+    """Everything the Settings tab needs.
+
+    One function rather than a dict built in two places. They drifted once
+    already: the GET route grew its own context, so a rule added through the
+    interface was invisible until the next POST re-rendered the page from the
+    other builder.
+
+    `only_if` keeps the GET route from running three queries to render a tab
+    nobody asked for.
+    """
+    if not only_if:
+        return {"api_keys": [], "ignore_rules": [], "policy": parse_policy(None)}
+    return {
+        "api_keys": await keys_for_target(db, target.id),
+        "ignore_rules": await list_rules(db, target.id),
+        "policy": parse_policy(target.policy_file),
+    }
+
+
+
 async def _render_settings(
     request: Request,
     db: DbSession,
@@ -756,7 +916,7 @@ async def _render_settings(
             "active_view": "settings",
             "dependencies": [],
             "recent_runs": [],
-            "api_keys": await keys_for_target(db, target.id),
+            **await _settings_context(db, target),
             "limits": limits_for(user.tier),
             "new_api_key": new_api_key,
             "error": error,

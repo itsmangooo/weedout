@@ -30,6 +30,11 @@ class PlanLimits:
     #: How deep into the dependency tree a scan looks. None is all the way.
     #: 1 means direct dependencies and theirs, and no further.
     scan_depth: int | None
+    #: Whether per-project severity overrides, ignore rules and `.weedout.yml`
+    #: apply. Checked when a scan runs, not only when a rule is saved, so a
+    #: lapsed subscription stops honouring them without deleting anybody's
+    #: configuration.
+    custom_rules: bool
     features: tuple[str, ...]
 
     @property
@@ -58,6 +63,7 @@ PLANS: dict[Tier, PlanLimits] = {
         webhook_alerts=False,
         history_days=30,
         scan_depth=1,
+        custom_rules=False,
         features=(
             "1 project",
             "Checked once daily",
@@ -76,10 +82,12 @@ PLANS: dict[Tier, PlanLimits] = {
         webhook_alerts=True,
         history_days=365,
         scan_depth=None,
+        custom_rules=True,
         features=(
             "Unlimited projects",
             "Checked every 4 hours",
             "The whole dependency tree, however deep",
+            "Custom scan rules and .weedout.yml",
             "Email alerts",
             "Discord and custom webhooks",
             "Full alert history",
@@ -119,6 +127,10 @@ def target_limit_message(tier: Tier | str) -> str:
         f"The {limits.display_name} plan tracks {limits.max_targets} {noun}. "
         "Upgrade to Pro for unlimited projects."
     )
+
+
+def can_use_custom_rules(tier: Tier | str) -> bool:
+    return limits_for(tier).custom_rules
 
 
 def scan_depth_for(tier: Tier | str) -> int | None:

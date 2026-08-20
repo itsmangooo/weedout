@@ -44,7 +44,7 @@ from app.core.types import (
 )
 from app.core.versions import first_fixed_version, version_matches
 
-__all__ = ["DEFAULT_POLICY", "MatchPolicy", "triage", "triage_all"]
+__all__ = ["DEFAULT_POLICY", "MatchPolicy", "normalise_ids", "triage", "triage_all"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,13 +81,43 @@ class MatchPolicy:
     #: look better.
     max_depth: int | None = None
 
+    #: CVE and advisory ids this project has chosen not to hear about.
+    #:
+    #: Compared case-insensitively; `normalise_ids` is what callers should use
+    #: to build it. Matched against every alias an advisory carries, so
+    #: ignoring CVE-2021-23337 also silences the GHSA that aliases it -- a rule
+    #: that only worked if you happened to name the same identifier the feed
+    #: did would be a rule that quietly stopped working.
+    ignored_ids: frozenset[str] = frozenset()
+
     def within_depth(self, dependency: Dependency) -> bool:
         return self.max_depth is None or dependency.depth <= self.max_depth
+
+    def ignores(self, vulnerability: Vulnerability) -> bool:
+        if not self.ignored_ids:
+            return False
+        candidates = {vulnerability.id, *vulnerability.aliases, *vulnerability.cve_ids}
+        return any(candidate.upper() in self.ignored_ids for candidate in candidates)
 
     def threshold_for(self, reachability: Reachability) -> Severity:
         if reachability is Reachability.RUNTIME_DIRECT:
             return self.direct_threshold
         return self.transitive_threshold
+
+
+def normalise_ids(ids: object) -> frozenset[str]:
+    """Upper-case, de-duplicated, whitespace-free advisory identifiers.
+
+    Callers hand this whatever came out of a database column or a policy file,
+    so it tolerates None and non-strings rather than making every caller guard.
+    """
+    if not ids:
+        return frozenset()
+    cleaned = set()
+    for value in ids:  # type: ignore[union-attr]
+        if isinstance(value, str) and value.strip():
+            cleaned.add(value.strip().upper())
+    return frozenset(cleaned)
 
 
 DEFAULT_POLICY = MatchPolicy()
@@ -138,11 +168,22 @@ def triage(
         return replace(base, suppression_reason=SuppressionReason.WITHDRAWN)
 
     if is_kev and policy.always_alert_on_kev:
+        # Deliberately before the ignore check. An ignore rule is a judgement
+        # about a risk, made at a moment in time; a KEV listing is new
+        # information about that same risk, so the judgement is out of date
+        # rather than binding. Flagged, not silent -- the person who wrote the
+        # rule needs to see that it was set aside and why.
         return replace(
             base,
             verdict=Verdict.ACTIONABLE,
             actionable_reason=ActionableReason.EXPLOITED_IN_WILD,
+            ignore_overridden=policy.ignores(vulnerability),
         )
+
+    if policy.ignores(vulnerability):
+        # Filed, not deleted. It stays on the Filtered tab with the rule named
+        # as the reason, so "what am I not being told about?" has an answer.
+        return replace(base, suppression_reason=SuppressionReason.IGNORED_BY_RULE)
 
     reachability = dependency.reachability
 

@@ -8,6 +8,7 @@ field arrives from a form, from fetch(), or from a future JSON API.
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
 
 from pydantic import (
@@ -288,6 +289,62 @@ class ComposeEmailForm(BaseModel):
         if self.audience is AudienceKind.ONE and "@" not in self.audience_email:
             raise ValueError("Give the address to send to.")
         return self
+
+
+class IgnoreRuleForm(BaseModel):
+    """Silencing one advisory on one project.
+
+    The reason is required, and the refusal when it is missing is the feature.
+    An ignore with no reason is unreviewable six months later, and the person
+    adding it is the only one who can supply it.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    identifier: Annotated[str, Field(max_length=64)]
+    reason: Annotated[str, Field(max_length=1000)]
+
+    @field_validator("identifier")
+    @classmethod
+    def _looks_like_an_advisory_id(cls, value: str) -> str:
+        cleaned = value.strip().upper()
+        if not cleaned:
+            raise ValueError("Which advisory? Paste a CVE or GHSA id.")
+        if not re.fullmatch(r"[A-Z0-9][A-Z0-9._-]{2,63}", cleaned):
+            raise ValueError(
+                "That does not look like an advisory id. Use something like "
+                "CVE-2021-23337 or GHSA-jf85-cpcp-j695."
+            )
+        return cleaned
+
+    @field_validator("reason")
+    @classmethod
+    def _require_a_real_reason(cls, value: str) -> str:
+        if len(value.strip()) < 10:
+            raise ValueError(
+                "Say why in a sentence. Whoever reads this in six months will "
+                "need it, and that might be you."
+            )
+        return value.strip()
+
+
+class ThresholdForm(BaseModel):
+    """A project's own severity floors. Blank means "use the default"."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    direct: str = ""
+    transitive: str = ""
+
+    @field_validator("direct", "transitive")
+    @classmethod
+    def _known_level(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if cleaned in ("", "default"):
+            return ""
+        if cleaned not in ("low", "medium", "high", "critical"):
+            raise ValueError("Choose low, medium, high or critical.")
+        return cleaned
 
 
 class ContactForm(BaseModel):

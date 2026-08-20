@@ -37,7 +37,8 @@ from app.services.mirror_service import (
     mirror_is_populated,
     mirror_is_stale,
 )
-from app.tiers import scan_depth_for, scan_interval_for
+from app.services.rules_service import build_policy, record_overrides
+from app.tiers import scan_interval_for
 
 log = get_logger(__name__)
 
@@ -96,13 +97,12 @@ async def scan_target(
     owner = await db.get(User, target.user_id)
     tier = owner.tier if owner else "free"
 
-    # The plan decides how deep this scan looks. Derived here, from the owner
-    # loaded above, rather than stored on the project -- a subscription that
-    # lapses shortens the next scan without anybody editing a row, and renewal
-    # deepens it again on its own.
-    depth = scan_depth_for(tier)
-    if policy.max_depth is None and depth is not None:
-        policy = replace(policy, max_depth=depth)
+    # Depth, thresholds and ignore rules, assembled from the plan, the
+    # project's settings and any .weedout.yml the pipeline pushed. Derived here
+    # rather than stored, so a lapsed subscription stops honouring Pro rules on
+    # the next scan without anybody editing a row.
+    effective = await build_policy(db, target, owner, base=policy)
+    policy = effective.policy
 
     try:
         result = await _run_pipeline(db, target, policy)
@@ -147,6 +147,25 @@ async def scan_target(
     target.dependency_count = len(dependencies)
     target.unreached_by_depth = scan_result.unreached_by_depth
     target.last_scanned_at = utcnow()
+    # A rule that did not apply is reported, not swallowed. The risk of this
+    # whole feature is somebody believing a rule is in force when it is not.
+    if effective.notes:
+        scan_result = replace(scan_result, errors=(*scan_result.errors, *effective.notes))
+
+    # A rule a KEV listing set aside gets marked, so the settings page can show
+    # it stopped applying rather than leaving it looking effective.
+    overridden = {
+        decision.vulnerability.id
+        for decision in scan_result.actionable
+        if decision.ignore_overridden
+    } | {
+        cve
+        for decision in scan_result.actionable
+        if decision.ignore_overridden
+        for cve in decision.vulnerability.cve_ids
+    }
+    await record_overrides(db, target.id, overridden)
+
     target.last_scan_error = "; ".join(scan_result.errors) if scan_result.errors else None
     _schedule_next_scan(target, tier)
 
@@ -313,6 +332,7 @@ async def _reconcile_matches(
                 reachability=decision.dependency.reachability,
                 depth=decision.dependency.depth,
                 via=list(decision.dependency.via),
+                ignore_overridden=decision.ignore_overridden,
                 verdict=decision.verdict,
                 severity=decision.severity,
                 is_kev=decision.kev,
@@ -345,6 +365,7 @@ async def _reconcile_matches(
         # identity, so the route to it is refreshed alongside everything else.
         existing.depth = decision.dependency.depth
         existing.via = list(decision.dependency.via)
+        existing.ignore_overridden = decision.ignore_overridden
 
         if existing.status is AlertStatus.RESOLVED:
             # It came back (a downgrade, or a manifest revert).

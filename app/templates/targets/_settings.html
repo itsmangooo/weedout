@@ -176,6 +176,163 @@
 </div>
 
 {# ---------------------------------------------------------------------------
+   Scan rules
+
+   Pro only. The card shows the upgrade path rather than a disabled form, for
+   the same reason the webhook card does: a control that looks usable and
+   refuses on submit wastes somebody's time to make a sales point.
+   --------------------------------------------------------------------------- #}
+<div class="card">
+  <h2 class="panel__title">Scan rules</h2>
+
+  {% if not limits.custom_rules %}
+    <p class="panel__intro u-mb-0">
+      Severity thresholds, ignore rules and <code>.weedout.yml</code> are part
+      of <a href="/pricing">Pro</a>. This project uses the default rules:
+      anything critical that ships, anything high you declared yourself, and
+      anything being exploited in the wild.
+    </p>
+
+  {% else %}
+    <p class="panel__intro">
+      What counts as worth interrupting you for, on this project only.
+    </p>
+
+    <form method="post" action="/targets/{{ target.id }}/thresholds">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field-row">
+        <div class="field">
+          <label for="direct">Direct dependencies</label>
+          <select class="select" id="direct" name="direct">
+            <option value="">Default (high)</option>
+            {% for level in ['low', 'medium', 'high', 'critical'] %}
+              <option value="{{ level }}"
+                      {% if target.direct_threshold and target.direct_threshold.value == level %}selected{% endif %}>
+                {{ level|capitalize }} and above
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="transitive">Deeper in the tree</label>
+          <select class="select" id="transitive" name="transitive">
+            <option value="">Default (critical)</option>
+            {% for level in ['low', 'medium', 'high', 'critical'] %}
+              <option value="{{ level }}"
+                      {% if target.transitive_threshold and target.transitive_threshold.value == level %}selected{% endif %}>
+                {{ level|capitalize }} and above
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p class="field__hint">
+        Exploitation always wins. A finding on CISA's known-exploited list
+        alerts whatever these say.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn--primary" type="submit">Save thresholds</button>
+      </div>
+    </form>
+
+    <hr class="rule-divider">
+
+    <h3 class="panel__subtitle">Ignored advisories</h3>
+
+    {% if ignore_rules %}
+      <ul class="rules">
+        {% for rule in ignore_rules %}
+          <li class="rules__item {% if rule.overridden_at %}rules__item--overridden{% endif %}">
+            <div>
+              <span class="rules__id mono">{{ rule.identifier }}</span>
+              {% if rule.overridden_at %}
+                {# The rule stopped applying. Somebody who wrote "ignore this,
+                   it is disputed" needs to see it is now being exploited,
+                   rather than assume the rule still holds. #}
+                <span class="pill pill--exploited pill--sm">Overridden</span>
+              {% endif %}
+              <p class="rules__reason">{{ rule.reason }}</p>
+              <p class="rules__meta">
+                {{ rule.created_by_email or 'unknown' }},
+                {{ rule.created_at|relative_time }}
+                {% if rule.overridden_at %}
+                  · raised anyway {{ rule.overridden_at|relative_time }}, because
+                  CISA now lists it as exploited
+                {% endif %}
+              </p>
+            </div>
+            <form method="post" action="/targets/{{ target.id }}/rules/{{ rule.id }}/delete">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="btn btn--ghost btn--sm" type="submit">Remove</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="field__hint">Nothing is ignored on this project.</p>
+    {% endif %}
+
+    <form method="post" action="/targets/{{ target.id }}/rules" class="u-mt-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field-row">
+        <div class="field">
+          <label for="identifier">Advisory</label>
+          <input class="input mono" id="identifier" name="identifier" type="text"
+                 placeholder="CVE-2021-23337" maxlength="64" required>
+        </div>
+        <div class="field field--grow">
+          <label for="reason">Why</label>
+          <input class="input" id="reason" name="reason" type="text" required
+                 maxlength="1000"
+                 placeholder="Dev-only in our build; not reachable from what we ship.">
+        </div>
+      </div>
+      <p class="field__hint">
+        Ignored findings stay on the Filtered tab with this reason attached —
+        nothing is hidden. Ignoring a CVE also covers the GHSA that aliases it.
+      </p>
+      <div class="btn-row">
+        <button class="btn" type="submit">Ignore this advisory</button>
+      </div>
+    </form>
+
+    <hr class="rule-divider">
+
+    <h3 class="panel__subtitle">Policy file</h3>
+    {% if target.policy_file %}
+      <dl class="datalist datalist--tight">
+        <dt>Pushed</dt>
+        <dd>{{ target.policy_file_updated_at|relative_time }}</dd>
+        <dt>Ignores</dt>
+        <dd>
+          {% if policy.ignores %}
+            {{ policy.ignores|length }} from the file
+          {% else %}
+            <span class="dim">None</span>
+          {% endif %}
+        </dd>
+      </dl>
+      {% if target.policy_file_error %}
+        <p class="notice notice--error">
+          {{ target.policy_file_error }}
+          The file was ignored, so every rule in it stopped applying — which can
+          only mean more alerts, never fewer.
+        </p>
+      {% endif %}
+      {% for warning in policy.warnings %}
+        <p class="notice notice--info">{{ warning }}</p>
+      {% endfor %}
+    {% else %}
+      <p class="field__hint u-mb-0">
+        Add a <code>.weedout.yml</code> to the repository and the CLI sends it
+        with each scan. It takes precedence over what is set here, so the file
+        that ran in the pipeline is the file that applied.
+      </p>
+    {% endif %}
+  {% endif %}
+</div>
+
+{# ---------------------------------------------------------------------------
    Discord
 
    Per project, because a webhook URL addresses one channel and somebody

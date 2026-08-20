@@ -171,6 +171,8 @@ class SuppressionReason(StrEnum):
     DEV_ONLY_DEPENDENCY = "dev_only_dependency"
     TRANSITIVE_NOT_DIRECT = "transitive_not_direct"
     BELOW_SEVERITY_THRESHOLD = "below_severity_threshold"
+    #: A rule this project set, not a judgement Weedout made.
+    IGNORED_BY_RULE = "ignored_by_rule"
 
     @property
     def label(self) -> str:
@@ -179,6 +181,7 @@ class SuppressionReason(StrEnum):
             "dev_only_dependency": "Dev-only dependency — never ships to production",
             "transitive_not_direct": "Transitive dependency, not exploited in the wild",
             "below_severity_threshold": "Below severity threshold and not exploited",
+            "ignored_by_rule": "Ignored by a rule on this project",
         }[self.value]
 
 
@@ -421,6 +424,15 @@ class MatchDecision:
     fixed_version: str | None = None
     actionable_reason: ActionableReason | None = None
     suppression_reason: SuppressionReason | None = None
+
+    #: True when a rule said to ignore this and it was surfaced anyway.
+    #:
+    #: An ignore rule is a judgement about a risk, made at a moment in time.
+    #: Confirmed exploitation is new information about that risk, so the
+    #: judgement is treated as out of date rather than as permission. Flagged
+    #: rather than silently overridden, so the person who wrote the rule can see
+    #: what happened to it.
+    ignore_overridden: bool = False
 
     @property
     def is_actionable(self) -> bool:
