@@ -22,6 +22,12 @@
 
   var root = document.documentElement;
 
+  /* Marketing pages have one deliberate look. The server has already set
+     data-theme on them; applying a saved preference here would restyle a page
+     the visitor is about to send to somebody else, and would mean the landing
+     page renders differently depending on who is looking at it. */
+  if (root.getAttribute("data-surface") === "public") return;
+
   function saved(key) {
     try {
       return localStorage.getItem(key);

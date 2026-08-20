@@ -166,6 +166,31 @@ templates.env.globals["limits_for"] = limits_for
 templates.env.globals["PLANS"] = PLANS
 
 
+#: Routes that are marketing rather than product.
+#:
+#: These render one deliberate look for everybody. A signed-in visitor's theme
+#: is a preference about the tool they work in; it is not a request to restyle
+#: the page they send to a colleague, and a landing page that changes character
+#: depending on who is looking at it cannot be designed.
+PUBLIC_SURFACES: frozenset[str] = frozenset({"/", "/pricing", "/cli"})
+
+
+def is_public_surface(path: str) -> bool:
+    """Is this a marketing page rather than part of the application?
+
+    `/docs` is deliberately **not** on this list, though it is equally public.
+    Two reasons: a signed-in reader gets the full application chrome there,
+    including the theme switcher, so pinning the palette would leave a visible
+    control that does nothing; and long-form reading is precisely where
+    somebody's light-mode preference is worth honouring. Docs are a reference
+    people sit with, not a page they are being sold on.
+
+    Matched exactly, so `/pricing` is public and a later `/pricing-details`
+    would not be silently swept in with it.
+    """
+    return path in PUBLIC_SURFACES or path.rstrip("/") in PUBLIC_SURFACES
+
+
 def render(
     request: Request,
     template_name: str,
@@ -184,6 +209,9 @@ def render(
 
     merged: dict[str, Any] = {
         "request": request,
+        # Drives `data-surface="public"` on <html>, which theme.js reads before
+        # the first paint.
+        "public_surface": is_public_surface(request.url.path),
         # The detached snapshot, never the live ORM instance — see
         # `app.deps.TemplateUser` for why this matters on error pages.
         "user": getattr(request.state, "template_user", None),

@@ -398,3 +398,58 @@ class TestMarketingPagesGetTheFullWindow:
             "these add a second search entry point; the sidebar palette is the "
             f"only one: {offenders}"
         )
+
+
+class TestTheParticleFieldActuallyMoves:
+    """The hero particles once drifted at 0.03 to 0.08 screens per second.
+
+    That is one to three pixels a second: motion in the arithmetic and
+    stillness to anybody looking at it, which is indistinguishable from a
+    broken animation and was reported as one. The constants are parsed out of
+    the shader here so a future tidy-up cannot quietly put it back.
+    """
+
+    SHADER = Path(__file__).resolve().parents[1] / "app" / "static" / "js" / "cli-hero.js"
+
+    def _speed_range(self) -> tuple[float, float]:
+        source = self.SHADER.read_text(encoding="utf-8")
+        match = re.search(r"float speed = ([0-9.]+) \+ a_seed\.y \* ([0-9.]+);", source)
+        assert match, "the drift speed is no longer where this test looks for it"
+        base, spread = float(match.group(1)), float(match.group(2))
+        return base, base + spread
+
+    def test_a_particle_crosses_the_hero_in_a_time_somebody_would_notice(self):
+        slowest, fastest = self._speed_range()
+        # Seconds to travel one screen height.
+        longest, shortest = 1 / slowest, 1 / fastest
+        assert longest <= 15, (
+            f"the slowest particle takes {longest:.0f}s to cross; that reads as static"
+        )
+        assert shortest >= 3, (
+            f"the fastest takes {shortest:.0f}s; that is fast enough to pull the eye "
+            "off the headline"
+        )
+
+    def test_the_field_drifts_upward_and_wraps(self):
+        """`fract` is what stops the field emptying out of the top."""
+        source = self.SHADER.read_text(encoding="utf-8")
+        assert "fract(a_seed.y + u_time * speed)" in source
+
+    def test_the_held_frame_is_repainted_after_a_resize(self):
+        """Assigning canvas.width clears the WebGL drawing buffer.
+
+        The animated path repaints on its next frame; a held frame has no next
+        frame, so without this a reduced-motion visitor lost the entire field
+        the first time anything resized -- the sidebar collapsing, the window
+        changing, or layout settling late.
+        """
+        source = self.SHADER.read_text(encoding="utf-8")
+        resize = source[source.index("function resize()") : source.index("applyColours();")]
+        assert "if (reduceMotion) paint(0);" in resize
+
+    def test_paint_can_be_stepped_without_the_render_loop(self):
+        """A backgrounded tab never fires requestAnimationFrame, which makes
+        "does this actually move?" unanswerable from automation unless the
+        draw call is reachable on its own."""
+        source = self.SHADER.read_text(encoding="utf-8")
+        assert "canvas.paintAt = paint;" in source

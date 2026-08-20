@@ -158,6 +158,8 @@
     var quiet = readToken("--text-dim", "#8f8fa4");
     gl.uniform3f(uAccent, accent[0], accent[1], accent[2]);
     gl.uniform3f(uQuiet, quiet[0], quiet[1], quiet[2]);
+    // A held frame will not pick the new colours up on its own.
+    if (reduceMotion && typeof paint === "function") paint(0);
   }
 
   gl.enable(gl.BLEND);
@@ -175,6 +177,12 @@
     canvas.height = height;
     gl.viewport(0, 0, width, height);
     gl.uniform2f(uResolution, width, height);
+
+    // Setting canvas.width clears the drawing buffer. The animated path
+    // repaints on its next frame anyway; the held frame has no next frame, so
+    // without this a reduced-motion visitor gets a blank canvas the first time
+    // anything resizes.
+    if (reduceMotion) paint(0);
   }
 
   applyColours();
@@ -203,22 +211,32 @@
   var start = performance.now();
   var running = true;
 
+  /* Draw the field at one moment in time.
+     Exported onto the canvas element below so it can be stepped without the
+     render loop -- a backgrounded tab never fires requestAnimationFrame, which
+     makes "does this actually move?" otherwise unanswerable from automation. */
+  function paint(seconds) {
+    if (canvas.width === 0 || canvas.height === 0) return false;
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform1f(uTime, seconds);
+    gl.drawArrays(gl.POINTS, 0, COUNT);
+    return true;
+  }
+
   function frame(now) {
     if (!running) return;
-    if (canvas.width === 0 || canvas.height === 0) {
+    if (!paint((now - start) / 1000)) {
       requestAnimationFrame(frame);
       return;
     }
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.uniform1f(uTime, (now - start) / 1000);
-    gl.drawArrays(gl.POINTS, 0, COUNT);
     requestAnimationFrame(frame);
   }
 
+  canvas.paintAt = paint;
+
   if (reduceMotion) {
     // One frame, held. The composition is still there; nothing moves.
-    gl.uniform1f(uTime, 0);
-    gl.drawArrays(gl.POINTS, 0, COUNT);
+    paint(0);
   } else {
     requestAnimationFrame(frame);
   }
