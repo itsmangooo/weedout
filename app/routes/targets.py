@@ -887,7 +887,6 @@ async def _settings_context(db, target, *, only_if: bool = True) -> dict:
     }
 
 
-
 async def _render_settings(
     request: Request,
     db: DbSession,

@@ -455,3 +455,32 @@ class TestLandingContent:
         response = await auth_client.get("/")
         assert response.status_code == 303
         assert response.headers["location"] == "/dashboard"
+
+
+class TestPricingCopyMatchesTheProduct:
+    """The pricing footnote went stale once and nothing caught it.
+
+    It said Pro "does not show you a different set of vulnerabilities" while
+    sitting directly under a column advertising deeper dependency scanning.
+    Pro reaches packages Free never looks at, so that was not a shade of
+    emphasis -- it was the opposite of what the pipeline does.
+    """
+
+    async def test_it_does_not_claim_the_plans_see_the_same_things(self, client):
+        for path in ("/", "/pricing"):
+            body = (await client.get(path)).text
+            assert "does not show you a different set of vulnerabilities" not in body
+            assert "same filtering rules" not in body
+
+    async def test_the_pro_column_and_the_footnote_agree(self, client):
+        """Both are rendered from tiers.py, so if the table says Pro goes
+        deeper, the prose beside it has to as well."""
+        from app.core.types import Tier
+        from app.tiers import PLANS
+
+        body = (await client.get("/pricing")).text
+        assert "The whole dependency tree, however deep" in body
+        assert "looks further down the" in body
+        # And the claim is still true of the plan table it describes.
+        assert PLANS[Tier.PRO].scan_depth is None
+        assert PLANS[Tier.FREE].scan_depth == 1
