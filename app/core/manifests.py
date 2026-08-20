@@ -392,6 +392,9 @@ def _parse_lock_v2(result: ParsedManifest, packages: dict[str, object]) -> None:
         if isinstance(root.get("name"), str) and not result.project_name:
             result.project_name = root["name"]  # type: ignore[index]
 
+    by_name = _index_by_name(packages)
+    routes = _walk_npm_graph(root, by_name, direct)
+
     for path, entry in packages.items():
         if not path or not isinstance(entry, dict):
             continue
@@ -409,6 +412,16 @@ def _parse_lock_v2(result: ParsedManifest, packages: dict[str, object]) -> None:
         else:
             reachability = Reachability.RUNTIME_TRANSITIVE
 
+        # A package reachable by no route from the root is one npm left in the
+        # tree that nothing currently asks for. Treated as depth 1 rather than
+        # dropped: it is installed, so it is on disk and worth scanning, but
+        # calling it direct would be a lie.
+        # routes[name] ends with the package itself; via is the path to it.
+        via = routes[name][:-1] if name in routes else ()
+        depth = len(via)
+        if name not in routes:
+            depth = 0 if name in direct else 1
+
         result.dependencies.append(
             Dependency(
                 ecosystem=Ecosystem.NPM,
@@ -417,14 +430,92 @@ def _parse_lock_v2(result: ParsedManifest, packages: dict[str, object]) -> None:
                 version_spec=version,
                 reachability=reachability,
                 version_exact=True,
+                depth=depth,
+                via=via,
             )
         )
 
 
+def _index_by_name(packages: dict[str, object]) -> dict[str, dict]:
+    """Package entries keyed by name, preferring the hoisted copy.
+
+    npm hoists: the same package can appear at `node_modules/x` and again,
+    nested, at `node_modules/a/node_modules/x` when versions conflict. The
+    shallowest path is the one most of the tree actually resolves to, so it is
+    the one whose dependency list describes the common case.
+    """
+    best: dict[str, tuple[int, dict]] = {}
+    for path, entry in packages.items():
+        if not path or not isinstance(entry, dict) or entry.get("link") is True:
+            continue
+        name = entry.get("name") if isinstance(entry.get("name"), str) else _lock_package_name(path)
+        if not name:
+            continue
+        nesting = path.count("node_modules/")
+        if name not in best or nesting < best[name][0]:
+            best[name] = (nesting, entry)
+    return {name: entry for name, (_, entry) in best.items()}
+
+
+#: How far the walk will go before giving up. A resolved npm tree is rarely
+#: deeper than about twenty; this is a guard against a cycle the visited set
+#: somehow fails to catch, not a product limit. The *product* limit is
+#: MatchPolicy.max_depth, applied later and per tier.
+_MAX_WALK_DEPTH = 64
+
+
+def _walk_npm_graph(
+    root: object, by_name: dict[str, dict], direct: set[str]
+) -> dict[str, tuple[str, ...]]:
+    """Shortest route from the project to every reachable package.
+
+    Breadth-first, so the first route found to a package is the shortest one --
+    which is the honest answer to "how did this get in?" when several things
+    depend on it. Returns chains that include the package itself, so
+    `("express", "qs")` means the project depends on express which depends on
+    qs.
+
+    A package cannot be reached twice: the visited set is what makes a
+    dependency cycle terminate rather than recurse until the stack gives out.
+    """
+    from collections import deque
+
+    routes: dict[str, tuple[str, ...]] = {}
+    queue: deque[tuple[str, tuple[str, ...]]] = deque()
+
+    for name in sorted(direct):
+        routes[name] = (name,)
+        queue.append((name, (name,)))
+
+    while queue:
+        name, chain = queue.popleft()
+        if len(chain) >= _MAX_WALK_DEPTH:
+            continue
+        entry = by_name.get(name)
+        if not entry:
+            continue
+        for section in ("dependencies", "optionalDependencies"):
+            block = entry.get(section)
+            if not isinstance(block, dict):
+                continue
+            for child in block:
+                if not isinstance(child, str) or child in routes:
+                    continue
+                routes[child] = (*chain, child)
+                queue.append((child, (*chain, child)))
+
+    return routes
+
+
 def _parse_lock_v1(
-    result: ParsedManifest, tree: dict[str, object], direct_names: set[str], depth: int = 0
+    result: ParsedManifest,
+    tree: dict[str, object],
+    direct_names: set[str],
+    depth: int = 0,
+    via: tuple[str, ...] = (),
 ) -> None:
-    if depth > 32:  # pathological nesting guard
+    """A v1 lockfile nests, so the recursion *is* the dependency chain."""
+    if depth > _MAX_WALK_DEPTH:  # pathological nesting guard
         return
     for name, entry in tree.items():
         if not isinstance(name, str) or not isinstance(entry, dict):
@@ -445,11 +536,13 @@ def _parse_lock_v1(
                     version_spec=version,
                     reachability=reachability,
                     version_exact=True,
+                    depth=depth,
+                    via=via,
                 )
             )
         nested = entry.get("dependencies")
         if isinstance(nested, dict):
-            _parse_lock_v1(result, nested, direct_names, depth + 1)
+            _parse_lock_v1(result, nested, direct_names, depth + 1, (*via, name))
 
 
 # ---------------------------------------------------------------------------
@@ -682,6 +775,13 @@ def _parse_go_mod(content: str) -> ParsedManifest:
                     Reachability.RUNTIME_TRANSITIVE if indirect else Reachability.RUNTIME_DIRECT
                 ),
                 version_exact=True,
+                # go.mod flattens: `// indirect` says a module is not required
+                # directly, but not by what or how far away. Depth 1 is the
+                # honest floor -- it is at least one hop -- and go.sum does not
+                # help, since it lists hashes rather than edges. A deeper answer
+                # needs `go mod graph`, which means running the toolchain
+                # against the source rather than reading a file.
+                depth=1 if indirect else 0,
             )
         )
 

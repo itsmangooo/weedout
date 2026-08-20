@@ -7080,3 +7080,28 @@ a.metric:hover {
 }
 
 .sendlog__error { color: var(--exploited); }
+
+/* ---- The dependency chain on a finding ---------------------------------- */
+
+/* Only rendered for a transitive finding. The answer to one of those is
+   usually to upgrade whatever asked for the package rather than the package
+   itself, so the route is part of the finding rather than a detail behind it. */
+.finding__via {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+}
+
+.finding__via-label {
+  color: var(--text-dim);
+}
+
+/* The chain can be long. It wraps rather than widening the row, and breaks
+   between package names rather than inside one. */
+.finding__chain {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}

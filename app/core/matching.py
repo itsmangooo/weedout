@@ -70,6 +70,20 @@ class MatchPolicy:
     #: Whether non-KEV findings in dev-only dependencies can alert at all.
     alert_on_dev_dependencies: bool = False
 
+    #: How far down the dependency tree to look. `None` means all the way.
+    #:
+    #: 0 would be direct dependencies only; 1 adds their dependencies. This is
+    #: a *product* limit, set from the owner's plan, and it is applied by
+    #: excluding packages before they are looked up rather than by suppressing
+    #: what it finds. The difference matters: a suppressed finding is one we
+    #: examined and set aside, and reporting something as filtered when it was
+    #: never checked would be a lie in the direction that makes the product
+    #: look better.
+    max_depth: int | None = None
+
+    def within_depth(self, dependency: Dependency) -> bool:
+        return self.max_depth is None or dependency.depth <= self.max_depth
+
     def threshold_for(self, reachability: Reachability) -> Severity:
         if reachability is Reachability.RUNTIME_DIRECT:
             return self.direct_threshold
@@ -173,8 +187,17 @@ def triage_all(
     """
     actionable: list[MatchDecision] = []
     suppressed: list[MatchDecision] = []
+    unreached = 0
 
     for dependency in dependencies:
+        # Out of the plan's reach. Skipped before the lookup rather than
+        # suppressed after it: suppressed means "we looked and set it aside",
+        # and counting an unexamined package as filtered would overstate the
+        # work in the direction that flatters the product.
+        if not policy.within_depth(dependency):
+            unreached += 1
+            continue
+
         for vulnerability in vulnerabilities_by_dependency.get(dependency.key, []):
             decision = triage(dependency, vulnerability, kev_index, policy)
             if decision.verdict is Verdict.ACTIONABLE:
@@ -185,7 +208,9 @@ def triage_all(
     return ScanResult(
         actionable=tuple(sorted(actionable, key=_urgency_key)),
         suppressed=tuple(sorted(suppressed, key=_urgency_key)),
-        dependencies_scanned=len(dependencies),
+        # What was actually examined, not what was parsed.
+        dependencies_scanned=len(dependencies) - unreached,
+        unreached_by_depth=unreached,
         errors=errors,
     )
 

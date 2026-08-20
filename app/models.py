@@ -430,6 +430,17 @@ class TrackedTarget(TimestampMixin, Base):
     next_scan_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True, index=True)
     last_scan_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    #: How many packages the last scan did not reach, because the owner's plan
+    #: stops at a given depth.
+    #:
+    #: Shown rather than kept quiet. A project whose deepest dependencies were
+    #: never examined must not read as "nothing found" -- that is the same
+    #: distinction the CLI draws between exit 1 and exit 2, and the number is
+    #: also the only honest way to show what a deeper plan would buy.
+    unreached_by_depth: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+
     #: Which shape the destination expects: a Discord embed, or plain JSON to
     #: somebody's own endpoint. Stored rather than sniffed from the URL, because
     #: guessing from a hostname is how a custom endpoint that happens to be
@@ -531,6 +542,14 @@ class DependencyRecord(Base):
     version_exact: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+
+    #: Distance from the project. 0 is declared in the manifest.
+    depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+    #: The path from the project to this package, excluding it. Stored so a
+    #: finding can say how the package got in, which is the difference between
+    #: "upgrade this" and "upgrade the thing that asked for it".
+    via: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
 
     target: Mapped[TrackedTarget] = relationship(back_populates="dependencies")
 
@@ -764,6 +783,12 @@ class CVEMatch(TimestampMixin, Base):
         enum_column(Reachability, "reachability"), nullable=False
     )
 
+    #: Denormalised alongside the package name and for the same reason: a
+    #: finding has to keep saying how the package got into the tree even after
+    #: the dependency rows are replaced by the next parse.
+    depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    via: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
+
     verdict: Mapped[Verdict] = mapped_column(
         enum_column(Verdict, "verdict"), nullable=False, index=True
     )
@@ -804,6 +829,15 @@ class CVEMatch(TimestampMixin, Base):
     alerts: Mapped[list[Alert]] = relationship(
         back_populates="match", cascade="all, delete-orphan", passive_deletes=True
     )
+
+    @property
+    def chain_label(self) -> str:
+        """`express -> body-parser -> qs`, or the package alone if direct."""
+        return " → ".join([*(self.via or []), self.package_name])
+
+    @property
+    def is_direct(self) -> bool:
+        return not self.via
 
     def __repr__(self) -> str:
         return f"<CVEMatch {self.package_name}@{self.package_version} {self.vulnerability_id}>"

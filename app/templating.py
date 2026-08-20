@@ -27,7 +27,7 @@ from app.core.explain import (
 from app.core.types import Severity
 from app.core.webhooks import describe_url
 from app.deps import CSRF_COOKIE_NAME, issue_csrf_token
-from app.tiers import PLANS, limits_for
+from app.tiers import PLANS, depth_label, limits_for
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -163,6 +163,7 @@ templates.env.globals["fix_sentence"] = fix_sentence
 templates.env.globals["fix_command"] = fix_command
 templates.env.globals["confidence_note"] = confidence_note
 templates.env.globals["limits_for"] = limits_for
+templates.env.globals["depth_label"] = depth_label
 templates.env.globals["PLANS"] = PLANS
 
 

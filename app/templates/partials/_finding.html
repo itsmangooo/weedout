@@ -35,6 +35,17 @@
       <span class="finding__cve">{{ cve }}</span>
     </span>
 
+    {# How the package got into the tree. Only worth saying when it is not
+       direct: "found via lodash" for a package the project declares itself is
+       noise, and the answer to a transitive finding is usually to upgrade the
+       thing that asked for it rather than the package named here. #}
+    {% if not match.is_direct %}
+      <p class="finding__via">
+        <span class="finding__via-label">Found via</span>
+        <span class="finding__chain mono">{{ match.chain_label }}</span>
+      </p>
+    {% endif %}
+
     {% if record and record.summary %}
       <p class="finding__summary">{{ record.summary }}</p>
     {% endif %}

@@ -27,6 +27,9 @@ class PlanLimits:
     email_alerts: bool
     webhook_alerts: bool
     history_days: int
+    #: How deep into the dependency tree a scan looks. None is all the way.
+    #: 1 means direct dependencies and theirs, and no further.
+    scan_depth: int | None
     features: tuple[str, ...]
 
     @property
@@ -54,9 +57,11 @@ PLANS: dict[Tier, PlanLimits] = {
         email_alerts=True,
         webhook_alerts=False,
         history_days=30,
+        scan_depth=1,
         features=(
             "1 project",
             "Checked once daily",
+            "Direct dependencies and theirs",
             "Email alerts",
             "KEV + reachability filtering",
         ),
@@ -70,11 +75,13 @@ PLANS: dict[Tier, PlanLimits] = {
         email_alerts=True,
         webhook_alerts=True,
         history_days=365,
+        scan_depth=None,
         features=(
             "Unlimited projects",
             "Checked every 4 hours",
+            "The whole dependency tree, however deep",
             "Email alerts",
-            "Discord alerts",
+            "Discord and custom webhooks",
             "Full alert history",
         ),
     ),
@@ -112,6 +119,23 @@ def target_limit_message(tier: Tier | str) -> str:
         f"The {limits.display_name} plan tracks {limits.max_targets} {noun}. "
         "Upgrade to Pro for unlimited projects."
     )
+
+
+def scan_depth_for(tier: Tier | str) -> int | None:
+    """How deep this plan looks. None is all the way down."""
+    return limits_for(tier).scan_depth
+
+
+def depth_label(tier: Tier | str) -> str:
+    """A phrase for the plan's reach, for the interface to say out loud."""
+    depth = scan_depth_for(tier)
+    if depth is None:
+        return "the whole tree"
+    if depth == 0:
+        return "direct dependencies only"
+    if depth == 1:
+        return "direct dependencies and theirs"
+    return f"{depth} levels deep"
 
 
 def scan_interval_for(tier: Tier | str) -> timedelta:

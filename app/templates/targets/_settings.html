@@ -139,6 +139,21 @@
   <h2 class="panel__title">Schedule</h2>
   <dl class="datalist">
     <dt>Checked</dt><dd>{{ limits.scan_frequency_label }}</dd>
+    <dt>Depth</dt>
+    <dd>
+      {{ depth_label(limits.tier)|capitalize }}
+      {% if target.unreached_by_depth %}
+        {# Said plainly. A project whose deepest packages were never examined
+           must not read as "nothing found". #}
+        <br>
+        <span class="dim u-text-xs">
+          {{ target.unreached_by_depth }}
+          {{ target.unreached_by_depth|pluralize('package') }} beyond that were
+          not checked.
+          {% if not limits.scan_depth is none %}<a href="/pricing">Pro reaches all of them.</a>{% endif %}
+        </span>
+      {% endif %}
+    </dd>
     <dt>Plan</dt><dd>{{ limits.display_name }}</dd>
     <dt>Next check</dt>
     <dd>

@@ -312,9 +312,34 @@ class Dependency:
     reachability: Reachability
     version_exact: bool = True
 
+    #: How far from the project this package sits. 0 is something the project
+    #: declares itself; 1 is a dependency of one of those, and so on.
+    #:
+    #: Distinct from `reachability`, which answers "does this ship?" rather
+    #: than "how did it get here?". A dev-only package can be at any depth.
+    depth: int = 0
+
+    #: The path from the project to this package, excluding the package itself.
+    #: `("express", "body-parser")` means express pulled in body-parser which
+    #: pulled in this. Empty for a direct dependency.
+    #:
+    #: This is what lets a finding say *how* it got into the tree, which is the
+    #: difference between "upgrade this" and "upgrade the thing that wants it".
+    via: tuple[str, ...] = ()
+
     @property
     def key(self) -> tuple[str, str, str]:
         return (str(self.ecosystem), self.name, self.version)
+
+    @property
+    def chain(self) -> tuple[str, ...]:
+        """The whole path including this package, for display."""
+        return (*self.via, self.name)
+
+    @property
+    def chain_label(self) -> str:
+        """`express → body-parser → qs`, or just the name if it is direct."""
+        return " \u2192 ".join(self.chain)
 
 
 @dataclass(frozen=True, slots=True)
@@ -419,6 +444,15 @@ class ScanResult:
     suppressed: tuple[MatchDecision, ...] = ()
     dependencies_scanned: int = 0
     errors: tuple[str, ...] = field(default_factory=tuple)
+
+    #: Packages the plan's depth limit put out of reach, so they were never
+    #: looked up.
+    #:
+    #: Counted and reported rather than quietly dropped. "Not checked" and
+    #: "checked and found nothing" must never look the same coming out of a
+    #: security tool -- the same rule as exit code 2 in the CLI. It is also the
+    #: number that makes the Free/Pro difference honest rather than invisible.
+    unreached_by_depth: int = 0
 
     @property
     def actionable_count(self) -> int:

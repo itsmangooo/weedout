@@ -25,7 +25,7 @@ Tests need Postgres running or **they silently skip** — a green run with
 Desktop on this machine stops on its own; restart it from
 `C:\Program Files\Docker\Docker\Docker Desktop.exe`.
 
-Current state: **1142 passed, 14 skipped, ruff clean.**
+Current state: **1189 passed, 14 skipped, ruff clean.**
 
 ---
 
@@ -132,6 +132,19 @@ copied onto `Alert` rows (those carry `discord:{target_id}`).
   `action/test/e2e.sh` drives the real scripts against a mock API (29 checks).
 - **CLI** — `--fail-on critical|high` and `--json`. Released as **v0.2.0**;
   `v1` is the floating tag the action resolves.
+- **Tiered scan depth** — `MatchPolicy.max_depth`, set from the owner's plan in
+  `scan_service.scan_target`. Free stops at depth 1, Pro is unlimited. Packages
+  out of reach are **skipped before lookup and counted** as
+  `unreached_by_depth`, never folded into the suppressed count: "not checked"
+  and "checked and found nothing" must not look the same. Verified end to end —
+  same lockfile, Free scanned 2 and found 0, Pro scanned 3 and found 6.
+- **Dependency chains** — `Dependency.depth` / `.via`, persisted on both
+  `DependencyRecord` and `CVEMatch` (denormalised, so a finding keeps its route
+  after the next parse replaces the dependency rows). Rendered as "Found via
+  top → middle → lodash" on every transitive finding. npm v2/v3 lockfiles hoist,
+  so depth comes from a **breadth-first walk of the dependency graph**, not from
+  the `node_modules/` path — a hoisted package looks direct in the path and is
+  not.
 
 ### Earlier
 
@@ -151,8 +164,6 @@ mistake to avoid repeating.
 
 | Feature | State |
 |---|---|
-| Tiered scan depth (Free shallow / Pro full) | Nothing. `MatchPolicy` exists but `MatchPolicy(...)` is never constructed outside its own module — every scan uses `DEFAULT_POLICY`. |
-| Dependency chain display ("found via: a → b → c") | Nothing. The parser does recurse, but no chain is stored on `CVEMatch`. |
 | Custom scan rules / severity overrides / CVE suppression | Nothing. |
 | `.weedout.yml` policy file | Nothing. The CLI's `.weedout` holds an API key and URL — a different thing. |
 | EPSS scores | Nothing. |
@@ -186,19 +197,15 @@ Also unresolved:
 
 ## Next steps, in the order I would do them
 
-1. **Tiered scan depth.** Add `max_depth` to `MatchPolicy`, pass it from the
-   owner's tier in `scan_service._run_pipeline`, and store the resolved chain on
-   `CVEMatch` so "found via" can be shown. Test that a Free project does not
-   return a finding that only exists at depth 3.
-2. **Custom scan rules.** Suppression with a required reason and an audit
+1. **Custom scan rules.** Suppression with a required reason and an audit
    trail. **Judgment call to decide and document, not guess:** should a
    suppressed CVE auto-resurface when it becomes KEV-listed? My recommendation
    is yes — a suppression is a judgement about a risk profile that has since
    changed — but it must be stated in the docs either way.
-3. **EPSS.** Surface as its own signal. **Do not fold it into severity tiering
+2. **EPSS.** Surface as its own signal. **Do not fold it into severity tiering
    silently** — the user asked for this to be flagged. Suggest adding it as an
    off-by-default `MatchPolicy` flag so turning it on is a deliberate act.
-4. The rest of the table above.
+3. The rest of the table above.
 
 ---
 

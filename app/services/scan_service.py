@@ -18,7 +18,7 @@ findings generate an email.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 
 from sqlalchemy import select
@@ -37,7 +37,7 @@ from app.services.mirror_service import (
     mirror_is_populated,
     mirror_is_stale,
 )
-from app.tiers import scan_interval_for
+from app.tiers import scan_depth_for, scan_interval_for
 
 log = get_logger(__name__)
 
@@ -63,6 +63,9 @@ class ScanOutcome:
 
     target_id: int
     dependencies_scanned: int = 0
+    #: Packages the owner's plan did not reach. Surfaced so a Free project
+    #: is told what was out of range rather than left to assume it was clean.
+    unreached_by_depth: int = 0
     actionable_count: int = 0
     suppressed_count: int = 0
     #: Matches that are actionable and were never seen before — these alert.
@@ -92,6 +95,14 @@ async def scan_target(
     # would raise MissingGreenlet under the async session.
     owner = await db.get(User, target.user_id)
     tier = owner.tier if owner else "free"
+
+    # The plan decides how deep this scan looks. Derived here, from the owner
+    # loaded above, rather than stored on the project -- a subscription that
+    # lapses shortens the next scan without anybody editing a row, and renewal
+    # deepens it again on its own.
+    depth = scan_depth_for(tier)
+    if policy.max_depth is None and depth is not None:
+        policy = replace(policy, max_depth=depth)
 
     try:
         result = await _run_pipeline(db, target, policy)
@@ -134,6 +145,7 @@ async def scan_target(
     new_matches, resolved_count = await _reconcile_matches(db, target, scan_result)
 
     target.dependency_count = len(dependencies)
+    target.unreached_by_depth = scan_result.unreached_by_depth
     target.last_scanned_at = utcnow()
     target.last_scan_error = "; ".join(scan_result.errors) if scan_result.errors else None
     _schedule_next_scan(target, tier)
@@ -150,6 +162,7 @@ async def scan_target(
     )
 
     outcome.dependencies_scanned = scan_result.dependencies_scanned
+    outcome.unreached_by_depth = scan_result.unreached_by_depth
     outcome.actionable_count = scan_result.actionable_count
     outcome.suppressed_count = scan_result.suppressed_count
     outcome.new_matches = new_matches
@@ -255,6 +268,8 @@ async def _sync_dependency_rows(
                 version_spec=dep.version_spec[:200],
                 reachability=dep.reachability,
                 version_exact=dep.version_exact,
+                depth=dep.depth,
+                via=list(dep.via),
             )
         )
     await db.flush()
@@ -296,6 +311,8 @@ async def _reconcile_matches(
                 version_spec=decision.dependency.version_spec[:200],
                 version_exact=decision.dependency.version_exact,
                 reachability=decision.dependency.reachability,
+                depth=decision.dependency.depth,
+                via=list(decision.dependency.via),
                 verdict=decision.verdict,
                 severity=decision.severity,
                 is_kev=decision.kev,
@@ -324,6 +341,10 @@ async def _reconcile_matches(
         existing.actionable_reason = decision.actionable_reason
         existing.suppression_reason = decision.suppression_reason
         existing.reachability = decision.dependency.reachability
+        # The tree can be reshaped by an upgrade without the finding changing
+        # identity, so the route to it is refreshed alongside everything else.
+        existing.depth = decision.dependency.depth
+        existing.via = list(decision.dependency.via)
 
         if existing.status is AlertStatus.RESOLVED:
             # It came back (a downgrade, or a manifest revert).
