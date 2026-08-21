@@ -247,3 +247,33 @@ async def sign_in(client, email: str, password: str = FIXTURE_PASSWORD):
         json={"email": email, "password": password},
         headers={"X-CSRF-Token": csrf},
     )
+
+
+async def create_project(client, *, files=None, **fields):
+    """Create a project through the endpoint the application actually uses.
+
+    Multipart, because one of the three ways in is a file upload. Kept here so
+    the twenty-odd tests that need a project do not each carry a copy of the
+    request shape — which is what made moving this endpoint to JSON a
+    twenty-file edit the first time.
+    """
+    csrf = set_csrf(client)
+    return await client.post(
+        "/api/internal/projects",
+        data={key: value for key, value in fields.items() if value is not None},
+        files=files,
+        headers={"X-CSRF-Token": csrf},
+    )
+
+
+@pytest.fixture
+async def pro_client(client: httpx.AsyncClient, pro_user: User) -> httpx.AsyncClient:
+    """A signed-in client for a Pro account.
+
+    Several tests need an account that is allowed to use a Pro feature at all,
+    so that the tier gate does not answer before the property they are actually
+    checking is reached.
+    """
+    response = await sign_in(client, pro_user.email)
+    assert response.status_code == 200, response.text
+    return client

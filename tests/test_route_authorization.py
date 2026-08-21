@@ -58,6 +58,16 @@ PUBLIC_ROUTES: dict[str, str] = {
     ),
     "/docs": "public documentation index",
     "/docs/{slug}": "public documentation page",
+    "/targets/new": (
+        "the static React shell. It holds no user data; the project API behind "
+        "it is session-guarded and answers 401, which is what lets the React "
+        "boundary tell signed-out from expired."
+    ),
+    "/targets/{target_id}": (
+        "the static React shell, as above. Note that it is served for any id, "
+        "including one belonging to somebody else — the shell is identical "
+        "either way, and the API is what refuses."
+    ),
     "/dashboard": (
         "the static React shell; it contains no user data and every dashboard "
         "read remains behind the internal session dependencies"
@@ -107,6 +117,22 @@ INTERNAL_SESSION_ROUTES = {
     # Signup reads the current user only to refuse when one is already signed
     # in, which is why it classifies as optional rather than none.
     "/api/internal/auth/signup": "optional",
+    # Projects. Every one of these re-checks ownership through
+    # get_target_for_user, so a session alone reaches nothing.
+    "/api/internal/projects": "internal_user",
+    "/api/internal/projects/{target_id}": "internal_user",
+    "/api/internal/projects/{target_id}/rename": "internal_user",
+    "/api/internal/projects/{target_id}/manifest": "internal_user",
+    "/api/internal/projects/{target_id}/scan": "internal_user",
+    "/api/internal/projects/{target_id}/delete": "internal_user",
+    "/api/internal/projects/{target_id}/keys": "internal_user",
+    "/api/internal/projects/{target_id}/keys/{key_id}/revoke": "internal_user",
+    "/api/internal/projects/{target_id}/rules": "internal_user",
+    "/api/internal/projects/{target_id}/rules/{rule_id}/delete": "internal_user",
+    "/api/internal/projects/{target_id}/thresholds": "internal_user",
+    "/api/internal/projects/{target_id}/webhook": "internal_user",
+    "/api/internal/projects/{target_id}/webhook/test": "internal_user",
+    "/api/internal/projects/{target_id}/webhook/remove": "internal_user",
 }
 
 

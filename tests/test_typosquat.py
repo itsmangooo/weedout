@@ -264,10 +264,19 @@ class TestItIsShownSeparately:
         await db.commit()
 
         await sign_in(client, pro_user.email)
-        body = (await client.get(f"/targets/{target.id}?view=overview")).text
+        response = await client.get(f"/api/internal/projects/{target.id}")
 
-        assert "Supply chain" in body
-        assert "signals__item" in body
-        # Its own words, never a severity's.
-        assert "Concerning" in body
-        assert "signals__item--critical" not in body
+        assert response.status_code == 200
+        body = response.json()
+
+        # Delivered in its own section, not mixed into findings — a package
+        # that merely looks like a typo is not a vulnerability.
+        signals = body["supply_chain"]
+        assert any(signal["kind"] == "typosquat" for signal in signals)
+        assert body["findings"] == []
+
+        # And in its own vocabulary. "concerning" is not a severity, and
+        # borrowing "critical" for it would cheapen the real ones.
+        levels = {signal["level"] for signal in signals}
+        assert "concerning" in levels
+        assert levels.isdisjoint({"critical", "high", "medium", "low"})

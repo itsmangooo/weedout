@@ -10,31 +10,7 @@ import {
 } from "lucide-react";
 
 import { EntityContextMenu } from "../../../components/ui/EntityContextMenu";
-
-function relativeTime(value) {
-  if (!value) return null;
-
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return null;
-
-  const seconds = Math.round((timestamp - Date.now()) / 1_000);
-  const ranges = [
-    [60, "second"],
-    [60, "minute"],
-    [24, "hour"],
-    [30, "day"],
-    [12, "month"],
-    [Number.POSITIVE_INFINITY, "year"],
-  ];
-  let valueInUnit = seconds;
-  for (const [size, unit] of ranges) {
-    if (Math.abs(valueInUnit) < size) {
-      return new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(valueInUnit, unit);
-    }
-    valueInUnit = Math.round(valueInUnit / size);
-  }
-  return null;
-}
+import { relativeTime } from "../../../lib/time";
 
 function projectState(project) {
   if (project.findings.exploited > 0) {

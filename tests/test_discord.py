@@ -222,8 +222,9 @@ async def pro_client(client, pro_user, db) -> httpx.AsyncClient:
 class TestSavingAWebhook:
     async def test_a_pro_user_can_save_one(self, pro_client, db, pro_target):
         response = await pro_client.post(
-            f"/targets/{pro_target.id}/discord",
-            data={"csrf_token": set_csrf(pro_client), "webhook_url": VALID},
+            f"/api/internal/projects/{pro_target.id}/webhook",
+            json={"url": VALID},
+            headers={"X-CSRF-Token": set_csrf(pro_client)},
         )
         assert response.status_code == 200
         await db.refresh(pro_target)
@@ -233,18 +234,23 @@ class TestSavingAWebhook:
         pro_target.discord_webhook_url = VALID
         await db.commit()
 
-        response = await pro_client.get(f"/targets/{pro_target.id}?view=settings")
+        response = await pro_client.get(f"/api/internal/projects/{pro_target.id}")
+
+        # Stronger than the masking the template used to do: the secret is not
+        # in the response at all, only the host, which is enough to show the
+        # webhook is configured and where it points.
         assert "abcdefghijklmnopqrstuvwxyz012345" not in response.text
-        assert "123456789012345678" in response.text
+        assert response.json()["webhook"]["configured"] is True
+        assert response.json()["webhook"]["host"] == "discord.com"
 
     async def test_a_hostile_url_is_refused_and_nothing_is_stored(self, pro_client, db, pro_target):
         response = await pro_client.post(
-            f"/targets/{pro_target.id}/discord",
-            data={
-                "csrf_token": set_csrf(pro_client),
-                "webhook_url": "https://169.254.169.254/api/webhooks/123456789012345678/"
-                "abcdefghijklmnopqrstuvwxyz012345",
+            f"/api/internal/projects/{pro_target.id}/webhook",
+            json={
+                "url": "https://169.254.169.254/api/webhooks/123456789012345678/"
+                "abcdefghijklmnopqrstuvwxyz012345"
             },
+            headers={"X-CSRF-Token": set_csrf(pro_client)},
         )
         assert response.status_code == 400
         await db.refresh(pro_target)
@@ -258,10 +264,11 @@ class TestSavingAWebhook:
         await db.commit()
 
         response = await auth_client.post(
-            f"/targets/{target.id}/discord",
-            data={"csrf_token": set_csrf(auth_client), "webhook_url": VALID},
+            f"/api/internal/projects/{target.id}/webhook",
+            json={"url": VALID},
+            headers={"X-CSRF-Token": set_csrf(auth_client)},
         )
-        assert response.status_code == 400
+        assert response.status_code == 402
         assert "Pro" in response.text
         await db.refresh(target)
         assert target.discord_webhook_url is None
@@ -274,8 +281,9 @@ class TestSavingAWebhook:
         await db.commit()
 
         response = await pro_client.post(
-            f"/targets/{theirs.id}/discord",
-            data={"csrf_token": set_csrf(pro_client), "webhook_url": VALID},
+            f"/api/internal/projects/{theirs.id}/webhook",
+            json={"url": VALID},
+            headers={"X-CSRF-Token": set_csrf(pro_client)},
         )
         assert response.status_code == 404
         await db.refresh(theirs)
@@ -287,8 +295,9 @@ class TestSavingAWebhook:
         await db.commit()
 
         await pro_client.post(
-            f"/targets/{pro_target.id}/discord/remove",
-            data={"csrf_token": set_csrf(pro_client)},
+            f"/api/internal/projects/{pro_target.id}/webhook/remove",
+            json={},
+            headers={"X-CSRF-Token": set_csrf(pro_client)},
         )
         await db.refresh(pro_target)
         assert pro_target.discord_webhook_url is None

@@ -283,15 +283,12 @@ class TestAccessControl:
         await db.commit()
 
         response = await auth_client.post(
-            f"/targets/{target.id}/rules",
-            data={
-                "csrf_token": set_csrf(auth_client),
-                "identifier": CVE,
-                "reason": "I would rather not hear about this one.",
-            },
+            f"/api/internal/projects/{target.id}/rules",
+            json={"identifier": CVE, "reason": "I would rather not hear about this one."},
+            headers={"X-CSRF-Token": set_csrf(auth_client)},
         )
-        assert response.status_code == 400
-        assert "Pro" in response.text
+        assert response.status_code == 402
+        assert "Pro" in response.json()["error"]["message"]
         assert (await db.execute(select(IgnoreRule))).scalars().first() is None
 
     async def test_a_free_account_cannot_post_a_threshold(self, auth_client, db, user):
@@ -302,10 +299,11 @@ class TestAccessControl:
         await db.commit()
 
         response = await auth_client.post(
-            f"/targets/{target.id}/thresholds",
-            data={"csrf_token": set_csrf(auth_client), "direct": "low"},
+            f"/api/internal/projects/{target.id}/thresholds",
+            json={"direct": "low"},
+            headers={"X-CSRF-Token": set_csrf(auth_client)},
         )
-        assert response.status_code == 400
+        assert response.status_code == 402
         await db.refresh(target)
         assert target.direct_threshold is None
 
@@ -317,23 +315,27 @@ class TestAccessControl:
         await db.commit()
 
         response = await auth_client.post(
-            f"/targets/{theirs.id}/rules",
-            data={
-                "csrf_token": set_csrf(auth_client),
-                "identifier": CVE,
-                "reason": "Trying to configure a project I do not own.",
-            },
+            f"/api/internal/projects/{theirs.id}/rules",
+            json={"identifier": CVE, "reason": "Trying to configure a project I do not own."},
+            headers={"X-CSRF-Token": set_csrf(auth_client)},
         )
         assert response.status_code == 404
         assert (await db.execute(select(IgnoreRule))).scalars().first() is None
 
     async def test_a_rule_cannot_be_deleted_through_another_project(
-        self, auth_client, db, user, pro_user
+        self, pro_client, db, pro_user, user
     ):
-        """Ownership comes from the project, not from the rule id."""
-        mine = TrackedTarget(user_id=user.id, name="mine", ecosystem=Ecosystem.NPM, is_active=True)
+        """Ownership comes from the project, not from the rule id.
+
+        Run as a Pro account deliberately: a free one is refused for its tier
+        before the ownership check is reached, so the boundary this test exists
+        for would never be exercised.
+        """
+        mine = TrackedTarget(
+            user_id=pro_user.id, name="mine", ecosystem=Ecosystem.NPM, is_active=True
+        )
         theirs = TrackedTarget(
-            user_id=pro_user.id, name="theirs", ecosystem=Ecosystem.NPM, is_active=True
+            user_id=user.id, name="theirs", ecosystem=Ecosystem.NPM, is_active=True
         )
         db.add_all([mine, theirs])
         await db.flush()
@@ -341,9 +343,10 @@ class TestAccessControl:
         db.add(rule)
         await db.commit()
 
-        response = await auth_client.post(
-            f"/targets/{mine.id}/rules/{rule.id}/delete",
-            data={"csrf_token": set_csrf(auth_client)},
+        response = await pro_client.post(
+            f"/api/internal/projects/{mine.id}/rules/{rule.id}/delete",
+            json={},
+            headers={"X-CSRF-Token": set_csrf(pro_client)},
         )
         assert response.status_code == 404
         assert (await db.execute(select(IgnoreRule))).scalars().first() is not None

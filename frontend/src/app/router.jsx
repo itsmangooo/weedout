@@ -103,6 +103,20 @@ export const appRoutes = [
                   return { Component: DashboardPage };
                 },
               },
+              {
+                path: "targets/new",
+                lazy: async () => {
+                  const { NewProjectPage } = await import("../pages/NewProjectPage");
+                  return { Component: NewProjectPage };
+                },
+              },
+              {
+                path: "targets/:projectId",
+                lazy: async () => {
+                  const { ProjectPage } = await import("../pages/ProjectPage");
+                  return { Component: ProjectPage };
+                },
+              },
             ],
           },
         ],

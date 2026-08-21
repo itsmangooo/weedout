@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
+from sqlalchemy import select
 
 from app.core.epss import band_label, parse_epss_csv
 from app.core.matching import DEFAULT_POLICY, triage
@@ -32,6 +33,7 @@ from app.core.types import (
     Verdict,
     Vulnerability,
 )
+from app.models import CVEMatch
 
 LOG4SHELL = "CVE-2021-44228"
 
@@ -292,10 +294,12 @@ class TestEndToEnd:
         await scan_target(db, target)
         await db.commit()
 
-        # No ?show: a high-severity direct dependency is actionable, so the
-        # finding is on the Open tab rather than Filtered.
-        body = (await auth_client.get(f"/targets/{target.id}")).text
-        assert "signal--epss" in body
-        assert "21.3%" in body
-        # Not dressed up as a severity tier.
-        assert "pill--epss" not in body
+        # The page renders this now, so what the API owes it is the score as a
+        # number in its own field — not folded into `severity`, which is what
+        # would let it be drawn as a severity tier.
+        match = await db.scalar(select(CVEMatch).where(CVEMatch.target_id == target.id))
+
+        assert match.epss_score is not None
+        assert round(match.epss_score * 100, 1) == 21.3
+        # Still whatever the advisory says. EPSS informs; it does not reclassify.
+        assert match.severity is Severity.HIGH

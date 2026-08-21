@@ -652,3 +652,149 @@ class DocPageForm(BaseModel):
 class SignupChartQuery(BaseModel):
     #: Bounded so the chart query can never be asked to scan an unbounded range.
     days: Annotated[int, Field(default=30, ge=7, le=365)]
+
+
+# ---------------------------------------------------------------------------
+# One project, for the React project page
+#
+# Explicit views rather than serialising the ORM, matching the dashboard and
+# findings responses above. The rule is the same: nothing reaches a browser
+# because it happened to be an attribute.
+# ---------------------------------------------------------------------------
+
+
+class ProjectDependencyView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    version: str
+    depth: int
+    is_direct: bool
+
+
+class ProjectRunView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    started_at: datetime | None
+    status: str
+    dependencies_scanned: int
+    actionable_count: int
+    suppressed_count: int
+    new_actionable_count: int
+    resolved_count: int
+    duration_seconds: float | None
+    error: str | None
+
+
+class ProjectSignalView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    package_name: str
+    package_version: str | None
+    kind: str
+    label: str
+    level: str
+    detail: str
+
+
+class ProjectIgnoreRuleView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    identifier: str
+    reason: str
+    created_by_email: str
+    created_at: datetime | None
+    #: Set when a KEV listing set the rule aside. Reported so the interface can
+    #: say the rule stopped applying rather than showing it as active.
+    overridden_at: datetime | None
+
+
+class ProjectApiKeyView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    prefix: str
+    name: str
+    scope: KeyScope
+    created_at: datetime | None
+    last_used_at: datetime | None
+    call_count: int
+    is_active: bool
+    revoked_at: datetime | None
+
+
+class ProjectWebhookView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    configured: bool
+    kind: str | None
+    #: The host only, never the URL. A webhook URL is a credential — anyone
+    #: holding it can post into the channel — so it is write-only from the
+    #: browser's point of view, exactly as it is in the rendered page.
+    host: str | None
+
+
+class ProjectThresholdsView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    direct: Severity | None
+    transitive: Severity | None
+    epss: float | None
+
+
+class ProjectPolicyFileView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    present: bool
+    updated_at: datetime | None
+    error: str | None
+    ignored_ids: list[str]
+
+
+class ProjectDetailView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    name: str
+    ecosystem: Ecosystem
+    manifest_kind: str | None
+    has_manifest: bool
+    dependency_count: int
+    is_active: bool
+    last_scanned_at: datetime | None
+    next_scan_at: datetime | None
+    last_scan_error: str | None
+    unreached_by_depth: int
+    counts: dict[str, int]
+    tab_counts: dict[str, int]
+
+
+class ProjectResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    data: ProjectDetailView
+
+
+class ProjectPageResponse(BaseModel):
+    """Everything the project page needs, in one request.
+
+    One response rather than six, because the page shows them together and six
+    round trips would render it in pieces — each arriving at a different
+    moment, each shifting the layout under whoever is reading it.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    data: ProjectDetailView
+    findings: list[FindingAttentionView]
+    dependencies: list[ProjectDependencyView]
+    recent_runs: list[ProjectRunView]
+    supply_chain: list[ProjectSignalView]
+    rules: list[ProjectIgnoreRuleView]
+    thresholds: ProjectThresholdsView
+    policy_file: ProjectPolicyFileView
+    api_keys: list[ProjectApiKeyView]
+    webhook: ProjectWebhookView
+    can_use_rules: bool
+    can_use_webhooks: bool

@@ -8,6 +8,7 @@
 @import "./landing.css";
 @import "./dashboard.css";
 @import "./auth.css";
+@import "./project.css";
 @import "./context-menu.css";
 
 @layer base {

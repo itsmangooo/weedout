@@ -56,6 +56,8 @@ SHELL_ROUTES = (
     "/signup",
     "/forgot-password",
     "/reset-password",
+    "/targets/new",
+    "/targets/{target_id}",
 )
 
 
@@ -107,4 +109,21 @@ async def forgot_password_entry() -> FileResponse:
 
 @router.get("/reset-password", include_in_schema=False)
 async def reset_password_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/targets/new", include_in_schema=False)
+async def new_project_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/targets/{target_id}", include_in_schema=False)
+async def project_entry(target_id: int) -> FileResponse:
+    """The project page.
+
+    `target_id` is declared as an int so that `/targets/new` cannot be matched
+    here — FastAPI tries routes in registration order and the literal path is
+    registered first, but typing this one means a stray `/targets/anything`
+    is a 422 rather than a shell that then fails to load a project.
+    """
     return _shell()

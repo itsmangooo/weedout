@@ -1,0 +1,435 @@
+/*
+ * The project page and the new-project form.
+ *
+ * Every colour here is a token from themes.css, so these screens follow the
+ * application theme without a second palette to keep in step.
+ */
+
+.page-narrow {
+  width: min(100%, 46rem);
+  margin-inline: auto;
+  padding: var(--wo-space-7) var(--wo-space-4) var(--wo-space-9);
+}
+
+.page-head {
+  margin-bottom: var(--wo-space-7);
+}
+
+.page-head h1 {
+  margin: var(--wo-space-2) 0;
+  font-family: var(--wo-font-display);
+  font-size: 1.9rem;
+  font-weight: 660;
+  letter-spacing: -0.02em;
+}
+
+.page-head__lede {
+  margin: 0;
+  max-width: var(--wo-measure);
+  color: var(--wo-text-muted);
+  line-height: 1.6;
+}
+
+.stack-form {
+  display: grid;
+  gap: var(--wo-space-5);
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wo-space-3);
+}
+
+.inline-form .auth-field__input {
+  flex: 1 1 16rem;
+  /* Without this a flex item defaults to min-content width, and a long value
+     pushes the row wider than its container instead of shrinking inside it. */
+  min-width: 0;
+}
+
+.auth-field__input--area {
+  font-family: var(--wo-font-mono);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* --- Choosing how to start --------------------------------------------- */
+
+.method-picker {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.method-picker__options {
+  display: grid;
+  gap: var(--wo-space-3);
+  margin-top: var(--wo-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.method-option {
+  display: grid;
+  gap: var(--wo-space-1);
+  padding: var(--wo-space-4);
+  border: 1px solid var(--wo-border-strong);
+  border-radius: var(--wo-radius-sm);
+  background: var(--wo-level-2);
+  cursor: pointer;
+  transition:
+    border-color var(--wo-duration),
+    background-color var(--wo-duration);
+}
+
+.method-option:hover {
+  border-color: var(--wo-focus);
+}
+
+.method-option--selected {
+  border-color: var(--wo-accent);
+  background: var(--wo-accent-quiet);
+}
+
+/* The radio is hidden, but its focus ring must not be: without this the
+   picker cannot be used from a keyboard. */
+.method-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.method-option:has(input:focus-visible) {
+  outline: 2px solid var(--wo-focus);
+  outline-offset: 2px;
+}
+
+.method-option__label {
+  font-weight: 620;
+}
+
+.method-option__hint {
+  color: var(--wo-text-dim);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+/* --- The project page --------------------------------------------------- */
+
+.project-page {
+  display: grid;
+  gap: var(--wo-space-6);
+}
+
+.project-head {
+  display: grid;
+  gap: var(--wo-space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.project-head h1 {
+  margin: var(--wo-space-1) 0 var(--wo-space-2);
+  font-family: var(--wo-font-display);
+  font-size: 1.75rem;
+  font-weight: 660;
+  letter-spacing: -0.02em;
+}
+
+.project-head__meta {
+  margin: 0;
+  color: var(--wo-text-muted);
+  font-size: 0.9rem;
+}
+
+.project-head__notice {
+  grid-column: 1 / -1;
+}
+
+.view-tabs,
+.filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wo-space-1);
+  border-bottom: 1px solid var(--wo-border);
+}
+
+.view-tab,
+.filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wo-space-2);
+  padding: var(--wo-space-3) var(--wo-space-4);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--wo-text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-tab--active,
+.filter-tab--active {
+  border-bottom-color: var(--wo-accent);
+  color: var(--wo-text);
+}
+
+.filter-tab__count {
+  padding: 0 0.4rem;
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-level-1);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.project-section {
+  display: grid;
+  gap: var(--wo-space-6);
+}
+
+.project-section h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--wo-space-2);
+  margin: 0 0 var(--wo-space-3);
+  font-size: 1.05rem;
+  font-weight: 640;
+}
+
+.project-section h3 {
+  margin: 0 0 var(--wo-space-3);
+  font-size: 0.9rem;
+  font-weight: 640;
+}
+
+.empty-state {
+  margin: 0;
+  padding: var(--wo-space-6);
+  border: 1px dashed var(--wo-border-strong);
+  border-radius: var(--wo-radius-sm);
+  color: var(--wo-text-muted);
+  text-align: center;
+}
+
+.section-footnote {
+  margin: var(--wo-space-3) 0 0;
+  color: var(--wo-text-dim);
+  font-size: 0.82rem;
+}
+
+.callout {
+  padding: var(--wo-space-5);
+  border: 1px solid var(--wo-border-strong);
+  border-radius: var(--wo-radius);
+  background: var(--wo-level-1);
+}
+
+/* --- Lists -------------------------------------------------------------- */
+
+.run-list,
+.signal-list,
+.rule-list,
+.finding-list {
+  display: grid;
+  gap: var(--wo-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-row {
+  display: grid;
+  gap: var(--wo-space-1) var(--wo-space-4);
+  grid-template-columns: 5.5rem 7rem minmax(0, 1fr);
+  padding: var(--wo-space-3) var(--wo-space-4);
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-level-1);
+  font-size: 0.88rem;
+}
+
+.run-row--failed .run-row__state {
+  color: var(--wo-critical);
+  font-weight: 640;
+}
+
+.run-row__when,
+.run-row__detail {
+  color: var(--wo-text-muted);
+}
+
+.signal-row {
+  display: grid;
+  gap: var(--wo-space-3);
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: var(--wo-space-3) var(--wo-space-4);
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-level-1);
+}
+
+.signal-row--concerning {
+  border-left: 3px solid var(--wo-critical);
+}
+
+.signal-row--notable {
+  border-left: 3px solid var(--wo-warning);
+}
+
+.signal-row--informational {
+  border-left: 3px solid var(--wo-border-strong);
+}
+
+.signal-row__title {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.signal-row__detail {
+  margin: var(--wo-space-1) 0 0;
+  color: var(--wo-text-muted);
+  font-size: 0.83rem;
+}
+
+.rule-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wo-space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--wo-space-4);
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-level-1);
+}
+
+.rule-row__id {
+  margin: 0;
+  font-weight: 640;
+}
+
+.rule-row__reason {
+  margin: var(--wo-space-1) 0 0;
+  color: var(--wo-text-muted);
+  font-size: 0.88rem;
+}
+
+.rule-row__meta {
+  margin: var(--wo-space-1) 0 0;
+  color: var(--wo-text-dim);
+  font-size: 0.78rem;
+}
+
+.rule-row__override {
+  display: flex;
+  align-items: center;
+  gap: var(--wo-space-2);
+  margin: var(--wo-space-2) 0 0;
+  color: var(--wo-warning);
+  font-size: 0.8rem;
+}
+
+/* --- Tables -------------------------------------------------------------- */
+
+.table-scroll {
+  /* Wide content scrolls inside its own box, so the page never scrolls
+     sideways on a narrow screen. */
+  overflow-x: auto;
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-sm);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--wo-space-3) var(--wo-space-4);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data-table thead th {
+  border-bottom: 1px solid var(--wo-border);
+  color: var(--wo-text-dim);
+  font-size: 0.78rem;
+  font-weight: 640;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.data-table tbody tr + tr td {
+  border-top: 1px solid var(--wo-border);
+}
+
+.row--revoked {
+  opacity: 0.55;
+}
+
+.u-right {
+  text-align: right;
+}
+
+.dim {
+  color: var(--wo-text-dim);
+}
+
+.mono {
+  font-family: var(--wo-font-mono);
+  font-size: 0.85rem;
+}
+
+.selectable {
+  user-select: all;
+  word-break: break-all;
+}
+
+.u-mt-3 {
+  margin-top: var(--wo-space-3);
+}
+
+.u-mt-4 {
+  margin-top: var(--wo-space-4);
+}
+
+.u-mt-5 {
+  margin-top: var(--wo-space-5);
+}
+
+.u-mt-6 {
+  margin-top: var(--wo-space-6);
+}
+
+.u-mb-5 {
+  margin-bottom: var(--wo-space-5);
+}
+
+/* --- Deleting ------------------------------------------------------------ */
+
+.danger-zone {
+  padding: var(--wo-space-5);
+  border: 1px solid var(--wo-critical);
+  border-radius: var(--wo-radius);
+  background: var(--wo-critical-quiet);
+}
+
+.danger-zone p {
+  margin: 0 0 var(--wo-space-4);
+  color: var(--wo-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 40rem) {
+  .project-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .run-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

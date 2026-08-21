@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.core.types import AlertStatus, Ecosystem, KeyScope, ManifestKind, Verdict
 from app.models import ApiKey, CVEMatch, DependencyRecord, ScanRun, TrackedTarget
-from tests.conftest import set_csrf, sign_in
+from tests.conftest import create_project, set_csrf, sign_in
 from tests.test_scan_pipeline import LODASH_ADVISORY, MANIFEST, seed_mirror
 
 
@@ -56,14 +56,13 @@ class TestPublicPages:
 class TestTargetRoutes:
     async def test_uploading_a_manifest_creates_a_target(self, auth_client, db, user):
         await seed_mirror(db, LODASH_ADVISORY)
-        csrf = set_csrf(auth_client)
 
-        response = await auth_client.post(
-            "/targets",
-            data={"name": "My App", "csrf_token": csrf},
+        response = await create_project(
+            auth_client,
+            name="My App",
             files={"manifest": ("package.json", MANIFEST, "application/json")},
         )
-        assert response.status_code == 303
+        assert response.status_code == 201
 
         target = await db.scalar(select(TrackedTarget).where(TrackedTarget.user_id == user.id))
         assert target is not None
@@ -76,10 +75,7 @@ class TestTargetRoutes:
         # un-notified, the next scheduled scan would mail the whole list back —
         # precisely the noise this product exists to remove.
         await seed_mirror(db, LODASH_ADVISORY)
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf}
-        )
+        await create_project(auth_client, filename="package.json", content=MANIFEST)
 
         match = await db.scalar(select(CVEMatch).where(CVEMatch.verdict == Verdict.ACTIONABLE))
         assert match is not None
@@ -87,53 +83,35 @@ class TestTargetRoutes:
 
     async def test_pasted_manifest_works_the_same_as_an_upload(self, auth_client, db, user):
         await seed_mirror(db)
-        csrf = set_csrf(auth_client)
 
-        response = await auth_client.post(
-            "/targets",
-            data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf},
-        )
-        assert response.status_code == 303
+        response = await create_project(auth_client, filename="package.json", content=MANIFEST)
+        assert response.status_code == 201
         assert await db.scalar(select(TrackedTarget).where(TrackedTarget.user_id == user.id))
 
     async def test_free_tier_is_capped_at_one_project(self, auth_client, db, user):
         await seed_mirror(db)
-        csrf = set_csrf(auth_client)
-        first = await auth_client.post(
-            "/targets",
-            data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf},
-        )
-        assert first.status_code == 303
+        first = await create_project(auth_client, filename="package.json", content=MANIFEST)
+        assert first.status_code == 201
 
-        csrf = set_csrf(auth_client)
-        second = await auth_client.post(
-            "/targets",
-            data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf},
-        )
+        second = await create_project(auth_client, filename="package.json", content=MANIFEST)
 
         assert second.status_code == 402
-        assert "Upgrade to Pro" in second.text
+        assert "pro" in second.json()["error"]["message"].lower()
         count = len((await db.scalars(select(TrackedTarget))).all())
         assert count == 1
 
     async def test_unrecognisable_file_is_rejected_with_an_explanation(self, auth_client):
-        csrf = set_csrf(auth_client)
-        response = await auth_client.post(
-            "/targets",
-            data={"filename": "mystery.bin", "content": "just some prose", "csrf_token": csrf},
+        response = await create_project(
+            auth_client, filename="mystery.bin", content="just some prose"
         )
         assert response.status_code == 400
         assert "Could not recognise" in response.text
 
     async def test_manifest_with_no_checkable_versions_is_rejected(self, auth_client):
-        csrf = set_csrf(auth_client)
-        response = await auth_client.post(
-            "/targets",
-            data={
-                "filename": "package.json",
-                "content": json.dumps({"dependencies": {"a": "*"}}),
-                "csrf_token": csrf,
-            },
+        response = await create_project(
+            auth_client,
+            filename="package.json",
+            content=json.dumps({"dependencies": {"a": "*"}}),
         )
         assert response.status_code == 400
         assert "No dependencies" in response.text
@@ -142,27 +120,28 @@ class TestTargetRoutes:
         # With no file and no name, this is now read as an attempt to create a
         # project without a manifest, so the error names the missing field
         # rather than demanding a file the flow no longer requires.
-        csrf = set_csrf(auth_client)
-        response = await auth_client.post("/targets", data={"csrf_token": csrf})
+        response = await create_project(
+            auth_client,
+        )
         assert response.status_code == 400
         assert "Give the project a name." in response.text
         assert "Value error" not in response.text
 
     async def test_creating_a_target_requires_authentication(self, client):
-        csrf = set_csrf(client)
-        response = await client.post("/targets", data={"content": MANIFEST, "csrf_token": csrf})
-        assert response.status_code == 303
-        assert "/login" in response.headers["location"]
+        response = await create_project(client, content=MANIFEST)
+
+        # 401 rather than a redirect. This is a JSON endpoint, and a client
+        # that followed a redirect here would try to parse a sign-in page as a
+        # response body. The React boundary reads the 401 and shows the
+        # signed-out state itself.
+        assert response.status_code == 401
 
     async def test_target_detail_shows_the_findings(self, auth_client, db, user):
         await seed_mirror(db, LODASH_ADVISORY)
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf}
-        )
+        await create_project(auth_client, filename="package.json", content=MANIFEST)
         target = await db.scalar(select(TrackedTarget))
 
-        response = await auth_client.get(f"/targets/{target.id}")
+        response = await auth_client.get(f"/api/internal/projects/{target.id}")
         assert response.status_code == 200
         assert "lodash" in response.text
 
@@ -178,7 +157,7 @@ class TestTargetRoutes:
         db.add(other)
         await db.flush()
 
-        response = await auth_client.get(f"/targets/{other.id}")
+        response = await auth_client.get(f"/api/internal/projects/{other.id}")
         assert response.status_code == 404
 
     async def test_cannot_delete_another_users_target(self, auth_client, db, pro_user):
@@ -194,7 +173,9 @@ class TestTargetRoutes:
         await db.flush()
 
         csrf = set_csrf(auth_client)
-        response = await auth_client.post(f"/targets/{other.id}/delete", data={"csrf_token": csrf})
+        response = await auth_client.post(
+            f"/api/internal/projects/{other.id}/delete", data={"csrf_token": csrf}
+        )
         assert response.status_code == 404
         assert await db.get(TrackedTarget, other.id) is not None
 
@@ -208,13 +189,9 @@ class TestProjectLifecycle:
     """
 
     async def test_project_can_be_created_without_a_manifest(self, auth_client, db, user):
-        csrf = set_csrf(auth_client)
 
-        response = await auth_client.post(
-            "/targets",
-            data={"name": "checkout-api", "ecosystem": "npm", "csrf_token": csrf},
-        )
-        assert response.status_code == 303
+        response = await create_project(auth_client, name="checkout-api", ecosystem="npm")
+        assert response.status_code == 201
 
         target = await db.scalar(select(TrackedTarget).where(TrackedTarget.user_id == user.id))
         assert target is not None
@@ -230,15 +207,11 @@ class TestProjectLifecycle:
         assert target.next_scan_at is None
 
     async def test_creating_without_a_manifest_needs_a_name_and_an_ecosystem(self, auth_client):
-        csrf = set_csrf(auth_client)
-        no_ecosystem = await auth_client.post(
-            "/targets", data={"name": "checkout-api", "csrf_token": csrf}
-        )
+        no_ecosystem = await create_project(auth_client, name="checkout-api")
         assert no_ecosystem.status_code == 400
         assert "Choose which ecosystem this project uses." in no_ecosystem.text
 
-        csrf = set_csrf(auth_client)
-        no_name = await auth_client.post("/targets", data={"ecosystem": "npm", "csrf_token": csrf})
+        no_name = await create_project(auth_client, ecosystem="npm")
         assert no_name.status_code == 400
         assert "Give the project a name." in no_name.text
 
@@ -246,37 +219,34 @@ class TestProjectLifecycle:
         assert "Value error" not in no_ecosystem.text + no_name.text
 
     async def test_unscanned_project_never_claims_to_be_clean(self, auth_client, db, user):
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"name": "empty", "ecosystem": "npm", "csrf_token": csrf}
-        )
+        await create_project(auth_client, name="empty", ecosystem="npm")
         target = await db.scalar(select(TrackedTarget))
 
-        # With no manifest the page opens on Overview rather than an empty
-        # findings table, and says why there is nothing there.
-        overview = await auth_client.get(f"/targets/{target.id}")
-        assert overview.status_code == 200
-        assert "No manifest yet" in overview.text
+        # The page decides what to say; what the API owes it is the two facts
+        # that make "no findings" and "never looked" distinguishable. A
+        # response that reported zero findings without also saying there is no
+        # manifest would leave the page no way to tell them apart.
+        response = await auth_client.get(f"/api/internal/projects/{target.id}")
 
-        findings = await auth_client.get(f"/targets/{target.id}?view=findings")
-        assert "Nothing needs you here" not in findings.text
-        assert "not the same as having none" in findings.text
+        assert response.status_code == 200
+        body = response.json()
+        assert body["data"]["has_manifest"] is False
+        assert body["data"]["last_scanned_at"] is None
+        assert body["findings"] == []
 
     async def test_attaching_a_manifest_scans_and_flips_the_state(self, auth_client, db, user):
         await seed_mirror(db, LODASH_ADVISORY)
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"name": "empty", "ecosystem": "npm", "csrf_token": csrf}
-        )
+        await create_project(auth_client, name="empty", ecosystem="npm")
         target = await db.scalar(select(TrackedTarget))
         assert target.has_been_scanned is False
 
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
-            f"/targets/{target.id}/manifest",
-            data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf},
+            f"/api/internal/projects/{target.id}/manifest",
+            data={"filename": "package.json", "content": MANIFEST},
+            headers={"X-CSRF-Token": csrf},
         )
-        assert response.status_code == 303
+        assert response.status_code == 200
 
         await db.refresh(target)
         assert target.manifest_kind is ManifestKind.PACKAGE_JSON
@@ -286,16 +256,14 @@ class TestProjectLifecycle:
 
     async def test_a_manifest_from_another_ecosystem_is_refused(self, auth_client, db):
         await seed_mirror(db)
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"name": "py-thing", "ecosystem": "PyPI", "csrf_token": csrf}
-        )
+        await create_project(auth_client, name="py-thing", ecosystem="PyPI")
         target = await db.scalar(select(TrackedTarget))
 
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
-            f"/targets/{target.id}/manifest",
-            data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf},
+            f"/api/internal/projects/{target.id}/manifest",
+            data={"filename": "package.json", "content": MANIFEST},
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 400
         await db.refresh(target)
@@ -303,19 +271,18 @@ class TestProjectLifecycle:
 
     async def test_renaming_leaves_the_findings_alone(self, auth_client, db):
         await seed_mirror(db, LODASH_ADVISORY)
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf}
-        )
+        await create_project(auth_client, filename="package.json", content=MANIFEST)
         target = await db.scalar(select(TrackedTarget))
         before = len((await db.scalars(select(CVEMatch))).all())
         assert before > 0
 
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
-            f"/targets/{target.id}/rename", data={"name": "renamed", "csrf_token": csrf}
+            f"/api/internal/projects/{target.id}/rename",
+            json={"name": "renamed"},
+            headers={"X-CSRF-Token": csrf},
         )
-        assert response.status_code == 303
+        assert response.status_code == 200
 
         await db.refresh(target)
         assert target.name == "renamed"
@@ -326,10 +293,7 @@ class TestProjectLifecycle:
         # a zero there while standing on Settings would be the exact kind of
         # false all-clear this product exists to prevent.
         await seed_mirror(db, LODASH_ADVISORY)
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf}
-        )
+        await create_project(auth_client, filename="package.json", content=MANIFEST)
         target = await db.scalar(select(TrackedTarget))
 
         counts = await db.scalars(
@@ -342,27 +306,26 @@ class TestProjectLifecycle:
         expected = len(list(counts))
         assert expected > 0
 
-        # Rendered by the Settings path, which builds its own context.
-        csrf = set_csrf(auth_client)
-        settings_view = await auth_client.post(
-            f"/targets/{target.id}/keys", data={"csrf_token": csrf}
-        )
-        assert settings_view.status_code == 200
-        assert f'<span class="tab__count">{expected}</span>' in settings_view.text
+        # Returned whichever view the page is on. The number on the Findings
+        # tab is a fact about the project, and rendering a zero there because
+        # the reader happened to be on Settings would be the same lie this
+        # product exists to stop telling.
+        response = await auth_client.get(f"/api/internal/projects/{target.id}?show=dismissed")
+
+        assert response.status_code == 200
+        assert response.json()["data"]["tab_counts"]["open"] == expected
 
     async def test_the_form_issues_the_scope_that_was_chosen(self, auth_client, db):
         """The selector has to actually reach the key, or the whole mechanism
         is a dropdown that changes nothing."""
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"name": "scoped", "ecosystem": "npm", "csrf_token": csrf}
-        )
+        await create_project(auth_client, name="scoped", ecosystem="npm")
         target = await db.scalar(select(TrackedTarget))
 
         csrf = set_csrf(auth_client)
         await auth_client.post(
-            f"/targets/{target.id}/keys",
-            data={"name": "laptop", "scope": "manage", "csrf_token": csrf},
+            f"/api/internal/projects/{target.id}/keys",
+            json={"name": "laptop", "scope": "manage"},
+            headers={"X-CSRF-Token": csrf},
         )
 
         key = await db.scalar(select(ApiKey).where(ApiKey.target_id == target.id))
@@ -372,16 +335,14 @@ class TestProjectLifecycle:
         """Failing closed matters more here than a validation message: the
         only ways to send an unknown scope are a stale template or somebody
         editing the form, and neither should be able to widen a key."""
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"name": "tampered", "ecosystem": "npm", "csrf_token": csrf}
-        )
+        await create_project(auth_client, name="tampered", ecosystem="npm")
         target = await db.scalar(select(TrackedTarget))
 
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
-            f"/targets/{target.id}/keys",
-            data={"name": "x", "scope": "admin", "csrf_token": csrf},
+            f"/api/internal/projects/{target.id}/keys",
+            json={"name": "x", "scope": "admin"},
+            headers={"X-CSRF-Token": csrf},
         )
 
         assert response.status_code == 200
@@ -389,15 +350,14 @@ class TestProjectLifecycle:
         assert key.scope is KeyScope.SCAN
 
     async def test_project_api_key_can_be_created_and_revoked(self, auth_client, db):
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"name": "ci-only", "ecosystem": "npm", "csrf_token": csrf}
-        )
+        await create_project(auth_client, name="ci-only", ecosystem="npm")
         target = await db.scalar(select(TrackedTarget))
 
         csrf = set_csrf(auth_client)
         created = await auth_client.post(
-            f"/targets/{target.id}/keys", data={"name": "github-actions", "csrf_token": csrf}
+            f"/api/internal/projects/{target.id}/keys",
+            json={"name": "github-actions"},
+            headers={"X-CSRF-Token": csrf},
         )
         assert created.status_code == 200
 
@@ -410,9 +370,11 @@ class TestProjectLifecycle:
 
         csrf = set_csrf(auth_client)
         revoked = await auth_client.post(
-            f"/targets/{target.id}/keys/{key.id}/revoke", data={"csrf_token": csrf}
+            f"/api/internal/projects/{target.id}/keys/{key.id}/revoke",
+            json={},
+            headers={"X-CSRF-Token": csrf},
         )
-        assert revoked.status_code == 303
+        assert revoked.status_code == 200
 
         await db.refresh(key)
         assert key.is_active is False
@@ -420,15 +382,16 @@ class TestProjectLifecycle:
 
     async def test_deleting_a_project_takes_everything_with_it(self, auth_client, db, user):
         await seed_mirror(db, LODASH_ADVISORY)
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf}
-        )
+        await create_project(auth_client, filename="package.json", content=MANIFEST)
         target = await db.scalar(select(TrackedTarget))
         target_id = target.id
 
         csrf = set_csrf(auth_client)
-        await auth_client.post(f"/targets/{target_id}/keys", data={"csrf_token": csrf})
+        await auth_client.post(
+            f"/api/internal/projects/{target_id}/keys",
+            json={"name": "ci"},
+            headers={"X-CSRF-Token": csrf},
+        )
 
         # Everything that hangs off the project must exist first, or "it's all
         # gone afterwards" proves nothing.
@@ -438,9 +401,15 @@ class TestProjectLifecycle:
         assert len((await db.scalars(select(ApiKey))).all()) > 0
 
         csrf = set_csrf(auth_client)
-        response = await auth_client.post(f"/targets/{target_id}/delete", data={"csrf_token": csrf})
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
+        response = await auth_client.post(
+            f"/api/internal/projects/{target_id}/delete",
+            json={},
+            headers={"X-CSRF-Token": csrf},
+        )
+        # A JSON endpoint reports what happened; the client decides where to
+        # go next. There is no page here to redirect to.
+        assert response.status_code == 200
+        assert response.json()["data"]["deleted"] is True
 
         assert await db.get(TrackedTarget, target_id) is None
         for model in (CVEMatch, DependencyRecord, ScanRun, ApiKey):
@@ -474,20 +443,26 @@ class TestProjectLifecycle:
         db.add(key)
         await db.flush()
 
-        settings_view = await auth_client.get(f"/targets/{other.id}?view=settings")
-        assert settings_view.status_code == 404
-        assert "not yours" not in settings_view.text
+        # The page itself is the React shell and is served for any id, which is
+        # deliberate: it holds no project data, so there is nothing to leak and
+        # nothing to decide before it loads. What refuses is the API behind it.
+        shell = await auth_client.get(f"/targets/{other.id}?view=settings")
+        assert shell.status_code == 200
+        assert "not yours" not in shell.text
 
-        # Every mutating route on that tab, not just the page that renders it.
-        for path, data in (
-            (f"/targets/{other.id}/rename", {"name": "hijacked"}),
-            (f"/targets/{other.id}/keys", {}),
-            (f"/targets/{other.id}/keys/{key.id}/revoke", {}),
-            (f"/targets/{other.id}/manifest", {"filename": "package.json", "content": MANIFEST}),
-            (f"/targets/{other.id}/delete", {}),
+        data_request = await auth_client.get(f"/api/internal/projects/{other.id}")
+        assert data_request.status_code == 404
+        assert "not yours" not in data_request.text
+
+        # Every mutating route, not only the one that reads.
+        for path, body in (
+            (f"/api/internal/projects/{other.id}/rename", {"name": "hijacked"}),
+            (f"/api/internal/projects/{other.id}/keys", {"name": "theirs"}),
+            (f"/api/internal/projects/{other.id}/keys/{key.id}/revoke", {}),
+            (f"/api/internal/projects/{other.id}/delete", {}),
         ):
             csrf = set_csrf(auth_client)
-            response = await auth_client.post(path, data={**data, "csrf_token": csrf})
+            response = await auth_client.post(path, json=body, headers={"X-CSRF-Token": csrf})
             assert response.status_code == 404, path
 
         await db.refresh(other)
@@ -500,10 +475,7 @@ class TestProjectLifecycle:
 class TestAlertRoutes:
     async def _seed(self, auth_client, db):
         await seed_mirror(db, LODASH_ADVISORY)
-        csrf = set_csrf(auth_client)
-        await auth_client.post(
-            "/targets", data={"filename": "package.json", "content": MANIFEST, "csrf_token": csrf}
-        )
+        await create_project(auth_client, filename="package.json", content=MANIFEST)
         return await db.scalar(select(CVEMatch))
 
     async def test_alert_detail_explains_in_plain_language(self, auth_client, db):
