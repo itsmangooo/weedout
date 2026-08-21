@@ -30,6 +30,7 @@ async def enable_two_factor(db, user) -> None:
     user.totp_confirmed_at = utcnow()
     await db.commit()
 
+
 LOGIN = "/api/internal/auth/login"
 SIGNUP = "/api/internal/auth/signup"
 SECOND_FACTOR = "/api/internal/auth/login/2fa"
@@ -53,9 +54,7 @@ async def post(client, path: str, body: dict, *, token: str | None = None):
 
 
 class TestSigningIn:
-    async def test_a_correct_password_returns_the_user_and_sets_a_session(
-        self, client, db, user
-    ):
+    async def test_a_correct_password_returns_the_user_and_sets_a_session(self, client, db, user):
         response = await post(client, LOGIN, {"email": user.email, "password": PASSWORD})
 
         assert response.status_code == 200
@@ -91,9 +90,7 @@ class TestSigningIn:
 
     async def test_an_unknown_address_answers_identically(self, client, user):
         known = await post(client, LOGIN, {"email": user.email, "password": "wrong"})
-        unknown = await post(
-            client, LOGIN, {"email": "nobody@example.com", "password": "wrong"}
-        )
+        unknown = await post(client, LOGIN, {"email": "nobody@example.com", "password": "wrong"})
 
         assert known.status_code == unknown.status_code
         assert known.json() == unknown.json()
@@ -105,9 +102,7 @@ class TestSigningIn:
     async def test_a_request_without_a_csrf_token_is_refused(self, client, user):
         """The reason this endpoint is safe to expose to a browser. Without
         it, any page on the internet could post a login and set a cookie."""
-        response = await client.post(
-            LOGIN, json={"email": user.email, "password": PASSWORD}
-        )
+        response = await client.post(LOGIN, json={"email": user.email, "password": PASSWORD})
 
         assert response.status_code == 403
         assert not client.cookies.get("weedout_session")
@@ -171,9 +166,7 @@ class TestRateLimiting:
 
 
 class TestSecondFactor:
-    async def test_a_2fa_account_is_not_signed_in_by_a_password_alone(
-        self, client, db, user
-    ):
+    async def test_a_2fa_account_is_not_signed_in_by_a_password_alone(self, client, db, user):
         await enable_two_factor(db, user)
 
         response = await post(client, LOGIN, {"email": user.email, "password": PASSWORD})
@@ -198,7 +191,6 @@ class TestSecondFactor:
 
         blocked = await client.get("/api/internal/dashboard")
         assert blocked.status_code == 401
-
 
     async def test_a_wrong_code_does_not_produce_a_session(self, client, db, user):
         """Regression. The first version of this endpoint wrapped verify_code
@@ -228,9 +220,7 @@ class TestSecondFactor:
 
 class TestSigningUp:
     async def test_an_account_is_created_and_signed_in(self, client, db):
-        response = await post(
-            client, SIGNUP, {"email": "new@example.com", "password": PASSWORD}
-        )
+        response = await post(client, SIGNUP, {"email": "new@example.com", "password": PASSWORD})
 
         assert response.status_code == 201
         assert response.json()["data"]["user"]["email"] == "new@example.com"
@@ -328,9 +318,7 @@ class TestSigningOut:
 
 
 class TestRecovery:
-    async def test_the_answer_is_the_same_for_known_and_unknown_addresses(
-        self, client, db, user
-    ):
+    async def test_the_answer_is_the_same_for_known_and_unknown_addresses(self, client, db, user):
         known = await post(client, FORGOT, {"email": user.email})
         unknown = await post(client, FORGOT, {"email": "nobody@example.com"})
 
@@ -346,7 +334,9 @@ class TestRecovery:
         assert response.json()["data"]["sent"] is True
 
     async def test_an_invalid_reset_token_is_refused(self, client):
-        response = await post(client, RESET, {"token": "made-up", "password": PASSWORD, "password_confirm": PASSWORD})
+        response = await post(
+            client, RESET, {"token": "made-up", "password": PASSWORD, "password_confirm": PASSWORD}
+        )
 
         assert response.status_code == 400
         assert response.json()["error"]["code"] in {"INVALID_TOKEN", "INVALID_REQUEST"}
@@ -358,7 +348,13 @@ class TestRecovery:
         await db.commit()
 
         response = await post(
-            client, RESET, {"token": token, "password": "a-brand-new-password", "password_confirm": "a-brand-new-password"}
+            client,
+            RESET,
+            {
+                "token": token,
+                "password": "a-brand-new-password",
+                "password_confirm": "a-brand-new-password",
+            },
         )
 
         assert response.status_code == 200
@@ -379,7 +375,15 @@ class TestRecovery:
         token, _ = await issue_token(db, user)
         await db.commit()
 
-        await post(client, RESET, {"token": token, "password": "a-brand-new-password", "password_confirm": "a-brand-new-password"})
+        await post(
+            client,
+            RESET,
+            {
+                "token": token,
+                "password": "a-brand-new-password",
+                "password_confirm": "a-brand-new-password",
+            },
+        )
 
         assert not client.cookies.get("weedout_session")
 
@@ -389,8 +393,24 @@ class TestRecovery:
         token, _ = await issue_token(db, user)
         await db.commit()
 
-        first = await post(client, RESET, {"token": token, "password": "a-brand-new-password", "password_confirm": "a-brand-new-password"})
-        second = await post(client, RESET, {"token": token, "password": "another-password-here", "password_confirm": "another-password-here"})
+        first = await post(
+            client,
+            RESET,
+            {
+                "token": token,
+                "password": "a-brand-new-password",
+                "password_confirm": "a-brand-new-password",
+            },
+        )
+        second = await post(
+            client,
+            RESET,
+            {
+                "token": token,
+                "password": "another-password-here",
+                "password_confirm": "another-password-here",
+            },
+        )
 
         assert first.status_code == 200
         assert second.status_code == 400

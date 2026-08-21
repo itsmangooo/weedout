@@ -110,7 +110,7 @@ def _prepare(response: Response, request: Request) -> None:
 
 
 def _retry_phrase(decision) -> str:
-    """"Try again in about 4 minutes."
+    """ "Try again in about 4 minutes."
 
     A real person who mistyped their password five times sees this, and the
     only thing they need is when they can try again. Retry-After carries the

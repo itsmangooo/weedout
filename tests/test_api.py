@@ -527,9 +527,7 @@ class TestKeyScopes:
         token, target = await self._key(db, user, KeyScope.READ)
         await db.commit()
 
-        response = await client.get(
-            "/api/v1/project", headers={"Authorization": f"Bearer {token}"}
-        )
+        response = await client.get("/api/v1/project", headers={"Authorization": f"Bearer {token}"})
 
         assert response.status_code == 200
         assert response.json()["project"] == target.name
@@ -544,7 +542,9 @@ class TestKeyScopes:
 
         assert (await client.get("/api/v1/project", headers=headers)).status_code == 200
         assert (await client.get("/api/v1/rules", headers=headers)).status_code == 200
-        assert (await client.post("/api/v1/scan", headers=headers, files=upload())).status_code == 200
+        assert (
+            await client.post("/api/v1/scan", headers=headers, files=upload())
+        ).status_code == 200
 
     async def test_the_refusal_says_what_would_work(self, client, db, user):
         """A permission error that does not say which key to use makes somebody

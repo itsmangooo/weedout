@@ -288,18 +288,14 @@ async def list_findings(
         where.append(CVEMatch.status == AlertStatus.RESOLVED)
     else:
         show = "open"
-        where.extend(
-            [CVEMatch.verdict == Verdict.ACTIONABLE, CVEMatch.status == AlertStatus.OPEN]
-        )
+        where.extend([CVEMatch.verdict == Verdict.ACTIONABLE, CVEMatch.status == AlertStatus.OPEN])
 
     rows = (
         await db.execute(
             select(CVEMatch, VulnerabilityRecord)
             .join(VulnerabilityRecord, VulnerabilityRecord.id == CVEMatch.vulnerability_id)
             .where(*where)
-            .order_by(
-                CVEMatch.is_kev.desc(), SEVERITY_RANK.desc(), CVEMatch.package_name
-            )
+            .order_by(CVEMatch.is_kev.desc(), SEVERITY_RANK.desc(), CVEMatch.package_name)
             .limit(limit)
         )
     ).all()
@@ -453,9 +449,7 @@ async def add_scan_rule(request: Request, db: DbSession, key: ManageKey):
     try:
         payload = await request.json()
     except Exception:
-        raise _fail(
-            status.HTTP_400_BAD_REQUEST, "bad_json", "Send a JSON body."
-        ) from None
+        raise _fail(status.HTTP_400_BAD_REQUEST, "bad_json", "Send a JSON body.") from None
     if not isinstance(payload, dict):
         raise _fail(status.HTTP_400_BAD_REQUEST, "bad_json", "Send a JSON object.")
 

@@ -300,9 +300,7 @@ class TestResetOverTheApi:
         await self._forgot(client, user.email)
 
         assert (
-            await db.scalar(
-                select(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
-            )
+            await db.scalar(select(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
             is None
         )
 
@@ -355,7 +353,6 @@ async def verify_password_unchanged(db, user) -> bool:
 
     await db.refresh(user)
     return verify_password(PASSWORD, user.password_hash)
-
 
 
 class TestChangePasswordStillRequiresTheCurrentOne:

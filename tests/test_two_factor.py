@@ -163,8 +163,10 @@ class TestLoginGate:
         csrf = set_csrf(client)
         response = await client.post(
             "/api/internal/auth/login/2fa",
-            json={"code": totp.current_code(secret, now=time.time() + totp.STEP_SECONDS),
-                "next": "/dashboard"},
+            json={
+                "code": totp.current_code(secret, now=time.time() + totp.STEP_SECONDS),
+                "next": "/dashboard",
+            },
             headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 200
