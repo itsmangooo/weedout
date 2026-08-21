@@ -119,6 +119,49 @@ copied onto `Alert` rows (those carry `discord:{target_id}`).
 
 ### Recently (this stretch of work)
 
+- **The React migration, in progress.** This is the thing to understand before
+  touching anything in `app/routes/` or `app/templates/`.
+
+  The application is **deliberately half Jinja and half React**, and that is a
+  staged migration rather than a mess. React owns `/`, `/dashboard`, `/login`,
+  `/login/2fa`, `/signup`, `/forgot-password` and `/reset-password`. Jinja
+  still owns projects, alerts, settings, billing, pricing, docs, contact, the
+  CLI page and the whole admin panel — **31 templates**.
+
+  The two halves are wired to coexist on purpose:
+
+  - `app/routes/frontend.py` serves the React shell on an **explicit list** of
+    paths (`SHELL_ROUTES`), never a catch-all. A catch-all would swallow every
+    route not yet migrated and turn a working server-rendered page into a
+    client-side 404. The explicit list fails the safe way round.
+  - The React app links to Jinja routes with plain `<a href>` (full page load)
+    and to React routes with `<Link to>`. Getting that backwards is how you
+    make `/settings` render the React 404. Check
+    `frontend/src/components/layout/AppShell.jsx` for the pattern.
+  - Browser JSON lives under `/api/internal/*`, session-cookie authenticated
+    with CSRF. `/api/v1/*` remains bearer-key only, for the CLI. The two never
+    mix; `tests/test_route_authorization.py` asserts it.
+
+  **Auth is fully migrated.** The seven `app/templates/auth/*.html` files are
+  gone, along with their routes. The sign-in *decision* did not go with them:
+  it lives in `app/services/login_flow.py`, extracted while both doors existed
+  so they could not drift, and now called by
+  `app/routes/internal_auth_actions.py`.
+
+  Three defects were found doing that, all now covered by tests:
+  1. The 2FA endpoint caught a `TwoFactorError` that `verify_code` never
+     raises — it returns a bool. **Every wrong code created a session.**
+  2. The 2FA rate limit was given its own bucket. It must share the `login`
+     buckets, or an attacker who has spent the password allowance gets a fresh
+     budget for guessing six digits.
+  3. The password-reset limit used a literal `5` while
+     `password_reset_rate_limit_per_ip` is `10`, and answered `200` when
+     throttled — hiding the throttle from the person waiting for the mail.
+
+  If you add an endpoint under `/api/internal/`, two guardrails will fail until
+  you declare it in `INTERNAL_SESSION_ROUTES` (and `PUBLIC_ROUTES` if it is
+  reachable signed-out). That is the intended workflow, not an obstacle.
+
 - **API key scopes + CLI/web parity** — the machine API grew from one endpoint
   to seven, so keys grew a scope: `scan` (push a scan, the default and what
   every pre-existing key already was), `read` (findings, history, counts,
@@ -251,6 +294,7 @@ mistake to avoid repeating.
 
 | Feature | State |
 |---|---|
+| React screens for the other 31 templates | Not started. See the migration table below. |
 | Admin: xlsx findings export | Nothing. Needs `openpyxl`. |
 | Scope selector on the *account* settings key form | Built. Both key forms offer it and both key tables show it. |
 | Admin: DB backup download | Nothing. `backup_service.run_backup` exists for the scheduled job. |
@@ -279,7 +323,24 @@ Also unresolved:
 
 ## Next steps, in the order I would do them
 
-1. **Pricing / landing / docs copy.** Now unblocked: every Pro feature the
+1. **Continue the React migration**, in this order — each is a vertical slice
+   of a JSON endpoint under `/api/internal/`, a React screen, and tests on both
+   sides. Follow `internal_auth_actions.py` + `pages/LoginPage.jsx` as the
+   worked example.
+
+   | Next | Templates retired | Why this order |
+   |---|---|---|
+   | Projects (list, new, detail x3) | 5 | The dashboard already links here, so these are the live dead ends |
+   | Alerts (index, detail) | 2 | Same |
+   | Settings | 1 | Big one: API keys, webhooks, rules, thresholds, 2FA |
+   | Marketing (pricing, cli, contact, docs x2, error) | 6 | Mostly static; quick |
+   | Billing (+ success) | 2 | Touches Dodo; do it awake |
+   | Admin | 12 | Last. Internal-only, and the least costly to leave server-rendered |
+
+   Do not delete a template before its React screen is serving the route. The
+   deletion is the last step of a slice, not the first.
+
+2. **Pricing / landing / docs copy.** Now unblocked: every Pro feature the
    earlier brief listed is real, and the CLI reaches all of it. Write it from
    `app/tiers.py`, and check the claims against the code rather than against
    the brief. The web `/cli` page and `/docs` still describe a CLI that only
