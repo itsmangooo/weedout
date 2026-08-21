@@ -99,12 +99,15 @@ describe("frontend routes", () => {
     await user.click(screen.getByRole("link", { name: "Return to the foundation" }));
     expect(
       await screen.findByRole("heading", {
-        name: "Forty-seven advisories enter. One decision leaves.",
+        name: "Most CVE alerts cannot reach your code.",
       }),
     ).toBeInTheDocument();
   });
 
-  it("renders the Weedout-specific filtering and workflow composition", async () => {
+  // The hero plays for about five and a half seconds now, so this one waits
+  // longer than the default. That slowness is the feature: the previous timing
+  // ran the whole story in about a second.
+  it("renders the Weedout-specific filtering and workflow composition", { timeout: 15_000 }, async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       response({ status: "ok", version: "0.1.0" }),
     );
@@ -113,17 +116,19 @@ describe("frontend routes", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Forty-seven advisories enter. One decision leaves.",
+        name: "Most CVE alerts cannot reach your code.",
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Watch the page get quieter." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "The path is the product." })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Four passes. Nothing thrown away quietly." }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ship the fix. Ignore the noise." })).toBeInTheDocument();
     expect(screen.getAllByText("CVE-2026-5001").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Replay filter" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Replay scan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
     expect(
-      await screen.findByText("Exploited in the wild", {}, { timeout: 2_000 }),
+      await screen.findByText("Exploited in the wild", {}, { timeout: 10_000 }),
     ).toBeInTheDocument();
   });
 

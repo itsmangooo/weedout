@@ -150,6 +150,17 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/projects/{target_id}/webhook/remove": "internal_user",
     "/api/internal/alerts/{match_id}": "internal_user",
     "/api/internal/alerts/{match_id}/status": "internal_user",
+    "/api/internal/settings": "internal_user",
+    "/api/internal/settings/alerts": "internal_user",
+    "/api/internal/settings/password": "internal_user",
+    "/api/internal/settings/sessions/revoke-others": "internal_user",
+    "/api/internal/settings/sessions/{session_id}/revoke": "internal_user",
+    "/api/internal/settings/2fa/start": "internal_user",
+    "/api/internal/settings/2fa/confirm": "internal_user",
+    "/api/internal/settings/2fa/codes": "internal_user",
+    "/api/internal/settings/2fa/disable": "internal_user",
+    "/api/internal/settings/api-keys": "internal_user",
+    "/api/internal/settings/api-keys/{key_id}/revoke": "internal_user",
 }
 
 

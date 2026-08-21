@@ -3,7 +3,7 @@ import { ScanSearch, Sprout } from "lucide-react";
 import { HeroSignalField } from "../features/landing/components/HeroSignalField";
 import { LiveSignal } from "../features/landing/components/LiveSignal";
 import { MagneticLink } from "../features/landing/components/MagneticLink";
-import { ProductWorkflow } from "../features/landing/components/ProductWorkflow";
+import { StageShowcase } from "../features/landing/components/StageShowcase";
 import { ScrollFilterStory } from "../features/landing/components/ScrollFilterStory";
 import { SystemStatus } from "../features/system/components/SystemStatus";
 
@@ -12,7 +12,7 @@ export function FoundationPage() {
     <div className="landing-page">
       <HeroSignalField />
       <ScrollFilterStory />
-      <ProductWorkflow />
+      <StageShowcase />
       <LiveSignal />
 
       <section className="landing-close" aria-labelledby="landing-close-title">

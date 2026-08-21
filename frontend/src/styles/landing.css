@@ -1296,3 +1296,228 @@
   min-width: 0;
   color: var(--wo-text-muted);
 }
+
+/* --- The four-stage showcase -------------------------------------------- */
+
+.showcase {
+  display: grid;
+  gap: var(--wo-space-6);
+  width: min(100%, var(--wo-page-max));
+  margin-inline: auto;
+  padding: var(--wo-space-9) var(--wo-space-4);
+}
+
+.showcase__heading {
+  max-width: var(--wo-measure);
+}
+
+.showcase__heading h2 {
+  margin: var(--wo-space-2) 0 var(--wo-space-3);
+  font-family: var(--wo-font-display);
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+  font-weight: 660;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+}
+
+.showcase__heading p {
+  margin: 0;
+  color: var(--wo-text-muted);
+  line-height: 1.65;
+}
+
+.showcase__stage {
+  position: relative;
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-lg);
+  background: var(--wo-level-1);
+  overflow: hidden;
+}
+
+.showcase__field {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.showcase__dot {
+  fill: var(--wo-text-dim);
+  transition: fill var(--wo-duration-slow) var(--wo-ease-out);
+}
+
+.showcase__dot.is-lit {
+  fill: var(--wo-accent);
+}
+
+.showcase__dot--exploited {
+  fill: var(--wo-critical);
+}
+
+.showcase__halo {
+  fill: none;
+  stroke: var(--wo-critical);
+  stroke-width: 1.5;
+  opacity: 0.55;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.showcase__readout {
+  position: absolute;
+  left: var(--wo-space-5);
+  bottom: var(--wo-space-5);
+  pointer-events: none;
+}
+
+.showcase__metric {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.showcase__metric strong {
+  font-family: var(--wo-font-display);
+  font-size: clamp(2.4rem, 7vw, 3.6rem);
+  font-weight: 680;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Direct child only. AnimatedNumber renders its digits into a <span> inside
+   the <strong>, so a bare descendant selector here captures the number as
+   well as the unit — and the unit's size wins, because it targets the element
+   holding the text rather than an ancestor it inherits from. */
+.showcase__metric > span {
+  color: var(--wo-text-muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+.showcase__caption {
+  min-height: 6.5rem;
+  max-width: var(--wo-measure);
+}
+
+.showcase__caption h3 {
+  margin: 0 0 var(--wo-space-2);
+  font-family: var(--wo-font-display);
+  font-size: 1.2rem;
+  font-weight: 640;
+  letter-spacing: -0.015em;
+}
+
+.showcase__caption p {
+  margin: 0;
+  color: var(--wo-text-muted);
+  line-height: 1.65;
+}
+
+.showcase__steps {
+  display: grid;
+  gap: var(--wo-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.showcase__step button {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0 0 var(--wo-space-3);
+  border: 0;
+  background: none;
+  color: var(--wo-text-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--wo-duration);
+}
+
+.showcase__step.is-done button {
+  color: var(--wo-text-muted);
+}
+
+/* The current step is the one being described right now, so it has to be
+   distinguishable from the ones already played — not merely from the ones
+   still to come. */
+.showcase__step.is-current button {
+  color: var(--wo-text);
+}
+
+.showcase__step.is-current .showcase__step-label {
+  font-weight: 680;
+}
+
+.showcase__step.is-current .showcase__step-index {
+  color: var(--wo-accent);
+}
+
+.showcase__step-index {
+  font-family: var(--wo-font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.showcase__step-label {
+  font-size: 0.9rem;
+  font-weight: 620;
+}
+
+.showcase__step-track {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--wo-separator);
+  overflow: hidden;
+}
+
+.showcase__step-fill {
+  display: block;
+  height: 100%;
+  background: var(--wo-accent);
+  transform-origin: left;
+}
+
+.showcase__controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wo-space-2);
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--wo-border-strong);
+  border-radius: var(--wo-radius-xs);
+  background: none;
+  color: var(--wo-text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.showcase__controls button:hover {
+  color: var(--wo-text);
+  border-color: var(--wo-focus);
+}
+
+@media (max-width: 44rem) {
+  .showcase__readout {
+    position: static;
+    padding: var(--wo-space-4) var(--wo-space-5) var(--wo-space-5);
+  }
+
+  .showcase__caption {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The bar times an animation that is not running. The current step still
+     needs marking, so it keeps a static rule rather than an empty track. */
+  .showcase__step-track {
+    background: none;
+  }
+
+  .showcase__step.is-current .showcase__step-track {
+    background: var(--wo-accent);
+  }
+}

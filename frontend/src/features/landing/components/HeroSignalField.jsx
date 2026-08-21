@@ -15,6 +15,19 @@ import { ADVISORIES, FILTER_STAGES } from "../data";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { MagneticLink } from "./MagneticLink";
 
+/**
+ * How long the hero takes.
+ *
+ * Roughly five and a half seconds end to end, against about one before. The
+ * story it tells
+ * — 47 advisories become 1 decision — only works if each number is on screen
+ * long enough to be read, and the previous timing changed them faster than the
+ * eye could follow.
+ */
+const HOLD_FIRST_MS = 700;
+const HOLD_STAGE_MS = 1100;
+const SWEEP_SECONDS = 0.38;
+
 export function HeroSignalField() {
   const reduceMotion = useReducedMotion();
   const [scope, animate] = useAnimate();
@@ -33,23 +46,41 @@ export function HeroSignalField() {
 
     let cancelled = false;
     let animation;
+    let timer;
+
+    const hold = (ms) =>
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, ms);
+      });
+
     const play = async () => {
       try {
+        // The first stage is on screen already; hold it so the starting
+        // number registers before anything moves.
+        await hold(HOLD_FIRST_MS);
+        if (cancelled) return;
+
         for (let nextStage = 1; nextStage < FILTER_STAGES.length; nextStage += 1) {
           animation = animate(
             ".hero-signal__sweep",
             { scaleX: [0, 1] },
-            { duration: nextStage === 1 ? 0.24 : 0.28, ease: [0.16, 1, 0.3, 1] },
+            { duration: SWEEP_SECONDS, ease: [0.16, 1, 0.3, 1] },
           );
           await animation;
           if (cancelled) return;
           setStage(nextStage);
+
+          // And hold each result. Without this the count went 47 → 12 → 3 → 1
+          // in about a second, which reads as a flicker rather than an
+          // argument.
+          await hold(HOLD_STAGE_MS);
+          if (cancelled) return;
         }
 
         animation = animate(
           ".hero-signal__payoff",
-          { scale: [0.98, 1], x: [-3, 0] },
-          { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+          { scale: [0.97, 1], x: [-4, 0] },
+          { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
         );
         await animation;
       } catch (error) {
@@ -60,6 +91,7 @@ export function HeroSignalField() {
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
       animation?.stop();
     };
   }, [animate, inView, reduceMotion, run]);
@@ -89,7 +121,7 @@ export function HeroSignalField() {
   return (
     <section className="landing-hero" aria-labelledby="foundation-title" ref={scope}>
       <div className="landing-hero__heading">
-        <p className="eyebrow">Reachability before urgency</p>
+        <p className="eyebrow">Dependency CVE alerts, filtered by reachability</p>
         <div className="landing-hero__title-mask">
           <motion.h1
             animate={{ y: 0 }}
@@ -97,12 +129,13 @@ export function HeroSignalField() {
             initial={reduceMotion ? false : { y: "108%" }}
             transition={{ duration: 0.68, ease: [0.16, 1, 0.3, 1] }}
           >
-            Forty-seven advisories enter. One decision leaves.
+            Most CVE alerts cannot reach your code.
           </motion.h1>
         </div>
         <p>
-          Weedout traces what your application can actually reach, removes the rest, and puts the
-          exploited path first.
+          Weedout watches your lockfiles, matches every advisory against them, then traces
+          whether your application can actually reach the vulnerable code. You hear about the
+          ones that can — the ones being exploited first.
         </p>
       </div>
 
@@ -187,7 +220,7 @@ export function HeroSignalField() {
 
       <div className="landing-hero__actions">
         <MagneticLink to="/dashboard">See what needs attention</MagneticLink>
-        <span>47 matched · 44 removed from the decision</span>
+        <span>Free for one project · no card · results in about a minute</span>
       </div>
     </section>
   );
