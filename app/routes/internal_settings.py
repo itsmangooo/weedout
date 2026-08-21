@@ -103,9 +103,7 @@ async def settings(
                 "prefix": key.prefix,
                 "name": key.name,
                 "scope": key.scope.value,
-                "project": (
-                    {"id": key.target.id, "name": key.target.name} if key.target else None
-                ),
+                "project": ({"id": key.target.id, "name": key.target.name} if key.target else None),
                 "created_at": key.created_at,
                 "last_used_at": key.last_used_at,
                 "call_count": key.call_count,
@@ -140,9 +138,7 @@ class AlertsBody(BaseModel):
 
 
 @router.post("/settings/alerts", dependencies=[CsrfProtected])
-async def update_alerts(
-    db: DbSession, user: CurrentInternalUser, body: AlertsBody
-) -> dict:
+async def update_alerts(db: DbSession, user: CurrentInternalUser, body: AlertsBody) -> dict:
     try:
         form = AlertPreferencesForm(email_alerts_enabled=body.email_alerts)
     except ValidationError as exc:
@@ -191,7 +187,12 @@ async def update_password(
     from fastapi.responses import JSONResponse
 
     response = JSONResponse(
-        content={"data": {"changed": True, "message": "Password changed. Other sessions were signed out."}}
+        content={
+            "data": {
+                "changed": True,
+                "message": "Password changed. Other sessions were signed out.",
+            }
+        }
     )
     response.set_cookie(
         settings_.session_cookie_name,
@@ -211,9 +212,7 @@ async def update_password(
 
 
 @router.post("/settings/sessions/{session_id}/revoke", dependencies=[CsrfProtected])
-async def revoke_one_session(
-    db: DbSession, user: CurrentInternalUser, session_id: int
-) -> dict:
+async def revoke_one_session(db: DbSession, user: CurrentInternalUser, session_id: int) -> dict:
     revoked = await revoke_session_by_id(db, user, session_id)
     if revoked is None:
         raise _fail(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "That session doesn't exist.")
@@ -223,9 +222,7 @@ async def revoke_one_session(
 
 
 @router.post("/settings/sessions/revoke-others", dependencies=[CsrfProtected])
-async def revoke_other_sessions(
-    request: Request, db: DbSession, user: CurrentInternalUser
-) -> dict:
+async def revoke_other_sessions(request: Request, db: DbSession, user: CurrentInternalUser) -> dict:
     """Sign out everywhere except here.
 
     The current session is passed in by hash so it survives. Without that this
@@ -271,9 +268,7 @@ class CodeBody(BaseModel):
 
 
 @router.post("/settings/2fa/confirm", dependencies=[CsrfProtected])
-async def confirm_two_factor(
-    db: DbSession, user: CurrentInternalUser, body: CodeBody
-) -> dict:
+async def confirm_two_factor(db: DbSession, user: CurrentInternalUser, body: CodeBody) -> dict:
     try:
         await confirm_setup(db, user, body.code)
     except TwoFactorError as exc:
@@ -309,9 +304,7 @@ class DisableBody(BaseModel):
 
 
 @router.post("/settings/2fa/disable", dependencies=[CsrfProtected])
-async def disable_two_factor(
-    db: DbSession, user: CurrentInternalUser, body: DisableBody
-) -> dict:
+async def disable_two_factor(db: DbSession, user: CurrentInternalUser, body: DisableBody) -> dict:
     """Turn the second factor off, on proof of the password.
 
     Asking for the password is the point: a session left open on a shared
