@@ -17,7 +17,7 @@ from app.charts import build_signup_chart
 from app.core.types import Tier
 from app.schemas import SignupChartQuery, SuspendForm, TierChangeForm, UserListQuery
 from app.services.admin_service import SignupPoint
-from tests.conftest import set_csrf
+from tests.conftest import set_csrf, sign_in
 
 
 class TestUserListQuery:
@@ -108,15 +108,7 @@ class TestQueryParamsAtTheRoute:
         db.add(admin)
         await db.flush()
 
-        csrf = set_csrf(client)
-        await client.post(
-            "/login",
-            data={
-                "email": admin.email,
-                "password": "correct-horse-battery",
-                "csrf_token": csrf,
-            },
-        )
+        await sign_in(client, admin.email)
         return client
 
     @pytest.mark.parametrize(

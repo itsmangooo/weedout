@@ -26,7 +26,7 @@ from app.core.explain import (
 )
 from app.core.types import Severity
 from app.core.webhooks import describe_url
-from app.deps import CSRF_COOKIE_NAME, issue_csrf_token
+from app.deps import issue_csrf_token, set_csrf_cookie
 from app.tiers import PLANS, depth_label, limits_for
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -230,15 +230,5 @@ def render(
         status_code=status_code,
         headers=headers,
     )
-    response.set_cookie(
-        CSRF_COOKIE_NAME,
-        csrf_token,
-        max_age=60 * 60 * 12,
-        # Readable by JS on purpose: the double-submit pattern needs the client
-        # to echo it back in a header for fetch() calls.
-        httponly=False,
-        secure=settings.cookie_secure,
-        samesite="lax",
-        path="/",
-    )
+    set_csrf_cookie(response, request)
     return response

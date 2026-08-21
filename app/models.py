@@ -51,6 +51,7 @@ from app.core.types import (
     Ecosystem,
     EmailStatus,
     EmailTrigger,
+    KeyScope,
     ManifestKind,
     MessageStatus,
     Reachability,
@@ -286,6 +287,16 @@ class ApiKey(Base):
     #: Display-only fragment, e.g. "wo_live_9f3a". Never enough to authenticate.
     prefix: Mapped[str] = mapped_column(String(24), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False, default="", server_default="")
+
+    #: What this key may do. Defaults to `scan`, which is what every key issued
+    #: before scopes existed could already do -- so the migration changes no
+    #: behaviour, and the narrowest scope is what you get by not choosing.
+    scope: Mapped[KeyScope] = mapped_column(
+        enum_column(KeyScope, "key_scope"),
+        nullable=False,
+        default=KeyScope.SCAN,
+        server_default=KeyScope.SCAN.value,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         TZDateTime, nullable=False, server_default=func.now(), default=utcnow

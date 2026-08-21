@@ -9,7 +9,8 @@ field arrives from a form, from fetch(), or from a future JSON API.
 from __future__ import annotations
 
 import re
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
@@ -26,11 +27,136 @@ from app.core.types import (
     AudienceKind,
     ContactCategory,
     Ecosystem,
+    KeyScope,
     MessageStatus,
+    Reachability,
+    Severity,
     Tier,
 )
 
 MAX_NAME_LENGTH = 200
+
+
+class CurrentUserView(BaseModel):
+    """The deliberately small user shape exposed to the React application.
+
+    ``from_attributes`` is intentionally not enabled. Callers must select and
+    copy each field rather than passing a ``User`` ORM instance through a
+    serializer that could grow when the model grows.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    email: str
+    is_admin: bool
+    tier: Tier
+    account_state: Literal["active"] = "active"
+
+
+class CurrentAuthState(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    authenticated: bool
+    session_state: Literal["anonymous", "authenticated"]
+    user: CurrentUserView | None
+
+
+class CurrentAuthResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    data: CurrentAuthState
+
+
+class DashboardSummaryView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    projects: int
+    dependencies: int
+    open_findings: int
+    exploited_findings: int
+    critical_findings: int
+    filtered_findings: int
+    dismissed_findings: int
+    resolved_findings: int
+    filter_rate_percent: int
+
+
+class DashboardProjectFindingsView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    open: int
+    exploited: int
+    filtered: int
+
+
+class DashboardProjectView(BaseModel):
+    """The project fields the read-only React dashboard actually renders."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    name: str
+    ecosystem: Ecosystem
+    manifest_kind: str | None
+    dependency_count: int
+    is_active: bool
+    has_manifest: bool
+    last_scanned_at: datetime | None
+    last_scan_failed: bool
+    findings: DashboardProjectFindingsView
+
+
+class DashboardDataView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    summary: DashboardSummaryView
+    projects: list[DashboardProjectView]
+
+
+class DashboardResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    data: DashboardDataView
+
+
+class FindingProjectView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    name: str
+
+
+class FindingAttentionView(BaseModel):
+    """The compact, explicit finding shape rendered by the React dashboard."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    project: FindingProjectView
+    identifier: str
+    package_name: str
+    installed_version: str
+    severity: Severity
+    is_exploited: bool
+    reachability: Reachability
+    status: AlertStatus
+    detected_at: datetime
+
+
+class FindingListMeta(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    show: Literal["open", "filtered", "dismissed", "resolved"]
+    limit: int
+    count: int
+
+
+class FindingListResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    data: list[FindingAttentionView]
+    meta: FindingListMeta
 
 
 def first_error(exc: ValidationError) -> str:
@@ -229,6 +355,17 @@ class ApiKeyForm(BaseModel):
     target_id: Annotated[int, Field(ge=1)]
     #: Purely a label so a person can tell two keys apart later.
     name: Annotated[str, Field(default="", max_length=120)]
+    #: Defaults to the narrowest scope, so a form posted without the field --
+    #: an old bookmark, a script, a template that lost the select -- issues a
+    #: key that can only push scans rather than one that can change rules.
+    scope: KeyScope = KeyScope.SCAN
+
+    @field_validator("scope", mode="before")
+    @classmethod
+    def _unknown_scope_is_the_narrow_one(cls, value: object) -> object:
+        if value in ("", None):
+            return KeyScope.SCAN
+        return value
 
     @field_validator("target_id", mode="before")
     @classmethod

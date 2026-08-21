@@ -94,6 +94,19 @@
                placeholder="github-actions" autocomplete="off">
         <p class="field__hint">Only so you can tell your keys apart later.</p>
       </div>
+      <div class="field">
+        <label for="key_scope">What this key can do</label>
+        <select class="input" id="key_scope" name="scope">
+          <option value="scan" selected>Push scans — for CI</option>
+          <option value="read">Read findings — for dashboards and the CLI</option>
+          <option value="manage">Full access — including editing scan rules</option>
+        </select>
+        <p class="field__hint">
+          A key in a CI pipeline is readable by anyone who can read a build log,
+          so give it the least it needs. Only pick full access for a key you keep
+          on your own machine.
+        </p>
+      </div>
       <button type="submit" class="btn">Create key</button>
     </form>
   {% else %}
@@ -108,6 +121,9 @@
         <tr>
           <th scope="col">Key</th>
           <th scope="col">Project</th>
+          {# Shown so the list can be audited: "which of these could change a
+             rule?" is the question this column exists to answer. #}
+          <th scope="col">Can do</th>
           <th scope="col">Last used</th>
           <th scope="col"><span class="visually-hidden">Actions</span></th>
         </tr>
@@ -120,6 +136,7 @@
               {% if key.name %}<span class="dim">{{ key.name }}</span>{% endif %}
             </td>
             <td>{{ key.target.name if key.target else '—' }}</td>
+            <td>{{ key.scope.label }}</td>
             <td class="dim">
               {% if not key.is_active %}
                 Revoked {{ key.revoked_at|relative_time }}

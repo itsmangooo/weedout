@@ -18,7 +18,15 @@ import pytest
 from app.templating import is_public_surface
 
 PUBLIC = ("/", "/pricing", "/cli")
-APP = ("/dashboard", "/settings", "/alerts", "/targets/new", "/docs", "/contact")
+APP = (
+    "/dashboard",
+    "/dashboard/legacy",
+    "/settings",
+    "/alerts",
+    "/targets/new",
+    "/docs",
+    "/contact",
+)
 
 
 class TestTheSeam:
@@ -84,7 +92,7 @@ class TestWhatIsRendered:
         assert "data-theme-set" not in body
 
     async def test_the_application_leaves_the_palette_to_the_visitor(self, auth_client):
-        body = (await auth_client.get("/dashboard")).text
+        body = (await auth_client.get("/dashboard/legacy")).text
         assert 'data-surface="public"' not in body
         # No server-pinned theme: theme.js applies the saved preference before
         # the first paint.

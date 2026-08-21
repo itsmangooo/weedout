@@ -1,0 +1,49 @@
+:root {
+  --wo-space-1: 0.25rem;
+  --wo-space-2: 0.5rem;
+  --wo-space-3: 0.75rem;
+  --wo-space-4: 1rem;
+  --wo-space-5: 1.5rem;
+  --wo-space-6: 2rem;
+  --wo-space-7: 3rem;
+  --wo-space-8: 4rem;
+  --wo-space-9: 6rem;
+
+  --wo-radius-xs: 0.55rem;
+  --wo-radius-sm: 0.7rem;
+  --wo-radius: 0.9rem;
+  --wo-radius-lg: 1.15rem;
+  --wo-radius-xl: 1.35rem;
+  --wo-page-max: 76rem;
+  --wo-app-max: 92rem;
+  --wo-measure: 66ch;
+
+  --wo-font-sans: "Segoe UI Variable", "Aptos", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --wo-font-display: "Segoe UI Variable Display", "Aptos Display", "Segoe UI", sans-serif;
+  --wo-font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+
+  --wo-critical: #e86f6b;
+  --wo-critical-quiet: rgb(232 111 107 / 0.12);
+  --wo-warning: #cf924d;
+  --wo-warning-quiet: rgb(207 146 77 / 0.12);
+  --wo-success: #519874;
+  --wo-success-quiet: rgb(81 152 116 / 0.12);
+  --wo-failure: #cf7077;
+  --wo-failure-quiet: rgb(207 112 119 / 0.12);
+
+  --wo-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --wo-ease-standard: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --wo-duration-fast: 120ms;
+  --wo-duration: 180ms;
+  --wo-duration-slow: 320ms;
+}
+
+@theme inline {
+  --color-weedout-bg: var(--wo-bg);
+  --color-weedout-surface: var(--wo-surface);
+  --color-weedout-text: var(--wo-text);
+  --color-weedout-muted: var(--wo-text-muted);
+  --color-weedout-accent: var(--wo-accent);
+  --font-sans: var(--wo-font-sans);
+  --font-mono: var(--wo-font-mono);
+}

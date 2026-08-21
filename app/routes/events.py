@@ -127,7 +127,8 @@ async def events(request: Request, user: CurrentUser) -> StreamingResponse:
         stream(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache, no-transform",
+            "Cache-Control": "private, no-cache, no-store, no-transform",
+            "Vary": "Cookie",
             # nginx buffers proxied responses by default, which turns a live
             # stream into one long silence followed by everything at once.
             "X-Accel-Buffering": "no",

@@ -19,7 +19,7 @@ from sqlalchemy import select
 from app.core.types import Tier
 from app.models import AdminAuditLog, User
 from app.security import hash_password
-from tests.conftest import set_csrf
+from tests.conftest import set_csrf, sign_in
 
 
 def admin_routes(app) -> list[tuple[str, str]]:
@@ -72,12 +72,8 @@ async def admin_user(db) -> User:
 
 @pytest.fixture
 async def admin_client(client, admin_user):
-    csrf = set_csrf(client)
-    response = await client.post(
-        "/login",
-        data={"email": admin_user.email, "password": "correct-horse-battery", "csrf_token": csrf},
-    )
-    assert response.status_code == 303
+    response = await sign_in(client, admin_user.email)
+    assert response.status_code == 200
     return client
 
 
@@ -171,7 +167,7 @@ class TestNonAdminIsRefused:
         assert entries == []
 
     async def test_the_admin_nav_link_is_not_rendered_for_regular_users(self, auth_client):
-        response = await auth_client.get("/dashboard")
+        response = await auth_client.get("/dashboard/legacy")
         assert response.status_code == 200
         assert 'href="/admin"' not in response.text
 
@@ -216,7 +212,7 @@ class TestAdminIsAllowed:
         assert not failures, "admin was blocked from: " + "; ".join(failures)
 
     async def test_admin_sees_the_nav_link(self, admin_client):
-        response = await admin_client.get("/dashboard")
+        response = await admin_client.get("/dashboard/legacy")
         assert 'href="/admin"' in response.text
 
 
@@ -236,16 +232,8 @@ class TestAdminPromotion:
         created.is_admin = False  # prove the login path promotes too
         await db.flush()
 
-        csrf = set_csrf(client)
-        response = await client.post(
-            "/login",
-            data={
-                "email": "boss@example.com",
-                "password": "a-good-long-password",
-                "csrf_token": csrf,
-            },
-        )
-        assert response.status_code == 303
+        response = await sign_in(client, "boss@example.com", "a-good-long-password")
+        assert response.status_code == 200
 
         await db.refresh(created)
         assert created.is_admin is True
@@ -257,15 +245,7 @@ class TestAdminPromotion:
         monkeypatch.setattr(get_settings(), "admin_email", "boss@example.com")
         await register_user(db, "boss@example.com", "a-good-long-password")
 
-        csrf = set_csrf(client)
-        await client.post(
-            "/login",
-            data={
-                "email": "boss@example.com",
-                "password": "a-good-long-password",
-                "csrf_token": csrf,
-            },
-        )
+        await sign_in(client, "boss@example.com", "a-good-long-password")
 
         entry = await db.scalar(
             select(AdminAuditLog).where(AdminAuditLog.action == "admin.self_promoted")
@@ -278,15 +258,7 @@ class TestAdminPromotion:
 
         monkeypatch.setattr(get_settings(), "admin_email", "boss@example.com")
 
-        csrf = set_csrf(client)
-        await client.post(
-            "/login",
-            data={
-                "email": user.email,
-                "password": "correct-horse-battery",
-                "csrf_token": csrf,
-            },
-        )
+        await sign_in(client, user.email)
         await db.refresh(user)
         assert user.is_admin is False
 
@@ -295,14 +267,6 @@ class TestAdminPromotion:
 
         monkeypatch.setattr(get_settings(), "admin_email", None)
 
-        csrf = set_csrf(client)
-        await client.post(
-            "/login",
-            data={
-                "email": user.email,
-                "password": "correct-horse-battery",
-                "csrf_token": csrf,
-            },
-        )
+        await sign_in(client, user.email)
         await db.refresh(user)
         assert user.is_admin is False

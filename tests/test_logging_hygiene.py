@@ -68,18 +68,10 @@ class TestRequestLogging:
         assert "live-token-value-12345" not in caplog.text
 
     async def test_a_submitted_password_is_never_logged(self, client, db, user, caplog):
-        from tests.conftest import set_csrf
+        from tests.conftest import sign_in
 
-        csrf = set_csrf(client)
         with caplog.at_level(logging.DEBUG):
-            await client.post(
-                "/login",
-                data={
-                    "email": user.email,
-                    "password": "hunter2-should-not-appear",
-                    "csrf_token": csrf,
-                },
-            )
+            await sign_in(client, user.email, "hunter2-should-not-appear")
 
         assert "hunter2-should-not-appear" not in caplog.text
 

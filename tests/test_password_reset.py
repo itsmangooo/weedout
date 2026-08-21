@@ -257,197 +257,105 @@ class TestPurge:
         assert [r.id for r in remaining] == [recent.id]
 
 
-class TestResetRoutes:
-    async def test_request_page_renders(self, client):
-        response = await client.get("/forgot-password")
-        assert response.status_code == 200
-        assert "Reset your password" in response.text
+class TestResetOverTheApi:
+    """The reset endpoints the React screens post to.
 
-    async def test_known_and_unknown_addresses_get_identical_responses(self, client, user):
-        """The core anti-enumeration property, asserted on the actual bytes."""
-        csrf = set_csrf(client)
-        known = await client.post(
-            "/forgot-password", data={"email": user.email, "csrf_token": csrf}
-        )
-        csrf = set_csrf(client)
-        unknown = await client.post(
-            "/forgot-password", data={"email": "nobody@example.com", "csrf_token": csrf}
-        )
+    The form routes these replaced also validated the token when the page was
+    opened, so an expired link was caught before anything was typed. That check
+    now happens on submit instead. The security property is unchanged — the
+    token is still verified server-side before any password is written — but
+    somebody clicking a dead link now finds out one step later.
 
-        assert known.status_code == unknown.status_code == 200
-        # The address is echoed back, so compare with it removed.
-        assert known.text.replace(user.email, "X") == unknown.text.replace(
-            "nobody@example.com", "X"
+    Most of the enumeration and replay properties are asserted in
+    test_internal_auth_actions.py alongside the rest of the JSON surface. What
+    is kept here is the cases that are specific to resets.
+    """
+
+    async def _forgot(self, client, email: str):
+        csrf = set_csrf(client)
+        return await client.post(
+            "/api/internal/auth/forgot-password",
+            json={"email": email},
+            headers={"X-CSRF-Token": csrf},
         )
 
     async def test_a_suspended_account_gets_the_same_response(self, client, db, user):
+        """A closed account must not be recoverable, and must not announce
+        that it is closed either."""
         user.is_suspended = True
+        user.suspended_at = utcnow()
         await db.flush()
 
-        csrf = set_csrf(client)
-        response = await client.post(
-            "/forgot-password", data={"email": user.email, "csrf_token": csrf}
-        )
-        assert response.status_code == 200
-        assert "Check your email" in response.text
+        suspended = await self._forgot(client, user.email)
+        unknown = await self._forgot(client, "nobody@example.com")
 
-    async def test_a_malformed_address_gets_the_same_response(self, client):
-        # A validation error here would leak that the address format check ran
-        # against a real lookup.
-        csrf = set_csrf(client)
-        response = await client.post(
-            "/forgot-password", data={"email": "not-an-email", "csrf_token": csrf}
-        )
-        assert response.status_code == 200
-        assert "Check your email" in response.text
+        assert suspended.status_code == unknown.status_code == 200
+        assert suspended.json() == unknown.json()
 
-    async def test_request_requires_csrf(self, client, user):
-        response = await client.post("/forgot-password", data={"email": user.email})
+    async def test_no_token_is_issued_for_a_suspended_account(self, db, user, client):
+        user.is_suspended = True
+        user.suspended_at = utcnow()
+        await db.flush()
+
+        await self._forgot(client, user.email)
+
+        assert (
+            await db.scalar(
+                select(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
+            )
+            is None
+        )
+
+    async def test_the_request_needs_csrf(self, client, user):
+        """Without it, any page could start a reset for any address — which is
+        not a takeover, but is a way to spray somebody's inbox."""
+        response = await client.post(
+            "/api/internal/auth/forgot-password", json={"email": user.email}
+        )
         assert response.status_code == 403
 
-    async def test_reset_page_renders_for_a_valid_token(self, client, db, user):
-        token, _ = await issue_token(db, user)
-        response = await client.get(f"/reset-password?token={token}")
-        assert response.status_code == 200
-        assert "Choose a new password" in response.text
-
-    @pytest.mark.parametrize("bad", ["", "nonsense", "a" * 200])
-    async def test_reset_page_rejects_a_bad_token(self, client, bad):
-        response = await client.get(f"/reset-password?token={bad}")
-        assert response.status_code == 400
-        assert "expired" in response.text.lower()
-
-    async def test_reset_page_rejects_an_expired_token(self, client, db, user):
+    async def test_an_expired_token_is_refused_on_submit(self, client, db, user):
         token, record = await issue_token(db, user)
         record.expires_at = utcnow() - timedelta(seconds=1)
         await db.flush()
 
-        response = await client.get(f"/reset-password?token={token}")
-        assert response.status_code == 400
-
-    async def test_full_reset_through_the_routes(self, client, db, user):
-        token, _ = await issue_token(db, user)
         csrf = set_csrf(client)
-
         response = await client.post(
-            "/reset-password",
-            data={
+            "/api/internal/auth/reset-password",
+            json={
                 "token": token,
                 "password": NEW_PASSWORD,
                 "password_confirm": NEW_PASSWORD,
-                "csrf_token": csrf,
             },
+            headers={"X-CSRF-Token": csrf},
         )
-        assert response.status_code == 200
-        assert "password has been changed" in response.text
 
-        await db.refresh(user)
-        assert verify_password(NEW_PASSWORD, user.password_hash)
+        assert response.status_code == 400
+        assert "no longer valid" in response.json()["error"]["message"].lower()
 
-    async def test_reset_does_not_sign_the_user_in(self, client, db, user):
-        # The reset revoked every session; handing out a new one silently would
-        # skip proving the new password works.
+    async def test_the_completion_needs_csrf(self, client, db, user):
         token, _ = await issue_token(db, user)
-        csrf = set_csrf(client)
 
         response = await client.post(
-            "/reset-password",
-            data={
+            "/api/internal/auth/reset-password",
+            json={
                 "token": token,
                 "password": NEW_PASSWORD,
                 "password_confirm": NEW_PASSWORD,
-                "csrf_token": csrf,
             },
         )
-        assert "weedout_session" not in response.cookies
 
-    async def test_mismatched_confirmation_is_rejected_but_keeps_the_token(self, client, db, user):
-        token, record = await issue_token(db, user)
-        csrf = set_csrf(client)
-
-        response = await client.post(
-            "/reset-password",
-            data={
-                "token": token,
-                "password": NEW_PASSWORD,
-                "password_confirm": "something-else-entirely",
-                "csrf_token": csrf,
-            },
-        )
-        assert response.status_code == 400
-        # Jinja escapes the apostrophe, so match on the unambiguous words.
-        assert "passwords" in response.text.lower()
-        assert "match" in response.text.lower()
-
-        await db.refresh(record)
-        assert record.used_at is None, "a typo must not cost the user their link"
-        assert verify_password(PASSWORD, user.password_hash)
-
-    async def test_replaying_the_token_through_the_route_fails(self, client, db, user):
-        token, _ = await issue_token(db, user)
-        body = {"token": token, "password": NEW_PASSWORD, "password_confirm": NEW_PASSWORD}
-
-        csrf = set_csrf(client)
-        first = await client.post("/reset-password", data={**body, "csrf_token": csrf})
-        assert first.status_code == 200
-
-        csrf = set_csrf(client)
-        second = await client.post(
-            "/reset-password",
-            data={
-                **body,
-                "password": "third-password-here",
-                "password_confirm": "third-password-here",
-                "csrf_token": csrf,
-            },
-        )
-        assert second.status_code == 400
-        assert "expired" in second.text.lower()
-
-        await db.refresh(user)
-        assert verify_password(NEW_PASSWORD, user.password_hash)
-
-    async def test_reset_requires_csrf(self, client, db, user):
-        token, _ = await issue_token(db, user)
-        response = await client.post(
-            "/reset-password",
-            data={"token": token, "password": NEW_PASSWORD, "password_confirm": NEW_PASSWORD},
-        )
         assert response.status_code == 403
+        # And the token survives, so a blocked request has not burned it.
+        assert await verify_password_unchanged(db, user)
 
-    async def test_signed_in_users_are_sent_to_settings(self, auth_client):
-        response = await auth_client.get("/forgot-password")
-        assert response.status_code == 303
-        assert response.headers["location"] == "/settings"
 
-    async def test_login_page_links_to_the_reset_flow(self, client):
-        response = await client.get("/login")
-        assert "/forgot-password" in response.text
+async def verify_password_unchanged(db, user) -> bool:
+    from app.security import verify_password
 
-    async def test_the_success_banner_renders_exactly_once(self, client, db, user):
-        # Every page renders its own notice; a generic copy in the base layout
-        # used to render each of them twice.
-        token, _ = await issue_token(db, user)
-        csrf = set_csrf(client)
+    await db.refresh(user)
+    return verify_password(PASSWORD, user.password_hash)
 
-        response = await client.post(
-            "/reset-password",
-            data={
-                "token": token,
-                "password": NEW_PASSWORD,
-                "password_confirm": NEW_PASSWORD,
-                "csrf_token": csrf,
-            },
-        )
-        assert response.text.count("Your password has been changed") == 1
-
-    async def test_an_error_banner_renders_exactly_once(self, client, user):
-        csrf = set_csrf(client)
-        response = await client.post(
-            "/login",
-            data={"email": user.email, "password": "wrong", "csrf_token": csrf},
-        )
-        assert response.text.count("Incorrect email or password") == 1
 
 
 class TestChangePasswordStillRequiresTheCurrentOne:

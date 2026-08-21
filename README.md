@@ -62,6 +62,15 @@ python -m app
 Open <http://localhost:8000>, create an account, and add a manifest. The first
 scan runs immediately.
 
+### React frontend migration
+
+The controlled frontend migration lives in [`frontend/`](frontend/README.md). It runs as an
+isolated Vite development application on <http://localhost:5173> and proxies requests to the
+existing Python application on port 8000. Phase 5 makes the React view at `/dashboard` canonical,
+serves its hashed build output from `/assets`, and retains the protected Jinja implementation at
+`/dashboard/legacy` as an unlinked rollback path. Every mutation and all other product routes remain
+unchanged.
+
 > **Use `python -m app`, not `uvicorn app.main:app`.** When uvicorn is given an
 > import string it creates its event loop *before* importing the application,
 > which is too late to switch Windows off the `ProactorEventLoop` that psycopg

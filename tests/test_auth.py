@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core.types import Tier
-from app.models import Session, User
+from app.models import Session
 from app.security import hash_session_token
 from app.services.auth_service import (
     EmailAlreadyRegistered,
@@ -18,7 +18,7 @@ from app.services.auth_service import (
     revoke_session,
     session_user,
 )
-from tests.conftest import set_csrf
+from tests.conftest import FIXTURE_PASSWORD, set_csrf, sign_in
 
 
 class TestRegistration:
@@ -125,114 +125,67 @@ class TestSessions:
 
 
 class TestAuthRoutes:
-    async def test_signup_creates_an_account_and_signs_in(self, client, db):
-        csrf = set_csrf(client, "tok")
-        response = await client.post(
-            "/signup",
-            data={
-                "email": "route@example.com",
-                "password": "a-good-long-password",
-                "csrf_token": csrf,
-            },
-        )
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        assert "weedout_session" in response.cookies
-
-        created = await db.scalar(select(User).where(User.email == "route@example.com"))
-        assert created is not None
-
-    async def test_signup_without_csrf_is_rejected(self, client):
-        response = await client.post(
-            "/signup", data={"email": "nocsrf@example.com", "password": "a-good-long-password"}
-        )
-        assert response.status_code == 403
-
-    async def test_signup_with_mismatched_csrf_is_rejected(self, client):
-        client.cookies.set("weedout_csrf", "real-token")
-        response = await client.post(
-            "/signup",
-            data={
-                "email": "bad@example.com",
-                "password": "a-good-long-password",
-                "csrf_token": "forged-token",
-            },
-        )
-        assert response.status_code == 403
-
-    async def test_honeypot_submission_creates_no_account(self, client, db):
-        csrf = set_csrf(client, "tok")
-        response = await client.post(
-            "/signup",
-            data={
-                "email": "bot@example.com",
-                "password": "a-good-long-password",
-                "website": "http://spam.example",
-                "csrf_token": csrf,
-            },
-        )
-        # Looks exactly like success, so the bot learns nothing.
-        assert response.status_code == 303
-        assert await db.scalar(select(User).where(User.email == "bot@example.com")) is None
-
     async def test_login_rejects_bad_credentials_with_401(self, client, user):
-        csrf = set_csrf(client, "tok")
-        response = await client.post(
-            "/login",
-            data={"email": user.email, "password": "wrong", "csrf_token": csrf},
-        )
+        response = await sign_in(client, user.email, "wrong")
         assert response.status_code == 401
         assert "weedout_session" not in response.cookies
 
     async def test_login_honours_a_local_next_parameter(self, client, user):
-        csrf = set_csrf(client, "tok")
+        """Where to go afterwards now comes back in the body rather than as a
+        redirect, because the client does the navigating. The validation of it
+        did not move."""
+        csrf = set_csrf(client)
         response = await client.post(
-            "/login",
-            data={
-                "email": user.email,
-                "password": "correct-horse-battery",
-                "next": "/alerts",
-                "csrf_token": csrf,
-            },
+            "/api/internal/auth/login",
+            json={"email": user.email, "password": FIXTURE_PASSWORD, "next": "/alerts"},
+            headers={"X-CSRF-Token": csrf},
         )
-        assert response.headers["location"] == "/alerts"
+
+        assert response.status_code == 200
+        assert response.json()["next"] == "/alerts"
 
     @pytest.mark.parametrize(
         "hostile", ["https://evil.example/steal", "//evil.example", "http://evil.example"]
     )
-    async def test_login_refuses_to_redirect_off_site(self, client, user, hostile):
-        csrf = set_csrf(client, "tok")
+    async def test_login_refuses_to_send_you_off_site(self, client, user, hostile):
+        """`next` arrives from a query string, so it is attacker-controlled.
+
+        Checked on the server and not only in the browser: a client can be
+        made to skip its own validation, and the consequence here is our own
+        sign-in page delivering people to somebody else's.
+        """
+        csrf = set_csrf(client)
         response = await client.post(
-            "/login",
-            data={
-                "email": user.email,
-                "password": "correct-horse-battery",
-                "next": hostile,
-                "csrf_token": csrf,
-            },
+            "/api/internal/auth/login",
+            json={"email": user.email, "password": FIXTURE_PASSWORD, "next": hostile},
+            headers={"X-CSRF-Token": csrf},
         )
-        assert response.headers["location"] == "/dashboard"
+
+        assert response.status_code == 200
+        assert response.json()["next"] == "/dashboard"
 
     async def test_logout_clears_the_session(self, auth_client):
-        assert (await auth_client.get("/dashboard")).status_code == 200
+        assert (await auth_client.get("/api/internal/dashboard")).status_code == 200
 
         csrf = set_csrf(auth_client)
-        response = await auth_client.post("/logout", data={"csrf_token": csrf})
-        assert response.status_code == 303
+        response = await auth_client.post(
+            "/api/internal/auth/logout", json={}, headers={"X-CSRF-Token": csrf}
+        )
+        assert response.status_code == 200
 
-        after = await auth_client.get("/dashboard")
-        assert after.status_code == 303
-        assert "/login" in after.headers["location"]
+        after = await auth_client.get("/api/internal/auth/me")
+        assert after.status_code == 200
+        assert after.json()["data"]["authenticated"] is False
 
-    async def test_anonymous_visitor_is_redirected_to_login(self, client):
-        response = await client.get("/dashboard")
-        assert response.status_code == 303
-        assert response.headers["location"] == "/login?next=/dashboard"
+    async def test_anonymous_visitor_cannot_read_dashboard_data(self, client):
+        response = await client.get("/api/internal/dashboard")
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "UNAUTHENTICATED"
 
-    async def test_signed_in_user_reaches_the_dashboard(self, auth_client):
+    async def test_signed_in_user_reaches_the_legacy_rollback_dashboard(self, auth_client):
         # The noise ledger only renders once something has matched, so this
         # asserts on the state readout the dashboard always shows instead.
-        response = await auth_client.get("/dashboard")
+        response = await auth_client.get("/dashboard/legacy")
         assert response.status_code == 200
         assert "Dashboard" in response.text
         assert "All clear" in response.text

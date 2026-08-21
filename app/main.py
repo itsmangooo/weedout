@@ -32,7 +32,12 @@ from app.routes import (
     contact,
     docs,
     events,
+    frontend,
     health,
+    internal_auth,
+    internal_auth_actions,
+    internal_dashboard,
+    internal_findings,
     pages,
     targets,
 )
@@ -151,7 +156,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+    app.include_router(frontend.router)
     app.include_router(health.router)
+    app.include_router(internal_auth.router)
+    app.include_router(internal_auth_actions.router)
+    app.include_router(internal_dashboard.router)
+    app.include_router(internal_findings.router)
     app.include_router(pages.router)
     app.include_router(auth.router)
     app.include_router(targets.router)
@@ -296,6 +306,17 @@ def _register_error_handlers(app: FastAPI) -> None:
                 "error.html",
                 {"status_code": 422, "title": "That didn't look right", "message": message},
                 status_code=422,
+            )
+        if request.url.path.startswith("/api/internal/"):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": message,
+                    }
+                },
+                status_code=422,
+                headers={"Cache-Control": "private, no-store", "Vary": "Cookie"},
             )
         return JSONResponse({"error": message}, status_code=422)
 

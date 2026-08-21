@@ -16,7 +16,7 @@ import json
 import pytest
 from sqlalchemy import select
 
-from app.core.types import ManifestKind
+from app.core.types import KeyScope, ManifestKind
 from app.models import ApiKey, TrackedTarget
 from app.security import content_hash, hash_api_key
 from app.services.api_key_service import (
@@ -439,3 +439,137 @@ class TestScanEndpoint:
             headers={"Authorization": f"Bearer {token}", "Accept": "text/html"},
         )
         assert response.headers["content-type"].startswith("application/json")
+
+
+class TestKeyScopes:
+    """A key may only do the thing it was issued for.
+
+    This is the property that makes the read and manage endpoints safe to
+    exist. Before scopes, a key could do exactly one thing, so a key leaked from
+    a build log could report a scan for one project and nothing else. Opening
+    the API up to reading findings and editing rules would have widened every
+    key already in circulation unless the key itself says which it is for.
+
+    The case that matters most is the last one: a leaked CI key must not be able
+    to add an ignore rule, because that would let whoever took it silence the
+    alert for the vulnerability they are about to use.
+    """
+
+    async def _key(self, db, owner, scope, target=None):
+        from app.services.api_key_service import issue_api_key
+
+        target = target or await make_target(db, owner)
+        issued = await issue_api_key(db, owner, target, name="ci", scope=scope)
+        await db.flush()
+        return issued.token, target
+
+    async def test_a_key_issued_without_a_scope_can_only_push_scans(self, db, user):
+        """The default is the narrowest, so forgetting to choose is safe."""
+        _, record = await make_key(db, user)
+        assert record.scope is KeyScope.SCAN
+
+    async def test_a_scan_key_cannot_read_the_findings_list(self, client, db, user):
+        token, _ = await self._key(db, user, KeyScope.SCAN)
+        await db.commit()
+
+        response = await client.get(
+            "/api/v1/findings", headers={"Authorization": f"Bearer {token}"}
+        )
+
+        # 403, not 401: the credential is real, and answering 401 would send a
+        # CI script into a retry loop over a permission problem no retry fixes.
+        assert response.status_code == 403
+        body = response.json()
+        # The same envelope every other API error uses, so a script can branch
+        # on the code rather than parsing English out of a message.
+        assert body["error"] == "insufficient_scope"
+        assert body["has"] == "scan" and body["needs"] == "read"
+        assert "read access" in body["message"]
+
+    async def test_a_scan_key_cannot_add_an_ignore_rule(self, client, db, user):
+        """The escalation this whole mechanism exists to prevent."""
+        token, _ = await self._key(db, user, KeyScope.SCAN)
+        await db.commit()
+
+        response = await client.post(
+            "/api/v1/rules",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"identifier": "CVE-2099-0001", "reason": "silenced"},
+        )
+
+        assert response.status_code == 403
+
+    async def test_a_read_key_cannot_push_a_scan(self, client, db, user):
+        """Not a ladder. A dashboard key that could also write results could
+        report a clean scan for a project it never looked at."""
+        token, _ = await self._key(db, user, KeyScope.READ)
+        await db.commit()
+
+        response = await client.post(
+            "/api/v1/scan",
+            headers={"Authorization": f"Bearer {token}"},
+            files=upload(),
+        )
+
+        assert response.status_code == 403
+
+    async def test_a_read_key_cannot_edit_rules(self, client, db, user):
+        token, _ = await self._key(db, user, KeyScope.READ)
+        await db.commit()
+
+        response = await client.delete(
+            "/api/v1/rules/CVE-2099-0001", headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 403
+
+    async def test_a_read_key_reads(self, client, db, user):
+        token, target = await self._key(db, user, KeyScope.READ)
+        await db.commit()
+
+        response = await client.get(
+            "/api/v1/project", headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["project"] == target.name
+
+    async def test_a_manage_key_does_all_three(self, client, db, user, pro_user):
+        """`manage` is the one scope that is a superset, because it is the one
+        a person holds rather than a machine."""
+        await seed_mirror(db)
+        token, _ = await self._key(db, pro_user, KeyScope.MANAGE)
+        await db.commit()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        assert (await client.get("/api/v1/project", headers=headers)).status_code == 200
+        assert (await client.get("/api/v1/rules", headers=headers)).status_code == 200
+        assert (await client.post("/api/v1/scan", headers=headers, files=upload())).status_code == 200
+
+    async def test_the_refusal_says_what_would_work(self, client, db, user):
+        """A permission error that does not say which key to use makes somebody
+        guess, and the guess is usually a broader key."""
+        token, _ = await self._key(db, user, KeyScope.SCAN)
+        await db.commit()
+
+        message = (
+            await client.get("/api/v1/findings", headers={"Authorization": f"Bearer {token}"})
+        ).json()["message"]
+
+        assert "push scans" in message.lower()
+        assert "settings" in message.lower()
+
+    async def test_a_scope_never_widens_across_projects(self, client, db, user, pro_user):
+        """Scope answers what, ownership answers which. A manage key is still
+        bound to its own project."""
+        token, _ = await self._key(db, pro_user, KeyScope.MANAGE)
+        mine = await make_target(db, pro_user, name="mine")
+        theirs = await make_target(db, user, name="theirs")
+        await db.commit()
+
+        body = (
+            await client.get("/api/v1/project", headers={"Authorization": f"Bearer {token}"})
+        ).json()
+
+        assert body["project"] not in {theirs.name}
+        assert body["project"] != mine.name

@@ -1,0 +1,60 @@
+.eyebrow,
+.section-label,
+.foundation-header__phase,
+.foundation-footer__route {
+  font-family: var(--wo-font-mono);
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.095em;
+  text-transform: uppercase;
+}
+
+.eyebrow,
+.section-label {
+  color: var(--wo-accent-strong);
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--wo-font-display);
+  text-wrap: balance;
+}
+
+.foundation-hero h1,
+.not-found h1,
+.fatal-error h1 {
+  max-width: 14ch;
+  color: var(--wo-text);
+  font-size: clamp(3.4rem, 9vw, 7.4rem);
+  font-weight: 590;
+  letter-spacing: -0.065em;
+  line-height: 0.91;
+}
+
+.foundation-hero__lede,
+.not-found > p:not(.eyebrow) {
+  max-width: 58ch;
+  color: var(--wo-text-muted);
+  font-size: clamp(1rem, 2vw, 1.16rem);
+  line-height: 1.72;
+}
+
+code,
+.foundation-footer__route {
+  font-family: var(--wo-font-mono);
+}
+
+code {
+  color: var(--wo-accent-strong);
+  font-size: 0.9em;
+}

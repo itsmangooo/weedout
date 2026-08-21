@@ -16,13 +16,13 @@ from app.core.types import (
     AlertStatus,
     Dependency,
     MatchDecision,
-    Verdict,
 )
 from app.deps import CsrfProtected, CurrentUser, DbSession, redirect
 from app.logging_config import get_logger
-from app.models import SEVERITY_RANK, Alert, CVEMatch, KevRecord, TrackedTarget, utcnow
+from app.models import Alert, CVEMatch, KevRecord, TrackedTarget, utcnow
 from app.schemas import MatchActionForm
 from app.services.feed_service import record_to_vulnerability
+from app.services.finding_service import FindingShow, list_findings
 from app.templating import render
 
 log = get_logger(__name__)
@@ -45,32 +45,11 @@ async def _load_match(db, user_id: int, match_id: int) -> CVEMatch:
 @router.get("/alerts")
 async def alerts_index(request: Request, db: DbSession, user: CurrentUser, show: str = "open"):
     """Every finding across every project, with the filtered ones one tab away."""
-    filters = {
-        "open": (CVEMatch.verdict == Verdict.ACTIONABLE, CVEMatch.status == AlertStatus.OPEN),
-        "filtered": (CVEMatch.verdict == Verdict.SUPPRESSED,),
-        "dismissed": (CVEMatch.status == AlertStatus.DISMISSED,),
-        "resolved": (CVEMatch.status == AlertStatus.RESOLVED,),
-    }
-    selected = show if show in filters else "open"
-
-    matches = list(
-        (
-            await db.scalars(
-                select(CVEMatch)
-                .join(TrackedTarget, TrackedTarget.id == CVEMatch.target_id)
-                .where(TrackedTarget.user_id == user.id, *filters[selected])
-                .order_by(desc(CVEMatch.is_kev), desc(SEVERITY_RANK), desc(CVEMatch.first_seen_at))
-                .limit(200)
-            )
-        ).all()
+    selected: FindingShow = (
+        show if show in {"open", "filtered", "dismissed", "resolved"} else "open"
     )
-
-    targets = {
-        target.id: target.name
-        for target in (
-            await db.scalars(select(TrackedTarget).where(TrackedTarget.user_id == user.id))
-        ).all()
-    }
+    matches = await list_findings(db, user.id, show=selected, limit=200)
+    targets = {match.target.id: match.target.name for match in matches}
 
     return render(
         request,

@@ -30,6 +30,11 @@ dist/
 .coverage
 htmlcov/
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
 # Editors / OS
 .vscode/
 .idea/

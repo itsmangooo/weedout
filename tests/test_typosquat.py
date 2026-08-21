@@ -252,7 +252,7 @@ class TestItIsShownSeparately:
         from app.core.types import ManifestKind
         from app.security import hash_password
         from app.services.scan_service import scan_target
-        from tests.conftest import set_csrf
+        from tests.conftest import sign_in
         from tests.test_scan_pipeline import make_target, seed_mirror
 
         pro_user.password_hash = hash_password("correct-horse-battery")
@@ -263,15 +263,7 @@ class TestItIsShownSeparately:
         await scan_target(db, target)
         await db.commit()
 
-        csrf = set_csrf(client)
-        await client.post(
-            "/login",
-            data={
-                "email": pro_user.email,
-                "password": "correct-horse-battery",
-                "csrf_token": csrf,
-            },
-        )
+        await sign_in(client, pro_user.email)
         body = (await client.get(f"/targets/{target.id}?view=overview")).text
 
         assert "Supply chain" in body

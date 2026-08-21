@@ -6,9 +6,9 @@ import json
 
 from sqlalchemy import select
 
-from app.core.types import AlertStatus, Ecosystem, ManifestKind, Verdict
+from app.core.types import AlertStatus, Ecosystem, KeyScope, ManifestKind, Verdict
 from app.models import ApiKey, CVEMatch, DependencyRecord, ScanRun, TrackedTarget
-from tests.conftest import set_csrf
+from tests.conftest import set_csrf, sign_in
 from tests.test_scan_pipeline import LODASH_ADVISORY, MANIFEST, seed_mirror
 
 
@@ -350,6 +350,44 @@ class TestProjectLifecycle:
         assert settings_view.status_code == 200
         assert f'<span class="tab__count">{expected}</span>' in settings_view.text
 
+    async def test_the_form_issues_the_scope_that_was_chosen(self, auth_client, db):
+        """The selector has to actually reach the key, or the whole mechanism
+        is a dropdown that changes nothing."""
+        csrf = set_csrf(auth_client)
+        await auth_client.post(
+            "/targets", data={"name": "scoped", "ecosystem": "npm", "csrf_token": csrf}
+        )
+        target = await db.scalar(select(TrackedTarget))
+
+        csrf = set_csrf(auth_client)
+        await auth_client.post(
+            f"/targets/{target.id}/keys",
+            data={"name": "laptop", "scope": "manage", "csrf_token": csrf},
+        )
+
+        key = await db.scalar(select(ApiKey).where(ApiKey.target_id == target.id))
+        assert key.scope is KeyScope.MANAGE
+
+    async def test_a_tampered_scope_falls_back_to_the_narrowest(self, auth_client, db):
+        """Failing closed matters more here than a validation message: the
+        only ways to send an unknown scope are a stale template or somebody
+        editing the form, and neither should be able to widen a key."""
+        csrf = set_csrf(auth_client)
+        await auth_client.post(
+            "/targets", data={"name": "tampered", "ecosystem": "npm", "csrf_token": csrf}
+        )
+        target = await db.scalar(select(TrackedTarget))
+
+        csrf = set_csrf(auth_client)
+        response = await auth_client.post(
+            f"/targets/{target.id}/keys",
+            data={"name": "x", "scope": "admin", "csrf_token": csrf},
+        )
+
+        assert response.status_code == 200
+        key = await db.scalar(select(ApiKey).where(ApiKey.target_id == target.id))
+        assert key.scope is KeyScope.SCAN
+
     async def test_project_api_key_can_be_created_and_revoked(self, auth_client, db):
         csrf = set_csrf(auth_client)
         await auth_client.post(
@@ -560,11 +598,7 @@ class TestAlertRoutes:
         db.add(match)
         await db.flush()
 
-        csrf = set_csrf(client)
-        await client.post(
-            "/login",
-            data={"email": user.email, "password": "correct-horse-battery", "csrf_token": csrf},
-        )
+        await sign_in(client, user.email)
 
         assert (await client.get(f"/alerts/{match.id}")).status_code == 404
 

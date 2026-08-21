@@ -21,7 +21,7 @@ from sqlalchemy import select
 from app.core.types import EmailStatus, EmailTrigger, Tier
 from app.models import AdminAuditLog, EmailCampaign, EmailLog, TrackedTarget, User
 from app.security import hash_password
-from tests.conftest import set_csrf
+from tests.conftest import set_csrf, sign_in
 
 
 @pytest.fixture
@@ -39,16 +39,8 @@ async def admin_user(db) -> User:
 
 @pytest.fixture
 async def admin_client(client, admin_user):
-    csrf = set_csrf(client)
-    response = await client.post(
-        "/login",
-        data={
-            "email": admin_user.email,
-            "password": "correct-horse-battery",
-            "csrf_token": csrf,
-        },
-    )
-    assert response.status_code == 303
+    response = await sign_in(client, admin_user.email)
+    assert response.status_code == 200, response.text
     return client
 
 

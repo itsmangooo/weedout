@@ -54,11 +54,6 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-# `weedout-cli` is a separate distribution (see cli/pyproject.toml) so a CI
-# runner does not have to install the server to scan a lockfile. Putting it on
-# the path here means one `pytest` run still covers both, without an install
-# step that would be easy to forget and hard to notice missing.
-pythonpath = ["cli"]
 filterwarnings = [
     # Our own deprecation warnings are bugs; everyone else's are noise.
     "error::DeprecationWarning:app.*",

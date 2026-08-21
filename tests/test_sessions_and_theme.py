@@ -77,7 +77,7 @@ class TestSessionListing:
 class TestRevocationTakesEffect:
     async def test_a_revoked_session_stops_working_on_the_next_request(self, auth_client, db, user):
         # The signed-in client works.
-        assert (await auth_client.get("/dashboard")).status_code == 200
+        assert (await auth_client.get("/api/internal/dashboard")).status_code == 200
 
         listed = await active_sessions(db, user)
         assert listed, "the fixture should have produced a session"
@@ -87,9 +87,9 @@ class TestRevocationTakesEffect:
 
         # No new request, no logout, no cookie change — the cookie is simply no
         # longer honoured, which is the property DB-backed sessions exist for.
-        after = await auth_client.get("/dashboard")
-        assert after.status_code == 303
-        assert "/login" in after.headers["location"]
+        after = await auth_client.get("/api/internal/dashboard")
+        assert after.status_code == 401
+        assert after.json()["error"]["code"] == "SESSION_EXPIRED"
 
     async def test_signing_out_everywhere_else_from_the_settings_page(self, auth_client, db, user):
         other = await create_session(db, user, "curl/8.4.0", None)
@@ -108,7 +108,7 @@ class TestRevocationTakesEffect:
         from app.security import hash_session_token
 
         assert remaining[0].token_hash != hash_session_token(other)
-        assert (await auth_client.get("/dashboard")).status_code == 200
+        assert (await auth_client.get("/api/internal/dashboard")).status_code == 200
 
 
 class TestDeviceNaming:

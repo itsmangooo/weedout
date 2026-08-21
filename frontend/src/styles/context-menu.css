@@ -1,0 +1,81 @@
+.entity-menu-trigger {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: var(--wo-radius-xs);
+  background: transparent;
+  color: var(--wo-text-dim);
+  cursor: pointer;
+  opacity: 0.72;
+  transition:
+    background-color var(--wo-duration-fast),
+    color var(--wo-duration-fast),
+    opacity var(--wo-duration-fast);
+}
+
+.entity-menu-trigger:hover,
+.entity-menu-trigger[aria-expanded="true"] {
+  background: var(--wo-accent-quiet);
+  color: var(--wo-text);
+  opacity: 1;
+}
+
+.entity-context-menu {
+  position: fixed;
+  z-index: 90;
+  display: grid;
+  width: min(14rem, calc(100vw - 1rem));
+  gap: 0.18rem;
+  padding: 0.35rem;
+  border-radius: var(--wo-radius);
+  background: #292c29;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.075),
+    var(--wo-shadow-high);
+  color: #edeee8;
+}
+
+.entity-context-menu__item {
+  display: flex;
+  width: 100%;
+  min-height: 2.15rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.48rem 0.62rem;
+  border: 0;
+  border-radius: var(--wo-radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.entity-context-menu__item:hover,
+.entity-context-menu__item:focus-visible {
+  background: rgb(255 255 255 / 0.075);
+  outline: none;
+}
+
+.entity-context-menu__item[aria-disabled="true"] {
+  color: rgb(237 238 232 / 0.35);
+  cursor: not-allowed;
+}
+
+.entity-context-menu__separator {
+  height: 1px;
+  margin: 0.25rem 0.4rem;
+  background: rgb(255 255 255 / 0.09);
+}
+
+@media (pointer: fine) {
+  .project-row:not(:hover, :focus-within) .entity-menu-trigger,
+  .finding-row:not(:hover, :focus-within) .entity-menu-trigger {
+    opacity: 0.28;
+  }
+}

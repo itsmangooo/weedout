@@ -1,0 +1,132 @@
+.button {
+  display: inline-flex;
+  min-height: 2.65rem;
+  align-items: center;
+  justify-content: center;
+  gap: var(--wo-space-2);
+  padding: 0.68rem 1rem;
+  border: 0;
+  border-radius: var(--wo-radius-sm);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 680;
+  cursor: pointer;
+  transition:
+    background-color var(--wo-duration),
+    color var(--wo-duration),
+    transform var(--wo-duration) var(--wo-ease-out);
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button--primary {
+  background: var(--wo-accent-solid);
+  color: var(--wo-on-accent);
+}
+
+.button--primary:hover {
+  background: var(--wo-accent-strong);
+}
+
+.button--secondary {
+  background: var(--wo-accent-quiet);
+  color: var(--wo-text);
+}
+
+.button--secondary:hover {
+  background: color-mix(in srgb, var(--wo-accent) 13%, transparent);
+}
+
+.inline-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--wo-space-4);
+  padding: var(--wo-space-5);
+  border-radius: var(--wo-radius);
+  background: var(--wo-surface-low);
+  box-shadow: inset 0 0 0 1px var(--wo-separator);
+}
+
+.inline-notice--success {
+  background: var(--wo-success-quiet);
+}
+
+.inline-notice--danger {
+  background: var(--wo-failure-quiet);
+}
+
+.inline-notice__icon {
+  margin-top: 0.08rem;
+  color: var(--wo-text-muted);
+}
+
+.inline-notice--success .inline-notice__icon {
+  color: var(--wo-success);
+}
+
+.inline-notice--danger .inline-notice__icon {
+  color: var(--wo-failure);
+}
+
+.inline-notice__title {
+  color: var(--wo-text);
+  font-weight: 680;
+}
+
+.inline-notice__body {
+  margin-top: var(--wo-space-2);
+  color: var(--wo-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.62;
+}
+
+.async-error .button,
+.fatal-error .button {
+  margin-top: var(--wo-space-4);
+}
+
+.text-link,
+.inline-link {
+  color: var(--wo-accent-strong);
+  font-weight: 650;
+  text-decoration-color: color-mix(in srgb, currentcolor 35%, transparent);
+  text-underline-offset: 0.24rem;
+}
+
+.text-link {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: var(--wo-space-2);
+  margin-top: var(--wo-space-6);
+  text-decoration: none;
+}
+
+.text-link:hover,
+.inline-link:hover {
+  text-decoration: underline;
+}
+
+.fatal-error {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: var(--wo-space-6);
+  background: var(--wo-bg);
+}
+
+.fatal-error__inner,
+.not-found {
+  max-width: 48rem;
+}
+
+.not-found .eyebrow,
+.fatal-error .eyebrow {
+  margin-bottom: var(--wo-space-4);
+}
+
+.not-found > p:not(.eyebrow) {
+  margin-top: var(--wo-space-5);
+}

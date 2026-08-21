@@ -6,15 +6,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
-from sqlalchemy import desc, select
 
-from app.core.types import AlertStatus, Verdict
 from app.deps import CurrentUser, DbSession, OptionalUser, redirect
 from app.logging_config import get_logger
-from app.models import SEVERITY_RANK, CVEMatch, TrackedTarget
 from app.services.cli_release_service import REPO as CLI_REPO
 from app.services.cli_release_service import go_module, latest_release
 from app.services.docs_service import list_public
+from app.services.finding_service import list_findings
 from app.services.public_service import LandingData, get_landing_data
 from app.services.target_service import dashboard_stats, list_targets
 from app.templating import render
@@ -104,31 +102,13 @@ async def install_script() -> Response:
     )
 
 
-@router.get("/dashboard")
-async def dashboard(request: Request, db: DbSession, user: CurrentUser):
-    """The one screen that answers: what needs my attention, and what didn't."""
+@router.get("/dashboard/legacy")
+async def legacy_dashboard(request: Request, db: DbSession, user: CurrentUser):
+    """Temporary protected rollback route for the server-rendered dashboard."""
     stats = await dashboard_stats(db, user.id)
     summaries = await list_targets(db, user.id)
 
-    open_alerts = list(
-        (
-            await db.scalars(
-                select(CVEMatch)
-                .join(TrackedTarget, TrackedTarget.id == CVEMatch.target_id)
-                .where(
-                    TrackedTarget.user_id == user.id,
-                    CVEMatch.verdict == Verdict.ACTIONABLE,
-                    CVEMatch.status == AlertStatus.OPEN,
-                )
-                .order_by(
-                    desc(CVEMatch.is_kev),
-                    desc(SEVERITY_RANK),
-                    desc(CVEMatch.first_seen_at),
-                )
-                .limit(25)
-            )
-        ).all()
-    )
+    open_alerts = await list_findings(db, user.id, show="open", limit=25)
 
     target_names = {summary.target.id: summary.target.name for summary in summaries}
 

@@ -25,14 +25,16 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
+from pydantic import ValidationError
 from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.core.policy import MAX_POLICY_BYTES, parse_policy
 from app.core.types import ActionableReason, AlertStatus, Severity, Verdict
-from app.deps import CurrentApiKey, DbSession
+from app.deps import DbSession, ManageKey, ReadKey, ScanKey
 from app.logging_config import get_logger
-from app.models import CVEMatch, ScanRun, utcnow
+from app.models import SEVERITY_RANK, CVEMatch, ScanRun, User, VulnerabilityRecord, utcnow
+from app.schemas import first_error as _first_error
 from app.services.alert_service import mark_delivered_in_app
 from app.services.scan_service import scan_target
 from app.services.target_service import UnsupportedManifest, replace_manifest
@@ -99,7 +101,7 @@ async def _check_rate_limit(db, target_id: int, limit: int) -> None:
 async def scan(
     request: Request,
     db: DbSession,
-    key: CurrentApiKey,
+    key: ScanKey,
     manifest: Annotated[UploadFile | None, File()] = None,
     policy: Annotated[UploadFile | None, File()] = None,
 ):
@@ -212,6 +214,300 @@ async def scan(
         "warnings": outcome.errors,
         "dashboard_url": f"{base_url}/targets/{target.id}",
     }
+
+
+# ---------------------------------------------------------------------------
+# Reading a project
+#
+# Everything below is scoped to the project the key belongs to, and needs a
+# `read` key rather than the `scan` key a pipeline holds. The split is the
+# point: a key that can push results is not automatically a key that can read
+# the findings list or edit the rules, so one leaked from a build log stays as
+# narrow as it was before any of this existed.
+#
+# These exist so the CLI can do what the dashboard does. Somebody who never
+# opens the web interface should still be able to see what their project looks
+# like.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/project")
+async def project_status(db: DbSession, key: ReadKey):
+    """This project at a glance: the same numbers the dashboard leads with."""
+    target = key.target
+    counts = await _severity_counts(db, target.id)
+    # Reused from the targets router rather than reimplemented: two
+    # implementations of "how many are on each tab" would eventually
+    # disagree, and the API would be the copy nobody noticed had drifted.
+    from app.routes.targets import _tab_counts
+
+    tabs = await _tab_counts(db, target.id)
+
+    return {
+        "project": target.name,
+        "ecosystem": str(target.ecosystem),
+        "dependencies": target.dependency_count,
+        "last_scanned_at": _iso(target.last_scanned_at),
+        "next_scan_at": _iso(target.next_scan_at),
+        "last_error": target.last_scan_error,
+        "counts": counts,
+        "open": tabs["open"],
+        # The number this product is proud of: advisories that matched and were
+        # deliberately not reported.
+        "filtered": tabs["filtered"],
+        "dismissed": tabs["dismissed"],
+        "resolved": tabs["resolved"],
+        # Said out loud rather than left to be inferred from a smaller number:
+        # packages the plan did not reach were never examined.
+        "unreached_by_depth": target.unreached_by_depth,
+        "dashboard_url": f"{get_settings().base_url.rstrip('/')}/targets/{target.id}",
+    }
+
+
+@router.get("/findings")
+async def list_findings(
+    db: DbSession,
+    key: ReadKey,
+    show: str = "open",
+    limit: int = 50,
+):
+    """Findings for this project, worst first.
+
+    `show` mirrors the tabs in the interface -- open, filtered, dismissed,
+    resolved -- because somebody moving between the two should not have to
+    learn a second vocabulary for the same four things.
+    """
+    limit = max(1, min(limit, 200))
+
+    where = [CVEMatch.target_id == key.target_id]
+    if show == "filtered":
+        where.append(CVEMatch.verdict == Verdict.SUPPRESSED)
+    elif show == "dismissed":
+        where.append(CVEMatch.status == AlertStatus.DISMISSED)
+    elif show == "resolved":
+        where.append(CVEMatch.status == AlertStatus.RESOLVED)
+    else:
+        show = "open"
+        where.extend(
+            [CVEMatch.verdict == Verdict.ACTIONABLE, CVEMatch.status == AlertStatus.OPEN]
+        )
+
+    rows = (
+        await db.execute(
+            select(CVEMatch, VulnerabilityRecord)
+            .join(VulnerabilityRecord, VulnerabilityRecord.id == CVEMatch.vulnerability_id)
+            .where(*where)
+            .order_by(
+                CVEMatch.is_kev.desc(), SEVERITY_RANK.desc(), CVEMatch.package_name
+            )
+            .limit(limit)
+        )
+    ).all()
+
+    return {
+        "show": show,
+        "count": len(rows),
+        "findings": [
+            {
+                "id": match.id,
+                "package": match.package_name,
+                "version": match.package_version,
+                "cve": (record.cve_ids or [match.vulnerability_id])[0],
+                "advisory": match.vulnerability_id,
+                "severity": str(match.severity).lower(),
+                "exploited": bool(match.is_kev),
+                "malicious": match.actionable_reason == ActionableReason.MALICIOUS_PACKAGE,
+                "epss": match.epss_score,
+                "fixed_in": match.fixed_version,
+                "summary": record.summary,
+                # How the package got into the tree, which is usually the
+                # difference between "upgrade this" and "upgrade what wants it".
+                "via": list(match.via or []),
+                "depth": match.depth,
+                "reason": (
+                    match.actionable_reason.label
+                    if match.actionable_reason
+                    else (match.suppression_reason.label if match.suppression_reason else "")
+                ),
+                "first_seen_at": _iso(match.first_seen_at),
+            }
+            for match, record in rows
+        ],
+    }
+
+
+@router.get("/history")
+async def scan_history(db: DbSession, key: ReadKey, limit: int = 20):
+    """Recent scans, newest first. What the Recent checks panel shows."""
+    limit = max(1, min(limit, 100))
+    rows = (
+        await db.execute(
+            select(ScanRun)
+            .where(ScanRun.target_id == key.target_id)
+            .order_by(ScanRun.started_at.desc())
+            .limit(limit)
+        )
+    ).scalars()
+
+    return {
+        "runs": [
+            {
+                "started_at": _iso(run.started_at),
+                "status": run.status,
+                "dependencies_scanned": run.dependencies_scanned,
+                "actionable": run.actionable_count,
+                "suppressed": run.suppressed_count,
+                "new": run.new_actionable_count,
+                "resolved": run.resolved_count,
+                "duration_seconds": run.duration_seconds,
+                "error": run.error,
+            }
+            for run in rows
+        ]
+    }
+
+
+@router.get("/supply-chain")
+async def supply_chain(db: DbSession, key: ReadKey):
+    """Signals about the packages themselves, rather than versions of them."""
+    from app.services.supply_chain_service import open_signals
+
+    rows = await open_signals(db, key.target_id)
+    return {
+        "signals": [
+            {
+                "package": row.package_name,
+                "version": row.package_version,
+                "kind": row.kind.value,
+                "label": row.kind.label,
+                "level": row.level.value,
+                "detail": row.detail,
+            }
+            for row in rows
+        ]
+    }
+
+
+# ---------------------------------------------------------------------------
+# Changing a project's rules
+#
+# `manage` scope only. This is the boundary that matters: a key that can add an
+# ignore rule can silence an alert, so it must never be the key sitting in a CI
+# environment variable where anyone who can read a build log can take it.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/rules")
+async def list_scan_rules(db: DbSession, key: ManageKey):
+    from app.core.policy import parse_policy
+    from app.services.rules_service import list_rules
+
+    target = key.target
+    policy = parse_policy(target.policy_file)
+
+    return {
+        "thresholds": {
+            "direct": str(target.direct_threshold) if target.direct_threshold else None,
+            "transitive": (
+                str(target.transitive_threshold) if target.transitive_threshold else None
+            ),
+            "epss": target.epss_threshold,
+        },
+        "ignores": [
+            {
+                "identifier": rule.identifier,
+                "reason": rule.reason,
+                "created_by": rule.created_by_email,
+                "created_at": _iso(rule.created_at),
+                # A rule a KEV listing set aside. Reported so somebody reading
+                # this in a terminal sees it stopped applying.
+                "overridden_at": _iso(rule.overridden_at),
+            }
+            for rule in await list_rules(db, target.id)
+        ],
+        "policy_file": {
+            "present": bool(target.policy_file),
+            "updated_at": _iso(target.policy_file_updated_at),
+            "error": target.policy_file_error,
+            "ignores": list(policy.ignored_ids),
+        },
+    }
+
+
+@router.post("/rules")
+async def add_scan_rule(request: Request, db: DbSession, key: ManageKey):
+    """Ignore an advisory on this project. The reason is required."""
+    from app.models import IgnoreRule
+    from app.schemas import IgnoreRuleForm
+    from app.services.rules_service import list_rules
+    from app.tiers import can_use_custom_rules
+
+    owner = await db.get(User, key.user_id)
+    if owner is None or not can_use_custom_rules(owner.tier):
+        raise _fail(
+            status.HTTP_403_FORBIDDEN,
+            "pro_required",
+            "Custom scan rules are part of the Pro plan.",
+        )
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise _fail(
+            status.HTTP_400_BAD_REQUEST, "bad_json", "Send a JSON body."
+        ) from None
+    if not isinstance(payload, dict):
+        raise _fail(status.HTTP_400_BAD_REQUEST, "bad_json", "Send a JSON object.")
+
+    try:
+        form = IgnoreRuleForm(
+            identifier=str(payload.get("identifier", "")),
+            reason=str(payload.get("reason", "")),
+        )
+    except ValidationError as exc:
+        raise _fail(status.HTTP_400_BAD_REQUEST, "invalid_rule", _first_error(exc)) from None
+
+    if any(r.identifier == form.identifier for r in await list_rules(db, key.target_id)):
+        raise _fail(
+            status.HTTP_409_CONFLICT,
+            "already_ignored",
+            f"{form.identifier} is already ignored on this project.",
+        )
+
+    db.add(
+        IgnoreRule(
+            target_id=key.target_id,
+            identifier=form.identifier,
+            reason=form.reason,
+            # Attributed to the key rather than to a person: nobody was at a
+            # keyboard, and recording an account that did not do it would make
+            # the audit trail a guess.
+            created_by_email=f"api key {key.prefix}",
+        )
+    )
+    await db.commit()
+
+    log.info("api.rule_added", target_id=key.target_id, identifier=form.identifier)
+    return {"identifier": form.identifier, "reason": form.reason}
+
+
+@router.delete("/rules/{identifier}")
+async def remove_scan_rule(db: DbSession, key: ManageKey, identifier: str):
+    from app.services.rules_service import list_rules
+
+    wanted = identifier.strip().upper()
+    for rule in await list_rules(db, key.target_id):
+        if rule.identifier.upper() == wanted:
+            await db.delete(rule)
+            await db.commit()
+            log.info("api.rule_removed", target_id=key.target_id, identifier=wanted)
+            return {"identifier": wanted, "removed": True}
+
+    raise _fail(status.HTTP_404_NOT_FOUND, "no_such_rule", f"{wanted} is not ignored here.")
+
+
+def _iso(value) -> str | None:
+    return value.isoformat() if value else None
 
 
 async def _severity_counts(db, target_id: int) -> dict[str, int]:

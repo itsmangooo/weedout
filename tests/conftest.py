@@ -209,11 +209,41 @@ def set_csrf(client: httpx.AsyncClient, token: str = "test-csrf-token") -> str: 
 
 @pytest.fixture
 async def auth_client(client: httpx.AsyncClient, user: User) -> httpx.AsyncClient:
-    """A client with a live session cookie for `user`."""
+    """A client with a live session cookie for `user`.
+
+    Signs in the way the application does now: a JSON post to the internal API
+    with the double-submit CSRF header. The form route this used to call was
+    removed when sign-in moved to React, and going through the real endpoint
+    keeps this fixture honest — if signing in breaks, every test that needs a
+    session fails, which is the correct blast radius.
+    """
     csrf = set_csrf(client)
     response = await client.post(
-        "/login",
-        data={"email": user.email, "password": "correct-horse-battery", "csrf_token": csrf},
+        "/api/internal/auth/login",
+        json={"email": user.email, "password": "correct-horse-battery"},
+        headers={"X-CSRF-Token": csrf},
     )
-    assert response.status_code == 303, response.text
+    assert response.status_code == 200, response.text
     return client
+
+
+#: The password every fixture account is created with. Named so the shared
+#: sign-in helper does not read as a hardcoded credential.
+FIXTURE_PASSWORD = "correct-horse-battery"
+
+
+async def sign_in(client, email: str, password: str = FIXTURE_PASSWORD):
+    """Sign a test client in through the real endpoint.
+
+    One helper rather than a copy of the request in every file. Sign-in moved
+    from a form post to a JSON post when the screens moved to React, and having
+    seventeen copies of the old shape is what made that a seventeen-file edit.
+
+    Returns the response so a caller can assert on a failure it expected.
+    """
+    csrf = set_csrf(client)
+    return await client.post(
+        "/api/internal/auth/login",
+        json={"email": email, "password": password},
+        headers={"X-CSRF-Token": csrf},
+    )

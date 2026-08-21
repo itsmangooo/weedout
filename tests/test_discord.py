@@ -27,7 +27,7 @@ from app.core.discord import (
 from app.core.types import Ecosystem
 from app.models import Alert, TrackedTarget
 from app.security import hash_password
-from tests.conftest import set_csrf
+from tests.conftest import set_csrf, sign_in
 
 VALID = "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz012345"
 
@@ -214,16 +214,8 @@ async def pro_target(db, pro_user) -> TrackedTarget:
 async def pro_client(client, pro_user, db) -> httpx.AsyncClient:
     pro_user.password_hash = hash_password("correct-horse-battery")
     await db.flush()
-    csrf = set_csrf(client)
-    response = await client.post(
-        "/login",
-        data={
-            "email": pro_user.email,
-            "password": "correct-horse-battery",
-            "csrf_token": csrf,
-        },
-    )
-    assert response.status_code == 303
+    response = await sign_in(client, pro_user.email)
+    assert response.status_code == 200, response.text
     return client
 
 

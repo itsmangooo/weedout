@@ -119,6 +119,39 @@ copied onto `Alert` rows (those carry `discord:{target_id}`).
 
 ### Recently (this stretch of work)
 
+- **API key scopes + CLI/web parity** — the machine API grew from one endpoint
+  to seven, so keys grew a scope: `scan` (push a scan, the default and what
+  every pre-existing key already was), `read` (findings, history, counts,
+  supply-chain), `manage` (all of it, plus editing rules). Enforced by
+  `require_scope()` in `app/deps.py`, which answers **403 and not 401** — the
+  credential is genuine, and 401 would send a CI script into a retry loop over
+  a permission problem no retry can fix.
+
+  The reason this came before the CLI work rather than after: a project key
+  lives in a CI environment variable, where anyone who can read a build log can
+  take it. If that key could add an ignore rule, whoever took it could silence
+  the alert for the CVE they were about to exploit. Splitting the scopes was
+  the precondition for putting rule editing on the API at all.
+
+  Two guardrails in `tests/test_route_authorization.py` pin this: the API
+  surface is an explicit inventory, and every route's scope is read out of the
+  `require_scope` closure actually attached to it, so a handler wired to the
+  wrong dependency fails even if it looks right. Both were mutation-tested.
+
+  The CLI now has `status`, `findings`, `history`, `supply-chain` and
+  `rules list|ignore|unignore`, which is everything the dashboard shows except
+  the admin portal — deliberately not on the CLI. Terminal charts live in
+  `internal/ui/chart.go` and always print their own scale.
+
+  **Verified against the live local stack, not just fakes**: a real `scan` key
+  was refused on `findings` and on `rules ignore`; a real `manage` key added an
+  ignore rule, the next scan moved the advisory from open to filtered with the
+  reason attached, and `unignore` put it back. Two bugs only real data showed:
+  a *next* check in the past rendered as "8 hours ago" (now "overdue by 8
+  hours"), and failed scans were charted at their reported zero, drawing a
+  trough that read as the week everything got fixed (now excluded and counted
+  separately). Both have tests.
+
 - **Contact / bug report** — `/contact`, public, not tier-gated, IP rate
   limited. An authenticated sender's address comes from their session, never
   the form. The row commits *before* the notification, so a mail outage costs
@@ -219,6 +252,7 @@ mistake to avoid repeating.
 | Feature | State |
 |---|---|
 | Admin: xlsx findings export | Nothing. Needs `openpyxl`. |
+| Scope selector on the *account* settings key form | Built. Both key forms offer it and both key tables show it. |
 | Admin: DB backup download | Nothing. `backup_service.run_backup` exists for the scheduled job. |
 | Advisory curation queue | Nothing. |
 | Web push notifications | Nothing. Needs `cryptography` for VAPID + RFC 8291. |
@@ -246,9 +280,18 @@ Also unresolved:
 ## Next steps, in the order I would do them
 
 1. **Pricing / landing / docs copy.** Now unblocked: every Pro feature the
-   earlier brief listed is real. Write it from `app/tiers.py`, and check the
-   claims against the code rather than against the brief.
+   earlier brief listed is real, and the CLI reaches all of it. Write it from
+   `app/tiers.py`, and check the claims against the code rather than against
+   the brief. The web `/cli` page and `/docs` still describe a CLI that only
+   scans; they are now out of date in the direction of underselling.
 2. The rest of the table above.
+
+Still flagged for a decision, not started:
+
+- `weedout create` (make a project from the CLI) conflicts with the deliberate
+  decision that keys are per-project, since creating a project needs a
+  credential that predates the project. Would need an account-scoped key, which
+  is the thing the current design avoids. Ask before building.
 
 ---
 

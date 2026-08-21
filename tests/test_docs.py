@@ -22,7 +22,7 @@ from app.services.docs_service import (
     seed_starter_pages,
     update_page,
 )
-from tests.conftest import set_csrf
+from tests.conftest import set_csrf, sign_in
 
 
 @pytest.fixture
@@ -39,12 +39,8 @@ async def admin(db) -> User:
 
 @pytest.fixture
 async def admin_client(client, admin):
-    csrf = set_csrf(client)
-    response = await client.post(
-        "/login",
-        data={"email": admin.email, "password": "correct-horse-battery", "csrf_token": csrf},
-    )
-    assert response.status_code == 303
+    response = await sign_in(client, admin.email)
+    assert response.status_code == 200
     return client
 
 

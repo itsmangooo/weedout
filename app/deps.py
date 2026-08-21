@@ -9,11 +9,11 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
-from app.core.types import Tier
+from app.core.types import KeyScope, Tier
 from app.db import get_db
 from app.logging_config import get_logger
 from app.models import ApiKey, User
@@ -22,8 +22,11 @@ from app.services.auth_service import session_user
 log = get_logger(__name__)
 
 __all__ = [
+    "CSRF_COOKIE_NAME",
+    "CSRF_HEADER_NAME",
     "CurrentAdmin",
     "CurrentApiKey",
+    "CurrentInternalUser",
     "CurrentUser",
     "DbSession",
     "OptionalUser",
@@ -31,7 +34,9 @@ __all__ = [
     "get_current_user",
     "require_admin",
     "require_api_key",
+    "require_internal_user",
     "require_user",
+    "set_csrf_cookie",
     "snapshot_user",
     "verify_csrf",
 ]
@@ -39,6 +44,7 @@ __all__ = [
 CSRF_COOKIE_NAME = "weedout_csrf"
 CSRF_FIELD_NAME = "csrf_token"
 CSRF_HEADER_NAME = "X-CSRF-Token"
+CSRF_COOKIE_MAX_AGE = 60 * 60 * 12
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +139,37 @@ async def require_user(
     return user
 
 
+async def require_internal_user(
+    request: Request,
+    user: Annotated[User | None, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> User:
+    """Require the existing browser session with JSON-native failures.
+
+    HTML routes keep ``require_user`` and its login redirect. Internal React
+    endpoints use the same opaque cookie resolver but return a stable nested
+    error instead, so fetch clients never receive a redirect or an HTML page.
+    """
+    if user is not None:
+        return user
+
+    expired = bool(request.cookies.get(settings.session_cookie_name))
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail={
+            "error": {
+                "code": "SESSION_EXPIRED" if expired else "UNAUTHENTICATED",
+                "message": (
+                    "Your session has expired. Sign in again."
+                    if expired
+                    else "Sign in to continue."
+                ),
+            }
+        },
+        headers={"Cache-Control": "private, no-store", "Vary": "Cookie"},
+    )
+
+
 async def require_admin(
     request: Request,
     user: Annotated[User | None, Depends(get_current_user)],
@@ -201,10 +238,63 @@ async def require_api_key(
     return key
 
 
+def require_scope(needed: KeyScope):
+    """A dependency that also checks what the key is allowed to do.
+
+    Separate from `require_api_key` so the scope a route needs is written on
+    the route, where a reader can see it, rather than inferred from what the
+    handler happens to touch.
+
+    A key with the wrong scope gets 403, not 401: the credential is genuine and
+    saying so is not a leak -- the caller already knows it holds a real key.
+    Answering 401 would send a CI script into a retry loop over a permission
+    problem no retry can fix.
+    """
+
+    async def dependency(
+        request: Request,
+        key: Annotated[ApiKey, Depends(require_api_key)],
+    ) -> ApiKey:
+        if not key.scope.allows(needed):
+            log.info(
+                "api_key.wrong_scope",
+                path=request.url.path,
+                has=key.scope.value,
+                needs=needed.value,
+            )
+            # A dict detail, matching every other error the machine API
+            # returns: a string one would be rendered as an HTML error page for
+            # a client that sent no Accept header, which is exactly what a
+            # `curl` in a build script does.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "insufficient_scope",
+                    "message": (
+                        f"This key can {key.scope.label.lower()}. "
+                        # The scope name rather than its label, because the
+                        # label already reads as a noun phrase and the two
+                        # together produced "full access access".
+                        f"That endpoint needs a key with {needed.value} access. "
+                        "Create one in Settings."
+                    ),
+                    "has": key.scope.value,
+                    "needs": needed.value,
+                },
+            )
+        return key
+
+    return dependency
+
+
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(require_user)]
+CurrentInternalUser = Annotated[User, Depends(require_internal_user)]
 CurrentAdmin = Annotated[User, Depends(require_admin)]
 CurrentApiKey = Annotated[ApiKey, Depends(require_api_key)]
+ScanKey = Annotated[ApiKey, Depends(require_scope(KeyScope.SCAN))]
+ReadKey = Annotated[ApiKey, Depends(require_scope(KeyScope.READ))]
+ManageKey = Annotated[ApiKey, Depends(require_scope(KeyScope.MANAGE))]
 OptionalUser = Annotated[User | None, Depends(get_current_user)]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 
@@ -227,6 +317,28 @@ def issue_csrf_token(request: Request) -> str:
         return existing
     token = request.cookies.get(CSRF_COOKIE_NAME) or secrets.token_urlsafe(32)
     request.state.csrf_token = token
+    return token
+
+
+def set_csrf_cookie(response: Response, request: Request) -> str:
+    """Attach the readable double-submit cookie used by forms and JSON clients.
+
+    Keeping cookie issuance here gives Jinja and React the exact same token,
+    lifetime, path, SameSite, and transport-security behavior. The cookie is
+    intentionally not HttpOnly: it is not an authentication secret, and the
+    browser must echo it in ``X-CSRF-Token`` on unsafe JSON requests.
+    """
+    settings = get_settings()
+    token = issue_csrf_token(request)
+    response.set_cookie(
+        CSRF_COOKIE_NAME,
+        token,
+        max_age=CSRF_COOKIE_MAX_AGE,
+        httponly=False,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        path="/",
+    )
     return token
 
 

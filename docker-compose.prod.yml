@@ -14,7 +14,7 @@
 #
 #   docker compose \
 #     --env-file .env.prod \
-#     -f docker-compose.prod.yaml \
+#     -f docker-compose.prod.yml \
 #     up -d --build
 #
 # Differs from docker-compose.yml in ways that all matter:

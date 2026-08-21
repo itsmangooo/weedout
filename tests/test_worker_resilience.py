@@ -24,7 +24,7 @@ from app.models import FeedSync, User, VulnerabilityAffected, VulnerabilityRecor
 from app.security import hash_password
 from app.services.admin_service import feed_health
 from app.services.mirror_service import MIRRORED_ECOSYSTEMS, OSV_EXPORT_URL, mirror_feed_name
-from tests.conftest import set_csrf
+from tests.conftest import sign_in
 
 
 @pytest.fixture
@@ -78,16 +78,8 @@ async def admin_client(client, db):
     db.add(admin)
     await db.flush()
 
-    csrf = set_csrf(client)
-    response = await client.post(
-        "/login",
-        data={
-            "email": admin.email,
-            "password": "correct-horse-battery",
-            "csrf_token": csrf,
-        },
-    )
-    assert response.status_code == 303
+    response = await sign_in(client, admin.email)
+    assert response.status_code == 200, response.text
     return client
 
 

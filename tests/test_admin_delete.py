@@ -40,7 +40,7 @@ from app.models import (
 from app.security import hash_password, hash_reset_token
 from app.services.admin_service import AdminActionError, delete_user, is_last_admin
 from app.services.auth_service import create_session
-from tests.conftest import set_csrf
+from tests.conftest import set_csrf, sign_in
 
 
 @pytest.fixture
@@ -273,16 +273,8 @@ class TestLastAdminProtection:
 class TestDeleteRoute:
     @pytest.fixture
     async def admin_client(self, client, admin):
-        csrf = set_csrf(client)
-        response = await client.post(
-            "/login",
-            data={
-                "email": admin.email,
-                "password": "correct-horse-battery",
-                "csrf_token": csrf,
-            },
-        )
-        assert response.status_code == 303
+        response = await sign_in(client, admin.email)
+        assert response.status_code == 200
         return client
 
     async def test_deletes_when_the_email_is_confirmed(self, admin_client, db, user):

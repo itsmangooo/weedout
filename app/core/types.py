@@ -201,6 +201,59 @@ class AlertStatus(StrEnum):
         return self.value.capitalize()
 
 
+class KeyScope(StrEnum):
+    """What an API key is allowed to do to the project it belongs to.
+
+    Every key before this could do exactly one thing -- push a scan -- and that
+    was the whole security story: a key leaked from a build log could report
+    results for one project and nothing else.
+
+    Opening the API up to reading findings and editing rules breaks that story
+    unless the key says which it is for. A CI runner's key that could also add
+    an ignore rule would let anyone who read a build log silence the alert for
+    the vulnerability they just exploited, which turns a narrow credential into
+    one that switches the product off.
+
+    So: three scopes, and the one CI uses is the one that can do least.
+    """
+
+    #: Push a scan. What a pipeline needs and nothing more.
+    SCAN = "scan"
+    #: Read this project's findings, history and counts. For dashboards and
+    #: terminals; cannot push results and cannot change anything.
+    READ = "read"
+    #: Read, push, and change the project's rules and webhooks. For a person at
+    #: a keyboard, not for a runner.
+    MANAGE = "manage"
+
+    @property
+    def label(self) -> str:
+        return {
+            "scan": "Push scans",
+            "read": "Read findings",
+            "manage": "Full access",
+        }[self.value]
+
+    @property
+    def description(self) -> str:
+        return {
+            "scan": "Upload a manifest and get the result. What CI needs.",
+            "read": "Read findings, history and counts. Changes nothing.",
+            "manage": "Everything, including editing scan rules. Keep it off a runner.",
+        }[self.value]
+
+    def allows(self, needed: KeyScope) -> bool:
+        """Does a key with this scope satisfy a requirement for `needed`?
+
+        `manage` covers everything. The other two are not a ladder: a read key
+        must not be able to push results, and a scan key must not be able to
+        read the findings list. Each is the narrowest thing that does its job.
+        """
+        if self is KeyScope.MANAGE:
+            return True
+        return self is needed
+
+
 class Tier(StrEnum):
     FREE = "free"
     PRO = "pro"

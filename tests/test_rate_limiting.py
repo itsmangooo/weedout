@@ -23,17 +23,13 @@ from app.services.rate_limit_service import (
     purge_expired_rate_limits,
     record_attempt,
 )
-from tests.conftest import set_csrf
+from tests.conftest import set_csrf, sign_in
 
 PASSWORD = "correct-horse-battery"
 
 
 async def attempt_login(client, email="dev@example.com", password="wrong-password"):  # noqa: S107
-    csrf = set_csrf(client)
-    return await client.post(
-        "/login",
-        data={"email": email, "password": password, "csrf_token": csrf},
-    )
+    return await sign_in(client, email, password)
 
 
 class TestLoginRateLimit:
@@ -65,12 +61,8 @@ class TestLoginRateLimit:
         behind it, which turns the protection into the outage.
         """
         for _ in range(get_settings().login_rate_limit_per_account + 3):
-            csrf = set_csrf(client)
-            response = await client.post(
-                "/login",
-                data={"email": user.email, "password": PASSWORD, "csrf_token": csrf},
-            )
-            assert response.status_code == 303
+            response = await sign_in(client, user.email, PASSWORD)
+            assert response.status_code == 200
 
         assert await db.scalar(select(func.count(RateLimitHit.id))) == 0
 
@@ -109,12 +101,8 @@ class TestLoginRateLimit:
 
         # Same client, same IP — only the account bucket should be exhausted,
         # and the IP limit is set higher than the account limit for exactly this.
-        csrf = set_csrf(client)
-        response = await client.post(
-            "/login",
-            data={"email": other.email, "password": PASSWORD, "csrf_token": csrf},
-        )
-        assert response.status_code == 303
+        response = await sign_in(client, other.email, PASSWORD)
+        assert response.status_code == 200
 
     async def test_failures_are_recorded_against_both_buckets(self, client, db, user):
         await attempt_login(client)
@@ -136,10 +124,16 @@ class TestLoginRateLimit:
 
 class TestSignupRateLimit:
     async def _signup(self, client, email):
+        # Signing up now signs you in, and the endpoint refuses to create a
+        # second account for somebody already holding a session. A bot mass-
+        # creating accounts would not keep one, so the cookie is dropped
+        # between attempts to test the limit rather than that refusal.
+        client.cookies.delete("weedout_session")
         csrf = set_csrf(client)
         return await client.post(
-            "/signup",
-            data={"email": email, "password": "a-long-enough-password", "csrf_token": csrf},
+            "/api/internal/auth/signup",
+            json={"email": email, "password": "a-long-enough-password"},
+            headers={"X-CSRF-Token": csrf},
         )
 
     async def test_mass_account_creation_is_refused(self, client, db):
@@ -147,7 +141,7 @@ class TestSignupRateLimit:
 
         for index in range(limit):
             response = await self._signup(client, f"user{index}@example.com")
-            assert response.status_code == 303, f"signup {index} should be allowed"
+            assert response.status_code == 201, f"signup {index} should be allowed"
 
         blocked = await self._signup(client, "one-too-many@example.com")
         assert blocked.status_code == 429
@@ -158,7 +152,9 @@ class TestSignupRateLimit:
         for _ in range(get_settings().signup_rate_limit_per_ip):
             csrf = set_csrf(client)
             await client.post(
-                "/signup", data={"email": "not-an-email", "password": "x", "csrf_token": csrf}
+                "/api/internal/auth/signup",
+                json={"email": "not-an-email", "password": "x"},
+                headers={"X-CSRF-Token": csrf},
             )
 
         blocked = await self._signup(client, "real@example.com")
@@ -168,7 +164,11 @@ class TestSignupRateLimit:
 class TestPasswordResetRateLimit:
     async def _request_reset(self, client, email="dev@example.com"):
         csrf = set_csrf(client)
-        return await client.post("/forgot-password", data={"email": email, "csrf_token": csrf})
+        return await client.post(
+            "/api/internal/auth/forgot-password",
+            json={"email": email},
+            headers={"X-CSRF-Token": csrf},
+        )
 
     async def test_an_enumeration_sweep_is_refused(self, client, db, user):
         limit = get_settings().password_reset_rate_limit_per_ip

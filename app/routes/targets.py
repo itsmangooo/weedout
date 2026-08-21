@@ -15,7 +15,7 @@ from sqlalchemy import desc, func, select
 from app.config import get_settings
 from app.core.discord import build_test_payload, parse_webhook_url
 from app.core.policy import parse_policy
-from app.core.types import AlertStatus, Severity, Verdict
+from app.core.types import AlertStatus, KeyScope, Severity, Verdict
 from app.core.webhooks import InvalidWebhookURL, WebhookKind, validate_custom_url
 from app.deps import CsrfProtected, CurrentUser, DbSession, redirect
 from app.logging_config import get_logger
@@ -308,6 +308,7 @@ async def rename_target(
     user: CurrentUser,
     target_id: int,
     name: Annotated[str, Form()] = "",
+    scope: Annotated[str, Form()] = "",
 ):
     target = await get_target_for_user(db, user.id, target_id)
     if target is None:
@@ -399,19 +400,29 @@ async def create_project_key(
     user: CurrentUser,
     target_id: int,
     name: Annotated[str, Form()] = "",
+    scope: Annotated[str, Form()] = "",
 ):
     """Issue an API key for this project.
 
-    Keys are scoped to a project, not to an account — see `ApiKey` — so this
-    belongs on the project page. The plaintext is rendered once, straight into
-    the response, and never stored or redirected with.
+    Keys belong to a project, not to an account — see `ApiKey` — so this lives
+    on the project page. The plaintext is rendered once, straight into the
+    response, and never stored or redirected with.
+
+    An unrecognised `scope` becomes the narrowest one rather than an error: the
+    only ways to send one are a tampered form or a stale template, and quietly
+    issuing a key that can only push scans is the safe end of that mistake.
     """
     target = await get_target_for_user(db, user.id, target_id)
     if target is None:
         raise HTTPException(status_code=404, detail="That project doesn't exist.")
 
     try:
-        issued = await issue_api_key(db, user, target, name)
+        chosen = KeyScope(scope)
+    except ValueError:
+        chosen = KeyScope.SCAN
+
+    try:
+        issued = await issue_api_key(db, user, target, name, scope=chosen)
     except ApiKeyError as exc:
         return await _settings_error(request, db, user, target, str(exc))
 

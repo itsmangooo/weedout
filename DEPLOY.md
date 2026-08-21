@@ -1,12 +1,13 @@
 # Deploying Weedout
 
 Target setup: a single VM running Docker, with Cloudflare Tunnel terminating
-TLS and forwarding to the app on loopback. No ports open to the internet.
+TLS and forwarding through Coolify/Traefik to the web container. No application
+or database port is published directly to the internet.
 
 ```
-internet → Cloudflare edge (TLS) → cloudflared → 127.0.0.1:8000 → web
-                                                                   ├── worker
-                                                                   └── postgres (compose network only)
+internet → Cloudflare edge (TLS) → cloudflared → Coolify/Traefik → web:8000
+                                                                    ├── worker
+                                                                    └── postgres (compose network only)
 ```
 
 ---
@@ -70,9 +71,9 @@ This starts four containers:
   network.
 - **mail** — a Postfix relay the app hands outbound mail to. No published port
   either. See [Email](#email) for the provider and DNS setup it needs.
-- **web** — runs `alembic upgrade head` and then the server, bound to
-  `127.0.0.1:8000`. **Migrations run automatically on every deploy**; there is
-  no manual step to forget, and `upgrade head` is a no-op when there is nothing
+- **web** — runs `alembic upgrade head` and then the server on container port
+  `8000`, reachable through Coolify/Traefik. **Migrations run automatically on every deploy**;
+  there is no manual step to forget, and `upgrade head` is a no-op when there is nothing
   to apply.
 - **worker** — the scheduler: scans, KEV refresh, advisory mirror sync,
   subscription expiry, credential sweep.
@@ -80,16 +81,44 @@ This starts four containers:
 All four use `restart: unless-stopped`, so a crash or a host reboot brings
 them back.
 
-Check it came up:
+Check it came up through the public origin and from inside the web container:
 
 ```bash
 docker compose -f docker-compose.prod.yml ps
-curl -s localhost:8000/healthz
+curl -s https://weedout.dev/healthz
+docker compose -f docker-compose.prod.yml exec web \
+  python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/healthz').read().decode())"
 docker compose -f docker-compose.prod.yml logs web | grep app.config_warning
 ```
 
 Any `app.config_warning` lines are configuration that is legal but probably not
 what you want — read them before going further.
+
+### Dashboard cutover verification
+
+The image builds the locked React application with Node 24, copies only Vite's
+immutable output into the Python runtime, and serves it from the same origin.
+After each deployment verify:
+
+```bash
+curl -sS -D - -o /dev/null https://weedout.dev/dashboard
+curl -sS -D - -o /dev/null https://weedout.dev/dashboard/legacy
+```
+
+`/dashboard` is the canonical React shell and must be non-cacheable. Hashed
+`/assets/*` responses must be `public, max-age=31536000, immutable` and include
+the main JS/CSS plus the lazy `DashboardPage-*` chunk. `/dashboard/legacy`
+remains session-protected and is the temporary operational rollback path; do
+not add it to product navigation.
+
+In an authenticated browser, compare `/dashboard` with `/dashboard/legacy` for
+the same account, then verify direct refresh, narrow layout, `/api/internal/*`
+cookies, the readable `weedout_csrf` bootstrap, and the `/events` live indicator.
+The event response sets `X-Accel-Buffering: no`, `Cache-Control: private,
+no-cache, no-store, no-transform`, and `Vary: Cookie`; no additional Traefik or
+Cloudflare rule should be added unless an observed production trace shows
+buffering. Keep the existing CSP—same-origin scripts, styles, API calls, and
+EventSource require no broader directive.
 
 ---
 

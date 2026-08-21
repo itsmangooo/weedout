@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.types import KeyScope
 from app.logging_config import get_logger
 from app.models import ApiKey, TrackedTarget, User, utcnow
 from app.security import api_key_prefix, generate_api_key, hash_api_key
@@ -64,13 +65,21 @@ class IssuedKey:
 
 
 async def issue_api_key(
-    db: AsyncSession, user: User, target: TrackedTarget, name: str = ""
+    db: AsyncSession,
+    user: User,
+    target: TrackedTarget,
+    name: str = "",
+    scope: KeyScope = KeyScope.SCAN,
 ) -> IssuedKey:
     """Create a key for one of the user's projects.
 
     Ownership is re-checked here rather than trusted from the caller: this
     function mints a credential, and a mistake in a route handler must not be
     able to mint one against somebody else's project.
+
+    `scope` defaults to the narrowest one for the same reason: a caller that
+    forgets to pass it gets a key that can only push scans, which is what every
+    key could do before scopes existed.
     """
     if target.user_id != user.id:
         raise ApiKeyError("That project does not belong to you.")
@@ -94,11 +103,18 @@ async def issue_api_key(
         token_hash=hash_api_key(token),
         prefix=api_key_prefix(token),
         name=name.strip()[:120],
+        scope=scope,
     )
     db.add(record)
     await db.flush()
 
-    log.info("api_key.issued", key_id=record.id, target_id=target.id, user_id=user.id)
+    log.info(
+        "api_key.issued",
+        key_id=record.id,
+        target_id=target.id,
+        user_id=user.id,
+        scope=scope.value,
+    )
     return IssuedKey(record=record, token=token)
 
 
