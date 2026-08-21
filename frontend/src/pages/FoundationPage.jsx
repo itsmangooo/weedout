@@ -1,6 +1,7 @@
 import { ScanSearch, Sprout } from "lucide-react";
 
 import { HeroSignalField } from "../features/landing/components/HeroSignalField";
+import { LiveSignal } from "../features/landing/components/LiveSignal";
 import { MagneticLink } from "../features/landing/components/MagneticLink";
 import { ProductWorkflow } from "../features/landing/components/ProductWorkflow";
 import { ScrollFilterStory } from "../features/landing/components/ScrollFilterStory";
@@ -12,6 +13,7 @@ export function FoundationPage() {
       <HeroSignalField />
       <ScrollFilterStory />
       <ProductWorkflow />
+      <LiveSignal />
 
       <section className="landing-close" aria-labelledby="landing-close-title">
         <div className="landing-close__copy">

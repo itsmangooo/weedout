@@ -203,7 +203,10 @@ class TestPublicDocs:
         assert body.index("First") < body.index("Second")
 
     async def test_the_nav_links_to_docs(self, client):
-        assert 'href="/docs"' in (await client.get("/")).text
+        # /pricing rather than /: the landing page is React and its footer is
+        # covered by the frontend suite. This checks the shared nav that the
+        # remaining rendered pages carry.
+        assert 'href="/docs"' in (await client.get("/pricing")).text
 
 
 # ---------------------------------------------------------------------------

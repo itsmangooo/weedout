@@ -182,14 +182,6 @@ class TestAuthRoutes:
         assert response.status_code == 401
         assert response.json()["error"]["code"] == "UNAUTHENTICATED"
 
-    async def test_signed_in_user_reaches_the_legacy_rollback_dashboard(self, auth_client):
-        # The noise ledger only renders once something has matched, so this
-        # asserts on the state readout the dashboard always shows instead.
-        response = await auth_client.get("/dashboard/legacy")
-        assert response.status_code == 200
-        assert "Dashboard" in response.text
-        assert "All clear" in response.text
-
 
 class TestApiKeySettings:
     """The API-key panel on the Settings page.

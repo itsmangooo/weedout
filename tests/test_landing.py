@@ -12,8 +12,6 @@ invented example rows, because "this is real data" is the whole claim.
 
 from __future__ import annotations
 
-import re
-
 import pytest
 
 from app.core.types import (
@@ -95,9 +93,15 @@ async def make_finding(
 
 class TestAnonymity:
     async def test_no_user_email_reaches_the_landing_page(self, client, db, user):
+        """Asserted on the endpoint the page reads.
+
+        The page is React now, so the HTML no longer contains the data — which
+        would make an assertion against it pass for the wrong reason. What is
+        served is what matters.
+        """
         await make_finding(db, user)
 
-        response = await client.get("/")
+        response = await client.get("/api/internal/landing")
         assert response.status_code == 200
         assert user.email not in response.text
         assert "example.com" not in response.text
@@ -105,14 +109,14 @@ class TestAnonymity:
     async def test_no_project_name_reaches_the_landing_page(self, client, db, user):
         await make_finding(db, user, project_name="acme-internal-billing")
 
-        response = await client.get("/")
+        response = await client.get("/api/internal/landing")
         assert "acme-internal-billing" not in response.text
 
     async def test_the_finding_itself_is_still_shown(self, client, db, user):
         # Anonymised, not omitted — the section has to carry real information.
         await make_finding(db, user, package="minimist", cve="CVE-2021-44906")
 
-        response = await client.get("/")
+        response = await client.get("/api/internal/landing")
         assert "minimist" in response.text
         assert "CVE-2021-44906" in response.text
 
@@ -322,8 +326,10 @@ class TestTrends:
         await make_finding(db, user, package="lodash", project_name="acme-billing")
         await make_finding(db, pro_user, package="lodash", project_name="acme-payroll")
 
-        response = await client.get("/")
-        assert "What's spreading this week" in response.text
+        response = await client.get("/api/internal/landing")
+        trending = response.json()["data"]["trending_packages"]
+
+        assert any(entry["name"] == "lodash" for entry in trending)
         assert "acme-billing" not in response.text
         assert "acme-payroll" not in response.text
         assert user.email not in response.text
@@ -331,21 +337,32 @@ class TestTrends:
     async def test_the_section_is_absent_rather_than_padded(self, client, db, user):
         await make_finding(db, user, package="lonely")
 
-        response = await client.get("/")
-        assert "What's spreading this week" not in response.text
+        response = await client.get("/api/internal/landing")
+
+        # Absent rather than padded. One account is not a trend, and inventing
+        # rows to fill the section would make the only factual thing on the
+        # page fiction.
+        body = response.json()["data"]
+        assert body["trending_packages"] == []
+        assert body["trending_cves"] == []
 
 
 class TestEmptyState:
     async def test_no_findings_means_the_section_is_absent(self, client, db):
-        response = await client.get("/")
+        response = await client.get("/api/internal/landing")
+
         assert response.status_code == 200
         # Never a fabricated placeholder row: the claim is that it is live.
-        assert "Recently flagged" not in response.text
+        assert response.json()["data"]["findings"] == []
 
     async def test_the_page_still_renders_with_no_data_at_all(self, client):
-        response = await client.get("/")
-        assert response.status_code == 200
-        assert "Weed out the CVE alerts" in response.text
+        """The section is an extra on a marketing page. It must never be the
+        reason the page itself does not appear."""
+        page = await client.get("/")
+        assert page.status_code == 200
+
+        data = await client.get("/api/internal/landing")
+        assert data.status_code == 200
 
 
 class TestCaching:
@@ -376,7 +393,11 @@ class TestLandingContent:
 
         from app.tiers import PLANS
 
-        response = await client.get("/")
+        # /pricing rather than /: the landing page is React now and does not
+        # render the plan table. The property — that the copy comes from the
+        # same table the limits are enforced from, so the page cannot drift
+        # from the product — belongs to whichever page shows it.
+        response = await client.get("/pricing")
         for plan in PLANS.values():
             assert plan.display_name in response.text
             assert plan.price_label in response.text
@@ -385,71 +406,6 @@ class TestLandingContent:
             # Compared escaped, since Jinja autoescapes "&" and friends.
             for feature in plan.features:
                 assert html.escape(feature) in response.text
-
-    async def test_the_faq_is_present(self, client):
-        response = await client.get("/")
-        assert "Does this scan my source code?" in response.text
-
-    async def test_the_footer_links_to_docs(self, client, db):
-        from app.services.docs_service import seed_starter_pages
-
-        await seed_starter_pages(db)
-        response = await client.get("/")
-        assert "/docs/getting-started" in response.text
-
-    async def test_how_it_works_shows_all_four_steps(self, client):
-        """The four mockups are markup, not screenshots.
-
-        Screenshots of your own product go stale the day you redesign it, and
-        these had been showing an interface that no longer existed. As markup
-        they follow the visitor's theme, cost nothing to ship, and can be
-        checked by a test -- which is what the rest of this class does.
-        """
-        response = await client.get("/")
-        assert response.text.count('class="mock"') == 4
-        # Never decorative-only: each one carries its own description.
-        assert response.text.count('class="mock" role="img"') == 4
-
-    def test_the_mockups_point_at_routes_that_exist(self):
-        """The address bars are a promise about the product.
-
-        Deliberately synchronous: it reads templates off disk and builds the
-        router itself, so there is no request to await.
-
-        A mockup showing a URL the app does not serve is the same failure as a
-        stale screenshot, only quieter. Matching is done by the real router, so
-        /targets/acme-storefront fails here the way it would in a browser:
-        {target_id} takes an integer.
-        """
-        from pathlib import Path
-
-        from starlette.routing import Match
-
-        from app.main import create_app
-
-        app = create_app()
-        templates = Path(__file__).resolve().parents[1] / "app" / "templates"
-        shown = []
-        for page in templates.rglob("*.html"):
-            shown += re.findall(
-                r'<span class="appwin__addr">weedout\.dev([^<]+)</span>',
-                page.read_text(encoding="utf-8"),
-            )
-        assert shown, "no mockup address bars found"
-
-        for shown_path in shown:
-            path, _, query = shown_path.partition("?")
-            scope = {
-                "type": "http",
-                "method": "GET",
-                "path": path,
-                "query_string": query.encode(),
-                "headers": [],
-                "root_path": "",
-            }
-            assert any(route.matches(scope)[0] is Match.FULL for route in app.routes), (
-                f"mockup shows {shown_path}, which no route serves"
-            )
 
     async def test_signed_in_users_skip_the_landing_page(self, auth_client):
         response = await auth_client.get("/")

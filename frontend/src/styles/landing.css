@@ -1209,3 +1209,90 @@
     display: none;
   }
 }
+
+/* --- The live section ---------------------------------------------------- */
+
+.live-signal {
+  display: grid;
+  gap: var(--wo-space-6);
+  width: min(100%, var(--wo-page-max));
+  margin-inline: auto;
+  padding: var(--wo-space-9) var(--wo-space-4);
+}
+
+.live-signal h2 {
+  margin: var(--wo-space-2) 0 0;
+  font-family: var(--wo-font-display);
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 660;
+  letter-spacing: -0.02em;
+}
+
+.live-signal h3 {
+  margin: 0 0 var(--wo-space-3);
+  font-size: 0.78rem;
+  font-weight: 640;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wo-text-dim);
+}
+
+.live-stats {
+  display: grid;
+  gap: var(--wo-space-4);
+  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.live-stat {
+  padding: var(--wo-space-4);
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-sm);
+  background: var(--wo-level-2);
+}
+
+.live-stat dt {
+  color: var(--wo-text-dim);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
+.live-stat dd {
+  margin: var(--wo-space-1) 0 0;
+  font-family: var(--wo-font-display);
+  font-size: 1.6rem;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-findings ul {
+  display: grid;
+  gap: var(--wo-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.live-finding {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wo-space-3);
+  padding: var(--wo-space-3) var(--wo-space-4);
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-level-1);
+  font-size: 0.86rem;
+}
+
+.live-finding__id {
+  font-family: var(--wo-font-mono);
+  font-weight: 620;
+}
+
+.live-finding__package {
+  flex: 1 1 12rem;
+  /* Without this the flex item takes its min-content width and a long summary
+     widens the row past its container. */
+  min-width: 0;
+  color: var(--wo-text-muted);
+}

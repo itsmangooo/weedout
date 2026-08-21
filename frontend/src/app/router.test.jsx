@@ -18,6 +18,25 @@ function response(body, status = 200) {
   });
 }
 
+/**
+ * Answer the landing page's own request, and hand everything else on.
+ *
+ * The landing page fetches its live figures as well as the health check, and a
+ * mock that returns one Response object for every call breaks as soon as there
+ * are two callers: the first `.text()` consumes the body and the second reads
+ * an empty stream. Routing by URL keeps each test asserting on the call it
+ * cares about.
+ */
+function withLandingData(handler) {
+  return (url, options) => {
+    const path = typeof url === "string" ? url : String(url);
+    if (path.includes("/api/internal/landing")) {
+      return Promise.resolve(response({ data: null }));
+    }
+    return handler(url, options);
+  };
+}
+
 function renderRoute(path = "/") {
   const client = createQueryClient({ queries: { retry: false } });
   const router = createAppRouter({ initialEntries: [path] });
@@ -34,11 +53,10 @@ function renderRoute(path = "/") {
 describe("frontend routes", () => {
   it("renders loading and then the real backend status", async () => {
     let resolveRequest;
-    vi.spyOn(globalThis, "fetch").mockReturnValue(
-      new Promise((resolve) => {
-        resolveRequest = resolve;
-      }),
-    );
+    const pending = new Promise((resolve) => {
+      resolveRequest = resolve;
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(withLandingData(() => pending));
 
     renderRoute();
     expect(await screen.findByText("Checking connection")).toBeInTheDocument();
@@ -49,10 +67,10 @@ describe("frontend routes", () => {
   });
 
   it("renders a backend error and recovers through retry", async () => {
+    const health = [response("Service unavailable", 503), response({ status: "ok", version: "0.1.0" })];
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(response("Service unavailable", 503))
-      .mockResolvedValueOnce(response({ status: "ok", version: "0.1.0" }));
+      .mockImplementation(withLandingData(() => Promise.resolve(health.shift())));
     const user = userEvent.setup();
 
     renderRoute();
@@ -61,7 +79,14 @@ describe("frontend routes", () => {
 
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Backend connected")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // The health endpoint exactly twice: once on load, once on the retry.
+    // Counting every request instead would make this fail whenever the page
+    // gains an unrelated one, which is what it just did.
+    const healthCalls = fetchMock.mock.calls.filter(
+      ([url]) => !String(url).includes("/api/internal/landing"),
+    );
+    expect(healthCalls).toHaveLength(2);
   });
 
   it("renders the not-found route and navigates home without a reload", async () => {

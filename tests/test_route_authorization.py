@@ -24,7 +24,7 @@ from app.main import create_app
 #: Anything not listed here must carry an auth dependency. Adding to this list
 #: is a deliberate act, which is the point.
 PUBLIC_ROUTES: dict[str, str] = {
-    "/": "landing page",
+    "/": "the marketing page — the React shell, or a redirect if already signed in",
     "/pricing": "public pricing",
     "/healthz": "liveness probe",
     "/readyz": "readiness probe",
@@ -50,6 +50,12 @@ PUBLIC_ROUTES: dict[str, str] = {
     "/api/internal/auth/logout": "ends a session; harmless without one",
     "/api/internal/auth/forgot-password": "reset request; identical response either way",
     "/api/internal/auth/reset-password": "reset completion; the token is the credential",
+    "/api/internal/landing": (
+        "the live figures on the marketing page. Unauthenticated by design — "
+        "this is what a stranger is shown. Every field is already public: "
+        "advisory ids from OSV, package names from public registries, and "
+        "headline numbers rounded so they cannot be used to count customers."
+    ),
     "/cli": "public marketing page for the CLI",
     "/install.sh": (
         "the install script itself. `curl -sSL https://weedout.dev/install.sh | sh` "
@@ -125,6 +131,7 @@ INTERNAL_SESSION_ROUTES = {
     # Signup reads the current user only to refuse when one is already signed
     # in, which is why it classifies as optional rather than none.
     "/api/internal/auth/signup": "optional",
+    "/api/internal/landing": "none",
     # Projects. Every one of these re-checks ownership through
     # get_target_for_user, so a session alone reaches nothing.
     "/api/internal/projects": "internal_user",

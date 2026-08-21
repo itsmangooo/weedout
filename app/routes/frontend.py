@@ -7,6 +7,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
+from app.deps import OptionalUser, redirect
+
 router = APIRouter(tags=["frontend"])
 
 # The container build copies Vite here. The source-tree fallback supports a
@@ -50,6 +52,7 @@ async def frontend_asset(asset_path: str) -> FileResponse:
 #: explicit list fails the other way: a route that is missing from it keeps
 #: serving the page it always did.
 SHELL_ROUTES = (
+    "/",
     "/dashboard",
     "/login",
     "/login/2fa",
@@ -82,6 +85,23 @@ def _shell() -> FileResponse:
         media_type="text/html",
         headers={"Cache-Control": "private, no-store", "Vary": "Cookie"},
     )
+
+
+@router.get("/", include_in_schema=False)
+async def landing_entry(user: OptionalUser):
+    """The marketing page, or a redirect for somebody already signed in.
+
+    The redirect is kept from the rendered version rather than reasoned away.
+    Somebody with a session who types the bare domain wants their dashboard,
+    and changing that during a migration would be a product decision smuggled
+    in as a refactor.
+
+    It is the one shell route that reads the session, which is why it is not
+    in the plain list above.
+    """
+    if user is not None:
+        return redirect("/dashboard")
+    return _shell()
 
 
 @router.get("/dashboard", include_in_schema=False)

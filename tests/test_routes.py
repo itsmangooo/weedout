@@ -15,8 +15,11 @@ from tests.test_scan_pipeline import LODASH_ADVISORY, MANIFEST, seed_mirror
 class TestPublicPages:
     async def test_landing_page_renders_for_anonymous_visitors(self, client):
         response = await client.get("/")
+
         assert response.status_code == 200
-        assert "Weed out the CVE alerts" in response.text
+        # The React shell. Its copy lives in the frontend suite; what matters
+        # here is that a stranger gets a page at all.
+        assert 'id="root"' in response.text
 
     async def test_landing_page_redirects_signed_in_users(self, auth_client):
         response = await auth_client.get("/")

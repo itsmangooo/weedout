@@ -9,18 +9,8 @@ import httpx
 import pytest
 
 from app.config import get_settings
-from app.core.types import (
-    ActionableReason,
-    Ecosystem,
-    ManifestKind,
-    Reachability,
-    Severity,
-    Verdict,
-)
 from app.db import get_db
 from app.main import create_app
-from app.models import CVEMatch, TrackedTarget, VulnerabilityRecord
-from app.security import content_hash
 from app.services.auth_service import create_session
 
 
@@ -184,80 +174,3 @@ class TestProductionFrontendServing:
         assert dashboard.status_code == 200
         assert findings.status_code == 200
         assert auth.cookies.get("weedout_csrf")
-
-
-class TestLegacyRollback:
-    async def test_legacy_route_remains_server_protected(self, production_client):
-        response = await production_client.get("/dashboard/legacy")
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "/login?next=/dashboard/legacy"
-
-    async def test_authenticated_operator_can_reach_the_legacy_renderer(
-        self, production_client, db, user
-    ):
-        await attach_session(production_client, db, user)
-
-        response = await production_client.get("/dashboard/legacy")
-
-        assert response.status_code == 200
-        assert "All clear" in response.text
-        assert 'src="/assets/index-d4e5f6.js"' not in response.text
-
-
-class TestDashboardParity:
-    async def test_react_apis_and_legacy_renderer_share_the_same_account_data(
-        self, auth_client, db, user
-    ):
-        project = TrackedTarget(
-            user_id=user.id,
-            name="parity-checkout",
-            ecosystem=Ecosystem.NPM,
-            manifest_kind=ManifestKind.PACKAGE_LOCK_JSON,
-            manifest_content='{"lockfileVersion": 3}',
-            content_hash=content_hash("parity-checkout"),
-            dependency_count=17,
-        )
-        vulnerability = VulnerabilityRecord(
-            id="GHSA-phase5-parity",
-            cve_ids=["CVE-2026-5555"],
-            summary="Phase 5 parity finding",
-        )
-        db.add_all([project, vulnerability])
-        await db.flush()
-        db.add(
-            CVEMatch(
-                target_id=project.id,
-                vulnerability_id=vulnerability.id,
-                ecosystem=Ecosystem.NPM,
-                package_name="phase5-package",
-                package_version="1.2.3",
-                reachability=Reachability.RUNTIME_DIRECT,
-                verdict=Verdict.ACTIONABLE,
-                severity=Severity.CRITICAL,
-                is_kev=True,
-                actionable_reason=ActionableReason.EXPLOITED_IN_WILD,
-            )
-        )
-        await db.flush()
-
-        dashboard = (await auth_client.get("/api/internal/dashboard")).json()["data"]
-        findings = (await auth_client.get("/api/internal/findings")).json()["data"]
-        legacy = (await auth_client.get("/dashboard/legacy")).text
-
-        assert dashboard["summary"] == {
-            "projects": 1,
-            "dependencies": 17,
-            "open_findings": 1,
-            "exploited_findings": 1,
-            "critical_findings": 1,
-            "filtered_findings": 0,
-            "dismissed_findings": 0,
-            "resolved_findings": 0,
-            "filter_rate_percent": 0,
-        }
-        assert dashboard["projects"][0]["name"] == "parity-checkout"
-        assert findings[0]["identifier"] == "CVE-2026-5555"
-        assert findings[0]["project"]["name"] == "parity-checkout"
-        for expected in ("parity-checkout", "CVE-2026-5555", "phase5-package", "1.2.3"):
-            assert expected in legacy

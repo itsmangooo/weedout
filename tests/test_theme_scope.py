@@ -17,16 +17,23 @@ import pytest
 
 from app.templating import is_public_surface
 
+#: The seam itself, which is a pure function over a path and still covers
+#: every route whether the server renders it or React does.
 PUBLIC = ("/", "/pricing", "/cli")
 APP = (
     "/dashboard",
-    "/dashboard/legacy",
     "/settings",
     "/alerts",
     "/targets/new",
     "/docs",
     "/contact",
 )
+
+#: The subset the server still renders. A React shell carries no server-pinned
+#: palette — the React layouts set data-theme themselves — so asserting on the
+#: HTML for those paths would be asserting on the shell, not on the seam.
+RENDERED_PUBLIC = ("/pricing", "/cli")
+RENDERED_APP = ("/settings", "/docs", "/contact")
 
 
 class TestTheSeam:
@@ -56,7 +63,7 @@ class TestTheSeam:
 
 
 class TestWhatIsRendered:
-    @pytest.mark.parametrize("path", PUBLIC)
+    @pytest.mark.parametrize("path", RENDERED_PUBLIC)
     async def test_a_marketing_page_pins_its_palette(self, client, path):
         body = (await client.get(path)).text
         assert 'data-surface="public"' in body
@@ -92,7 +99,7 @@ class TestWhatIsRendered:
         assert "data-theme-set" not in body
 
     async def test_the_application_leaves_the_palette_to_the_visitor(self, auth_client):
-        body = (await auth_client.get("/dashboard/legacy")).text
+        body = (await auth_client.get("/settings")).text
         assert 'data-surface="public"' not in body
         # No server-pinned theme: theme.js applies the saved preference before
         # the first paint.
@@ -108,7 +115,7 @@ class TestWhatIsRendered:
         assert 'data-surface="public"' not in body
         assert "data-theme-set" in body
 
-    @pytest.mark.parametrize("path", PUBLIC)
+    @pytest.mark.parametrize("path", RENDERED_PUBLIC)
     async def test_colour_scheme_advertises_only_what_is_offered(self, client, path):
         """`color-scheme: dark light` on a page that only renders dark makes the
         browser paint form controls and scrollbars for a mode it will not get."""
