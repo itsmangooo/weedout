@@ -111,6 +111,20 @@ export const appRoutes = [
                 },
               },
               {
+                path: "alerts",
+                lazy: async () => {
+                  const { AlertsPage } = await import("../pages/AlertsPage");
+                  return { Component: AlertsPage };
+                },
+              },
+              {
+                path: "alerts/:alertId",
+                lazy: async () => {
+                  const { AlertPage } = await import("../pages/AlertPage");
+                  return { Component: AlertPage };
+                },
+              },
+              {
                 path: "targets/:projectId",
                 lazy: async () => {
                   const { ProjectPage } = await import("../pages/ProjectPage");

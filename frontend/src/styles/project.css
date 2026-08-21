@@ -433,3 +433,76 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* --- One finding, explained ---------------------------------------------- */
+
+.alerts-page {
+  display: grid;
+  gap: var(--wo-space-5);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wo-space-2);
+  margin-bottom: var(--wo-space-4);
+  color: var(--wo-text-muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--wo-text);
+}
+
+.signal-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wo-space-2);
+  margin-top: var(--wo-space-4);
+}
+
+.alert-summary {
+  margin: 0 0 var(--wo-space-6);
+  padding: var(--wo-space-4);
+  border-left: 3px solid var(--wo-border-strong);
+  color: var(--wo-text-muted);
+  line-height: 1.65;
+}
+
+.alert-section {
+  margin-bottom: var(--wo-space-6);
+}
+
+.alert-section h2 {
+  margin: 0 0 var(--wo-space-2);
+  font-size: 0.78rem;
+  font-weight: 640;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wo-text-dim);
+}
+
+.alert-section p {
+  margin: 0 0 var(--wo-space-3);
+  max-width: var(--wo-measure);
+  line-height: 1.65;
+}
+
+.command-block {
+  display: flex;
+  align-items: center;
+  gap: var(--wo-space-3);
+  margin: 0;
+  padding: var(--wo-space-4);
+  border-radius: var(--wo-radius-sm);
+  background: var(--wo-level-1);
+  /* A long command scrolls inside its own box rather than widening the page. */
+  overflow-x: auto;
+}
+
+.command-block code {
+  font-family: var(--wo-font-mono);
+  font-size: 0.85rem;
+  white-space: pre;
+}

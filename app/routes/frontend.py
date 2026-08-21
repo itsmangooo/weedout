@@ -58,6 +58,8 @@ SHELL_ROUTES = (
     "/reset-password",
     "/targets/new",
     "/targets/{target_id}",
+    "/alerts",
+    "/alerts/{match_id}",
 )
 
 
@@ -114,6 +116,16 @@ async def reset_password_entry() -> FileResponse:
 
 @router.get("/targets/new", include_in_schema=False)
 async def new_project_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/alerts", include_in_schema=False)
+async def alerts_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/alerts/{match_id}", include_in_schema=False)
+async def alert_entry(match_id: int) -> FileResponse:
     return _shell()
 
 

@@ -480,22 +480,28 @@ class TestAlertRoutes:
 
     async def test_alert_detail_explains_in_plain_language(self, auth_client, db):
         match = await self._seed(auth_client, db)
-        response = await auth_client.get(f"/alerts/{match.id}")
+        response = await auth_client.get(f"/api/internal/alerts/{match.id}")
         assert response.status_code == 200
-        assert "Why you're seeing this" in response.text
-        assert "What to do" in response.text
+        explanation = response.json()["explanation"]
+
+        # Written by app.core.explain, the same functions the alert emails use,
+        # so a finding reads identically wherever somebody meets it.
+        assert explanation["risk"]
+        assert explanation["why"]
+        assert explanation["fix"]
         # The fix is a command you can paste, not just a version number.
-        assert "npm install lodash@4.17.21" in response.text
+        assert explanation["command"] == "npm install lodash@4.17.21"
 
     async def test_dismissing_a_finding_updates_its_status(self, auth_client, db):
         match = await self._seed(auth_client, db)
         csrf = set_csrf(auth_client)
 
         response = await auth_client.post(
-            f"/alerts/{match.id}/status",
-            data={"status": "dismissed", "note": "accepted risk", "csrf_token": csrf},
+            f"/api/internal/alerts/{match.id}/status",
+            json={"status": "dismissed", "note": "accepted risk"},
+            headers={"X-CSRF-Token": csrf},
         )
-        assert response.status_code == 303
+        assert response.status_code == 200
 
         await db.refresh(match)
         assert match.status is AlertStatus.DISMISSED
@@ -509,7 +515,9 @@ class TestAlertRoutes:
 
         csrf = set_csrf(auth_client)
         await auth_client.post(
-            f"/alerts/{match.id}/status", data={"status": "open", "csrf_token": csrf}
+            f"/api/internal/alerts/{match.id}/status",
+            json={"status": "open"},
+            headers={"X-CSRF-Token": csrf},
         )
         await db.refresh(match)
         assert match.status is AlertStatus.OPEN
@@ -521,7 +529,9 @@ class TestAlertRoutes:
         match = await self._seed(auth_client, db)
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
-            f"/alerts/{match.id}/status", data={"status": "resolved", "csrf_token": csrf}
+            f"/api/internal/alerts/{match.id}/status",
+            json={"status": "resolved"},
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 400
 
@@ -529,14 +539,16 @@ class TestAlertRoutes:
         match = await self._seed(auth_client, db)
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
-            f"/alerts/{match.id}/status", data={"status": "banana", "csrf_token": csrf}
+            f"/api/internal/alerts/{match.id}/status",
+            json={"status": "banana"},
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 400
 
     async def test_status_change_requires_csrf(self, auth_client, db):
         match = await self._seed(auth_client, db)
         response = await auth_client.post(
-            f"/alerts/{match.id}/status", data={"status": "dismissed"}
+            f"/api/internal/alerts/{match.id}/status", json={"status": "dismissed"}
         )
         assert response.status_code == 403
 
@@ -572,11 +584,13 @@ class TestAlertRoutes:
 
         await sign_in(client, user.email)
 
-        assert (await client.get(f"/alerts/{match.id}")).status_code == 404
+        assert (await client.get(f"/api/internal/alerts/{match.id}")).status_code == 404
 
         csrf = set_csrf(client)
         response = await client.post(
-            f"/alerts/{match.id}/status", data={"status": "dismissed", "csrf_token": csrf}
+            f"/api/internal/alerts/{match.id}/status",
+            json={"status": "dismissed"},
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 404
 

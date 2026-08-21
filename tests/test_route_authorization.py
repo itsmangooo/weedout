@@ -68,6 +68,14 @@ PUBLIC_ROUTES: dict[str, str] = {
         "including one belonging to somebody else — the shell is identical "
         "either way, and the API is what refuses."
     ),
+    "/alerts": (
+        "the static React shell, as with /dashboard — no findings are in it, "
+        "and the API behind it is session-guarded."
+    ),
+    "/alerts/{match_id}": (
+        "the static React shell, served for any id. The finding itself comes "
+        "from the API, which 404s anything not owned by the caller."
+    ),
     "/dashboard": (
         "the static React shell; it contains no user data and every dashboard "
         "read remains behind the internal session dependencies"
@@ -133,6 +141,8 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/projects/{target_id}/webhook": "internal_user",
     "/api/internal/projects/{target_id}/webhook/test": "internal_user",
     "/api/internal/projects/{target_id}/webhook/remove": "internal_user",
+    "/api/internal/alerts/{match_id}": "internal_user",
+    "/api/internal/alerts/{match_id}/status": "internal_user",
 }
 
 

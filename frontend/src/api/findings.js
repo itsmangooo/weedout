@@ -59,3 +59,43 @@ export async function getFindings({ show = "open", limit = 25, signal } = {}) {
 
   return payload;
 }
+
+export const ALERTS_PATH = "/api/internal/alerts";
+
+function alertPath(id) {
+  return `${ALERTS_PATH}/${encodeURIComponent(id)}`;
+}
+
+/**
+ * One finding in full, with its explanation.
+ *
+ * The explanation is plain text produced by the server from the same functions
+ * that write the alert emails, so a finding reads identically wherever it is
+ * met. The client renders those strings and does not compose its own.
+ */
+export async function getAlert(id, { signal } = {}) {
+  const payload = await api(alertPath(id), { signal });
+  if (!Number.isInteger(payload?.data?.id) || typeof payload?.explanation !== "object") {
+    throw new ApiError("The finding service returned an unexpected response.", {
+      status: 502,
+      code: "INVALID_ALERT_RESPONSE",
+      details: payload,
+    });
+  }
+  return payload;
+}
+
+/**
+ * Dismiss a finding, or reopen one.
+ *
+ * `resolved` is not offered. It is derived from a scan finding the
+ * vulnerability gone, and the server refuses it here — marking a still-present
+ * finding as fixed is the one claim this product exists not to make falsely.
+ */
+export async function setAlertStatus(id, { status, note = "" }) {
+  const payload = await api(`${alertPath(id)}/status`, {
+    method: "POST",
+    body: { status, note },
+  });
+  return payload?.data;
+}

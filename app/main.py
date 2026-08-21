@@ -25,7 +25,6 @@ from app.deps import RedirectToLogin
 from app.logging_config import configure_logging, get_logger
 from app.routes import (
     admin,
-    alerts,
     api,
     auth,
     billing,
@@ -34,6 +33,7 @@ from app.routes import (
     events,
     frontend,
     health,
+    internal_alerts,
     internal_auth,
     internal_auth_actions,
     internal_dashboard,
@@ -159,6 +159,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(frontend.router)
     app.include_router(health.router)
+    app.include_router(internal_alerts.router)
     app.include_router(internal_auth.router)
     app.include_router(internal_auth_actions.router)
     app.include_router(internal_dashboard.router)
@@ -167,7 +168,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(pages.router)
     app.include_router(auth.router)
     app.include_router(targets.router)
-    app.include_router(alerts.router)
     app.include_router(billing.router)
     app.include_router(contact.router)
     app.include_router(docs.router)
