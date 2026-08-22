@@ -152,61 +152,67 @@ class TestPublicDocs:
         await make_page(db, slug="one", title="One")
         await make_page(db, slug="two", title="Two")
 
-        response = await client.get("/docs")
+        response = await client.get("/api/internal/docs")
         assert response.status_code == 200
-        assert "One" in response.text
-        assert "Two" in response.text
+        titles = [page["title"] for page in response.json()["data"]["pages"]]
+        assert titles == ["One", "Two"]
 
     async def test_index_hides_drafts(self, client, db):
         await make_page(db, slug="live", title="Live One")
         await make_page(db, slug="draft", title="Secret Draft", published=False)
 
-        response = await client.get("/docs")
-        assert "Live One" in response.text
+        response = await client.get("/api/internal/docs")
+        titles = [page["title"] for page in response.json()["data"]["pages"]]
+        assert "Live One" in titles
+        assert "Secret Draft" not in titles
         assert "Secret Draft" not in response.text
 
     async def test_a_published_page_renders_its_markdown(self, client, db):
         await make_page(db, slug="guide", title="Guide", content="## Section\n\nBody here.")
 
-        response = await client.get("/docs/guide")
+        response = await client.get("/api/internal/docs/guide")
         assert response.status_code == 200
-        assert "<h2>Section</h2>" in response.text
-        assert "Body here." in response.text
+        body = response.json()["data"]["body_html"]
+        # Still rendered on the server, so the browser is not shipped a
+        # markdown parser to redo work already done.
+        assert "<h2>Section</h2>" in body
+        assert "Body here." in body
 
     async def test_a_draft_is_a_404_for_anonymous_visitors(self, client, db):
         await make_page(db, slug="draft", title="Draft", published=False)
-        response = await client.get("/docs/draft")
+        response = await client.get("/api/internal/docs/draft")
         assert response.status_code == 404
 
     async def test_a_draft_is_a_404_for_signed_in_non_admins(self, auth_client, db):
         await make_page(db, slug="draft", title="Draft", published=False)
-        assert (await auth_client.get("/docs/draft")).status_code == 404
+        assert (await auth_client.get("/api/internal/docs/draft")).status_code == 404
 
     async def test_a_draft_is_also_hidden_from_the_admin_public_view(self, admin_client, db):
         # Drafts are edited through the admin panel, not previewed at the public
         # URL — so "unpublished" means the same thing to everyone.
         await make_page(db, slug="draft", title="Draft", published=False)
-        assert (await admin_client.get("/docs/draft")).status_code == 404
+        assert (await admin_client.get("/api/internal/docs/draft")).status_code == 404
 
     async def test_an_unknown_slug_is_a_404(self, client):
-        assert (await client.get("/docs/nothing-here")).status_code == 404
+        assert (await client.get("/api/internal/docs/nothing-here")).status_code == 404
 
     async def test_docs_are_reachable_without_signing_in(self, client, db):
         await make_page(db)
-        assert (await client.get("/docs")).status_code == 200
+        assert (await client.get("/api/internal/docs")).status_code == 200
 
     async def test_pages_appear_in_position_order(self, client, db):
         await make_page(db, slug="second", title="Second", position=2)
         await make_page(db, slug="first", title="First", position=1)
 
-        body = (await client.get("/docs")).text
-        assert body.index("First") < body.index("Second")
+        pages = (await client.get("/api/internal/docs")).json()["data"]["pages"]
+        titles = [page["title"] for page in pages]
+        assert titles.index("First") < titles.index("Second")
 
-    async def test_the_nav_links_to_docs(self, client):
-        # /pricing rather than /: the landing page is React and its footer is
-        # covered by the frontend suite. This checks the shared nav that the
-        # remaining rendered pages carry.
-        assert 'href="/docs"' in (await client.get("/pricing")).text
+    async def test_the_docs_are_reachable_from_the_application(self, client):
+        """The React header links here; that markup is covered by the frontend
+        suite. What this asserts is the half that has to hold server-side —
+        the address serves a page rather than a 404."""
+        assert (await client.get("/docs")).status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -339,14 +345,14 @@ class TestAdminDocsCrud:
 
     async def test_unchecking_published_takes_a_page_offline(self, admin_client, client, db):
         page = await make_page(db, slug="live", title="Live")
-        assert (await client.get("/docs/live")).status_code == 200
+        assert (await client.get("/api/internal/docs/live")).status_code == 200
 
         csrf = set_csrf(admin_client)
         await admin_client.post(
             f"/admin/docs/{page.id}",
             data={"title": "Live", "slug": "live", "content": "x", "csrf_token": csrf},
         )
-        assert (await client.get("/docs/live")).status_code == 404
+        assert (await client.get("/api/internal/docs/live")).status_code == 404
 
     async def test_deletes_a_page(self, admin_client, db):
         page = await make_page(db)
@@ -474,7 +480,7 @@ class TestStarterSeed:
 
     async def test_seeded_content_renders(self, db, client):
         await seed_starter_pages(db)
-        response = await client.get("/docs/understanding-severity-tiers")
+        response = await client.get("/api/internal/docs/understanding-severity-tiers")
         assert response.status_code == 200
         assert "Exploited in the wild" in response.text
 
@@ -618,8 +624,8 @@ class TestStarterContentIsCliFirst:
     async def test_getting_started_leads_with_the_command(self, db, client):
         await seed_starter_pages(db)
 
-        response = await client.get("/docs/getting-started")
-        body = response.text
+        response = await client.get("/api/internal/docs/getting-started")
+        body = response.json()["data"]["body_html"]
 
         # The install line, not a package manager that no longer ships it:
         # the CLI is a Go binary now and `pip install weedout-cli` would send
@@ -631,7 +637,7 @@ class TestStarterContentIsCliFirst:
         """Not everyone wants to install something to evaluate a product."""
         await seed_starter_pages(db)
 
-        assert "Add a project" in (await client.get("/docs/getting-started")).text
+        assert "Add a project" in (await client.get("/api/internal/docs/getting-started")).text
 
     async def test_the_gating_example_uses_the_published_action(self, db, client):
         """The example has to be copy-pasteable.
@@ -641,7 +647,7 @@ class TestStarterContentIsCliFirst:
         code nobody proof-reads before running.
         """
         await seed_starter_pages(db)
-        body = (await client.get("/docs/gate-your-pipeline")).text
+        body = (await client.get("/api/internal/docs/gate-your-pipeline")).text
 
         assert "itsmangooo/weedout-cli@v1" in body
         assert "weedout/.github@v1" not in body
@@ -660,7 +666,7 @@ class TestStarterContentIsCliFirst:
         red cross beside a successful deploy."""
         await seed_starter_pages(db)
 
-        body = (await client.get("/docs/gate-your-pipeline")).text
+        body = (await client.get("/api/internal/docs/gate-your-pipeline")).text
         assert "needs: security-scan" in body
         assert "needs: [security-scan, build]" in body
 
@@ -669,5 +675,5 @@ class TestStarterContentIsCliFirst:
         somebody wiring up a gate needs to know which one they get."""
         await seed_starter_pages(db)
 
-        body = (await client.get("/docs/understanding-severity-tiers")).text
+        body = (await client.get("/api/internal/docs/understanding-severity-tiers")).text
         assert "--ci" in body

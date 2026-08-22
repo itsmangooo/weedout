@@ -6,6 +6,12 @@ import { useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
 export function AppShell() {
   const { data } = useCurrentUser();
 
+  // ProtectedRoute waits for an authenticated answer before rendering this, so
+  // `data` is populated in practice. Reading through it unguarded still made
+  // the shell impossible to render on its own and would turn any future change
+  // to that ordering into a blank screen rather than a missing email.
+  const account = data?.user;
+
   return (
     <div className="app-shell min-h-screen" data-theme="app">
       <a className="skip-link" href="#main">
@@ -36,8 +42,8 @@ export function AppShell() {
 
         <div className="app-shell__account">
           <span className="app-shell__account-copy">
-            <span className="app-shell__account-email">{data.user.email}</span>
-            <span className="app-shell__account-tier">{data.user.tier} workspace</span>
+            <span className="app-shell__account-email">{account?.email}</span>
+            <span className="app-shell__account-tier">{account?.tier} workspace</span>
           </span>
           <a aria-label="Open legacy settings" className="app-shell__account-link" href="/settings">
             <Settings aria-hidden="true" size={16} />

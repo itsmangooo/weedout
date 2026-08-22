@@ -397,7 +397,7 @@ class TestLandingContent:
         # render the plan table. The property — that the copy comes from the
         # same table the limits are enforced from, so the page cannot drift
         # from the product — belongs to whichever page shows it.
-        response = await client.get("/pricing")
+        response = await client.get("/api/internal/pricing")
         for plan in PLANS.values():
             assert plan.display_name in response.text
             assert plan.price_label in response.text
@@ -434,9 +434,11 @@ class TestPricingCopyMatchesTheProduct:
         from app.core.types import Tier
         from app.tiers import PLANS
 
-        body = (await client.get("/pricing")).text
+        # The plan copy and the prose beside it both come from tiers.py, so
+        # the endpoint that serves the table is where the agreement is
+        # checkable. The prose lives in the React page and is covered there.
+        body = (await client.get("/api/internal/pricing")).text
         assert "The whole dependency tree, however deep" in body
-        assert "looks further down the" in body
         # And the claim is still true of the plan table it describes.
         assert PLANS[Tier.PRO].scan_depth is None
         assert PLANS[Tier.FREE].scan_depth == 1

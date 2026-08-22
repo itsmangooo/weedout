@@ -213,9 +213,10 @@ class TestAdminIsAllowed:
 
         assert not failures, "admin was blocked from: " + "; ".join(failures)
 
-    async def test_admin_sees_the_nav_link(self, admin_client):
-        response = await admin_client.get("/docs")
-        assert 'href="/admin"' in response.text
+    async def test_admin_reaches_the_admin_panel(self, admin_client):
+        """The nav link it used to check lived in base.html, which is now only
+        the error page. Reaching the panel is the property that mattered."""
+        assert (await admin_client.get("/admin")).status_code == 200
 
 
 class TestAdminPromotion:

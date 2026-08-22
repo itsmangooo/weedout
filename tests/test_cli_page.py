@@ -188,10 +188,13 @@ class TestReleaseAssets:
 
 class TestPageRenders:
     async def test_the_cli_page_is_public(self, client, monkeypatch):
+        """Reachable with no account, and still reachable when the upstream
+        lookups fail — the page is about the tool, not about the release
+        feed."""
         monkeypatch.setattr(svc, "_fetch", lambda *a, **k: None)
-        response = await client.get("/cli")
-        assert response.status_code == 200
-        assert "cli-hero-canvas" in response.text
+
+        assert (await client.get("/cli")).status_code == 200
+        assert (await client.get("/api/internal/cli")).status_code == 200
 
     async def test_the_install_script_is_served_as_readable_text(self, client):
         # `curl -sSL https://weedout.dev/install.sh | sh` is a documented
@@ -216,9 +219,19 @@ class TestPageRenders:
             "Run: python scripts/sync_cli.py ../weedout-cli"
         )
 
-    async def test_the_zero_dependency_claim_is_not_hardcoded(self):
-        # The template may state the count, but it must read it from the parsed
-        # module rather than spelling it out.
-        template = (ROOT / "app" / "templates" / "cli.html").read_text(encoding="utf-8")
-        assert "go_module.third_party_count" in template
-        assert "go_module.is_stdlib_only" in template
+    async def test_the_zero_dependency_claim_is_not_hardcoded(self, client):
+        """The page says how many dependencies the CLI has. That number has to
+        come from the parsed go.mod, because a hardcoded claim on a page about
+        dependency honesty is the worst possible thing to let go stale."""
+        body = (await client.get("/api/internal/cli")).json()["data"]
+
+        # Served from the parse, not written down.
+        assert "dependencies" in body["go_module"]
+        assert isinstance(body["go_module"]["dependencies"], list)
+
+        # And the component renders that list rather than spelling a number.
+        component = (ROOT / "frontend" / "src" / "pages" / "CliPage.jsx").read_text(
+            encoding="utf-8"
+        )
+        assert "module.dependencies.length" in component
+        assert "module?.available" in component

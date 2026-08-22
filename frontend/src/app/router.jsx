@@ -32,6 +32,41 @@ export const appRoutes = [
             },
           },
           {
+            path: "pricing",
+            lazy: async () => {
+              const { PricingPage } = await import("../pages/PricingPage");
+              return { Component: PricingPage };
+            },
+          },
+          {
+            path: "cli",
+            lazy: async () => {
+              const { CliPage } = await import("../pages/CliPage");
+              return { Component: CliPage };
+            },
+          },
+          {
+            path: "contact",
+            lazy: async () => {
+              const { ContactPage } = await import("../pages/ContactPage");
+              return { Component: ContactPage };
+            },
+          },
+          {
+            path: "docs",
+            lazy: async () => {
+              const { DocsIndexPage } = await import("../pages/DocsPage");
+              return { Component: DocsIndexPage };
+            },
+          },
+          {
+            path: "docs/:slug",
+            lazy: async () => {
+              const { DocsArticlePage } = await import("../pages/DocsPage");
+              return { Component: DocsArticlePage };
+            },
+          },
+          {
             path: "login",
             lazy: async () => {
               const { LoginPage } = await import("../pages/LoginPage");

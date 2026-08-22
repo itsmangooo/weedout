@@ -27,8 +27,6 @@ from app.routes import (
     admin,
     api,
     billing,
-    contact,
-    docs,
     events,
     frontend,
     health,
@@ -37,6 +35,7 @@ from app.routes import (
     internal_auth_actions,
     internal_dashboard,
     internal_findings,
+    internal_marketing,
     internal_projects,
     internal_public,
     internal_settings,
@@ -165,14 +164,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(internal_auth_actions.router)
     app.include_router(internal_dashboard.router)
     app.include_router(internal_findings.router)
+    app.include_router(internal_marketing.router)
     app.include_router(internal_projects.router)
     app.include_router(internal_public.router)
     app.include_router(internal_settings.router)
     app.include_router(pages.router)
     app.include_router(targets.router)
     app.include_router(billing.router)
-    app.include_router(contact.router)
-    app.include_router(docs.router)
     app.include_router(admin.router)
     app.include_router(api.router)
     app.include_router(events.router)

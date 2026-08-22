@@ -50,6 +50,14 @@ PUBLIC_ROUTES: dict[str, str] = {
     "/api/internal/auth/logout": "ends a session; harmless without one",
     "/api/internal/auth/forgot-password": "reset request; identical response either way",
     "/api/internal/auth/reset-password": "reset completion; the token is the credential",
+    "/api/internal/pricing": "the plan table; the same thing the pricing page shows a stranger",
+    "/api/internal/cli": "the CLI version and dependency list; both already public",
+    "/api/internal/docs": "the published documentation index",
+    "/api/internal/docs/{slug}": "one published documentation page",
+    "/api/internal/contact": (
+        "the contact form. Anyone may write to us, including somebody who "
+        "cannot sign in — which is often exactly who needs to."
+    ),
     "/api/internal/landing": (
         "the live figures on the marketing page. Unauthenticated by design — "
         "this is what a stranger is shown. Every field is already public: "
@@ -74,6 +82,7 @@ PUBLIC_ROUTES: dict[str, str] = {
         "including one belonging to somebody else — the shell is identical "
         "either way, and the API is what refuses."
     ),
+    "/contact": "the static React shell for the contact form",
     "/settings": (
         "the static React shell. Nothing about the account is in it; the "
         "settings API behind it is session-guarded and answers 401."
@@ -136,6 +145,12 @@ INTERNAL_SESSION_ROUTES = {
     # in, which is why it classifies as optional rather than none.
     "/api/internal/auth/signup": "optional",
     "/api/internal/landing": "none",
+    "/api/internal/pricing": "none",
+    "/api/internal/cli": "none",
+    "/api/internal/docs": "none",
+    "/api/internal/docs/{slug}": "none",
+    # Reads the session only to fill in a sender's address, never to gate.
+    "/api/internal/contact": "optional",
     # Projects. Every one of these re-checks ownership through
     # get_target_for_user, so a session alone reaches nothing.
     "/api/internal/projects": "internal_user",

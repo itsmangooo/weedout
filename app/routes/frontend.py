@@ -63,6 +63,11 @@ SHELL_ROUTES = (
     "/targets/{target_id}",
     "/alerts",
     "/settings",
+    "/pricing",
+    "/cli",
+    "/contact",
+    "/docs",
+    "/docs/{slug}",
     "/alerts/{match_id}",
 )
 
@@ -137,6 +142,38 @@ async def reset_password_entry() -> FileResponse:
 
 @router.get("/targets/new", include_in_schema=False)
 async def new_project_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/pricing", include_in_schema=False)
+async def pricing_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/cli", include_in_schema=False)
+async def cli_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/contact", include_in_schema=False)
+async def contact_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/docs", include_in_schema=False)
+async def docs_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/docs/{slug}", include_in_schema=False)
+async def docs_article_entry(slug: str) -> FileResponse:
+    """A documentation page.
+
+    Served for any slug. Whether the page exists is the API's answer, not this
+    route's — a draft and a page that never existed have to be
+    indistinguishable, and deciding it here would mean two places that must
+    agree about what "published" means.
+    """
     return _shell()
 
 

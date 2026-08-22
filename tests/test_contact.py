@@ -43,23 +43,24 @@ async def admin_client(client, admin_user):
 
 class TestAnyoneCanSend:
     async def test_the_form_is_reachable_logged_out(self, client):
-        response = await client.get("/contact")
-        assert response.status_code == 200
-        assert "What happened?" in response.text
+        """The page is the React shell now — its copy is covered by the
+        frontend suite. What has to hold here is that a stranger who has never
+        signed in can reach it at all."""
+        assert (await client.get("/contact")).status_code == 200
 
     async def test_an_anonymous_visitor_can_send_a_message(self, client, db):
         csrf = set_csrf(client)
         response = await client.post(
-            "/contact",
-            data={
-                "csrf_token": csrf,
+            "/api/internal/contact",
+            json={
                 "email": "stranger@example.com",
                 "category": "bug",
                 "message": "The signup page returns a 500 when the email has a plus sign.",
             },
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 200
-        assert "Message received" in response.text
+        assert response.json()["data"]["sent"] is True
 
         row = (await db.execute(select(ContactMessage))).scalars().one()
         assert row.email == "stranger@example.com"
@@ -70,12 +71,12 @@ class TestAnyoneCanSend:
     async def test_an_authenticated_sender_needs_no_address(self, auth_client, db, user):
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
-            "/contact",
-            data={
-                "csrf_token": csrf,
+            "/api/internal/contact",
+            json={
                 "category": "feedback",
                 "message": "The filtered tab is the best part and I would like it first.",
             },
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 200
 
@@ -87,13 +88,13 @@ class TestAnyoneCanSend:
         """A signed-in sender's address comes from the session, not the form."""
         csrf = set_csrf(auth_client)
         await auth_client.post(
-            "/contact",
-            data={
-                "csrf_token": csrf,
+            "/api/internal/contact",
+            json={
                 "email": "someone-else@example.com",
                 "category": "billing",
                 "message": "Please refund the subscription on this account, thanks.",
             },
+            headers={"X-CSRF-Token": csrf},
         )
         row = (await db.execute(select(ContactMessage))).scalars().one()
         assert row.email == user.email
@@ -102,13 +103,13 @@ class TestAnyoneCanSend:
     async def test_a_blank_category_is_not_an_error(self, client, db):
         csrf = set_csrf(client)
         response = await client.post(
-            "/contact",
-            data={
-                "csrf_token": csrf,
+            "/api/internal/contact",
+            json={
                 "email": "stranger@example.com",
                 "category": "",
                 "message": "Nothing is broken, I just wanted to say the CLI is nice.",
             },
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 200
         row = (await db.execute(select(ContactMessage))).scalars().one()
@@ -117,8 +118,9 @@ class TestAnyoneCanSend:
     async def test_a_one_word_message_is_refused_in_plain_english(self, client, db):
         csrf = set_csrf(client)
         response = await client.post(
-            "/contact",
-            data={"csrf_token": csrf, "email": "a@example.com", "message": "broken"},
+            "/api/internal/contact",
+            json={"email": "a@example.com", "message": "broken"},
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 400
         assert "at least a sentence" in response.text
@@ -128,12 +130,12 @@ class TestAnyoneCanSend:
     async def test_an_anonymous_sender_must_leave_an_address(self, client, db):
         csrf = set_csrf(client)
         response = await client.post(
-            "/contact",
-            data={
-                "csrf_token": csrf,
+            "/api/internal/contact",
+            json={
                 "email": "not-an-address",
                 "message": "This is a long enough message to pass the length check.",
             },
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 400
         assert "address to reply to" in response.text
@@ -156,15 +158,15 @@ class TestAnyoneCanSend:
 
         csrf = set_csrf(client)
         response = await client.post(
-            "/contact",
-            data={
-                "csrf_token": csrf,
+            "/api/internal/contact",
+            json={
                 "email": "stranger@example.com",
                 "message": "Something went wrong on the dashboard and I cannot tell what.",
             },
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 200
-        assert "Message received" in response.text
+        assert response.json()["data"]["sent"] is True
 
         row = (await db.execute(select(ContactMessage))).scalars().one()
         assert row.notified_at is None

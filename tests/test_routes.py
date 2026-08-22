@@ -27,10 +27,12 @@ class TestPublicPages:
         assert response.headers["location"] == "/dashboard"
 
     async def test_pricing_page_lists_both_plans(self, client):
-        response = await client.get("/pricing")
+        response = await client.get("/api/internal/pricing")
+
         assert response.status_code == 200
-        assert "Free" in response.text
-        assert "Pro" in response.text
+        names = [plan["name"] for plan in response.json()["data"]["plans"]]
+        assert "Free" in names
+        assert "Pro" in names
 
     async def test_healthz_is_public(self, client):
         response = await client.get("/healthz")
