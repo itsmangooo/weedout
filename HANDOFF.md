@@ -328,14 +328,22 @@ Also unresolved:
    sides. Follow `internal_auth_actions.py` + `pages/LoginPage.jsx` as the
    worked example.
 
-   | Next | Templates retired | Why this order |
+   | Slice | Templates retired | State |
    |---|---|---|
-   | Projects (list, new, detail x3) | 5 | The dashboard already links here, so these are the live dead ends |
-   | Alerts (index, detail) | 2 | Same |
-   | Settings | 1 | Big one: API keys, webhooks, rules, thresholds, 2FA |
-   | Marketing (pricing, cli, contact, docs x2, error) | 6 | Mostly static; quick |
-   | Billing (+ success) | 2 | Touches Dodo; do it awake |
-   | Admin | 12 | Last. Internal-only, and the least costly to leave server-rendered |
+   | Auth (login, signup, 2FA, reset) | 7 | **Done** |
+   | Projects (new, detail x3) | 5 | **Done** |
+   | Alerts (index, detail) | 2 | **Done** |
+   | Landing + legacy dashboard | 4 | **Done** |
+   | Settings | 1 | **Done** |
+   | Marketing (pricing, cli, contact, docs x2, hero partial) | 6 | **Done** |
+   | Billing (+ success) | 2 | Next. Touches Dodo; do it awake |
+   | Admin | 12 | Last. Internal-only, and the least costly to leave rendered |
+   | base.html, error.html | 2 | Only after both of the above |
+
+   **16 templates left**: twelve admin, two billing, plus base.html and
+   error.html. error.html is the last server-rendered page and has to keep
+   working without the React bundle — one of the things it reports is the
+   bundle being unavailable.
 
    Do not delete a template before its React screen is serving the route. The
    deletion is the last step of a slice, not the first.
@@ -346,6 +354,14 @@ Also unresolved:
    the brief. The web `/cli` page and `/docs` still describe a CLI that only
    scans; they are now out of date in the direction of underselling.
 2. The rest of the table above.
+
+Known consequence of the migration, not yet addressed:
+
+- **The public pages are no longer server-rendered.** `/`, `/pricing`, `/cli`
+  and every `/docs/*` page are now a React shell, so a search engine has to
+  execute JavaScript to see them. The data endpoints are public and cacheable,
+  so the fix is a prerender step at build time rather than reverting anything.
+  Nobody has decided whether it matters yet.
 
 Still flagged for a decision, not started:
 
