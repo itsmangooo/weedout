@@ -235,9 +235,13 @@ class TestFailuresReachTheAdminPanel:
         feeds = {f.name: f for f in await feed_health(db)}
         assert feeds[mirror_feed_name(Ecosystem.GO)].status == "failing"
 
-    async def test_the_overview_page_renders_the_failure(self, admin_client, db):
-        """End to end: a broken feed is visible on the page an operator opens,
-        not only in the dataclass behind it."""
+    async def test_the_overview_reports_the_failure(self, admin_client, db):
+        """End to end: a broken feed reaches what the operator's page reads,
+        not only the dataclass behind it.
+
+        Against the endpoint rather than the rendered HTML, because the panel
+        is React now — this is the boundary where "the service knows" becomes
+        "the operator can see it"."""
         from app.core.types import Ecosystem
 
         await upsert_feed(
@@ -248,11 +252,15 @@ class TestFailuresReachTheAdminPanel:
         )
         await db.commit()
 
-        response = await admin_client.get("/admin")
-
+        response = await admin_client.get("/api/internal/admin/overview")
         assert response.status_code == 200
-        assert "failing" in response.text
-        assert "HTTP 500 from the npm export" in response.text
+
+        feeds = {feed["name"]: feed for feed in response.json()["data"]["feeds"]}
+        npm = feeds[mirror_feed_name(Ecosystem.NPM)]
+        assert npm["status"] == "failing"
+        # The reason travels with the status, or the panel says something is
+        # wrong without saying what.
+        assert npm["last_error"] == "HTTP 500 from the npm export"
 
     async def test_row_counts_are_shown(self, admin_client, db):
         """A feed can succeed and still be broken. If an export starts
@@ -269,8 +277,13 @@ class TestFailuresReachTheAdminPanel:
         )
         await db.commit()
 
-        response = await admin_client.get("/admin")
-        assert "226887" in response.text
+        feeds = {
+            feed["name"]: feed
+            for feed in (await admin_client.get("/api/internal/admin/overview")).json()["data"][
+                "feeds"
+            ]
+        }
+        assert feeds[mirror_feed_name(Ecosystem.NPM)]["record_count"] == 226887
 
 
 class TestReadinessReflectsTheMirror:

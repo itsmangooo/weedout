@@ -271,92 +271,84 @@ class TestLastAdminProtection:
 
 
 class TestDeleteRoute:
+    """The endpoint, as opposed to the service.
+
+    The typed-email confirmation is asserted here rather than only in the UI
+    because the dialog is a courtesy — this is the check that still applies to
+    a hand-crafted request, a replayed one, or a script.
+    """
+
     @pytest.fixture
     async def admin_client(self, client, admin):
         response = await sign_in(client, admin.email)
         assert response.status_code == 200
         return client
 
+    @staticmethod
+    async def delete(client, user_id, **body):
+        return await client.post(
+            f"/api/internal/admin/users/{user_id}/delete",
+            json=body,
+            headers={"X-CSRF-Token": set_csrf(client)},
+        )
+
     async def test_deletes_when_the_email_is_confirmed(self, admin_client, db, user):
         user_id = user.id
         await populate(db, user)
 
-        csrf = set_csrf(admin_client)
-        response = await admin_client.post(
-            f"/admin/users/{user_id}/delete",
-            data={"confirm_email": user.email, "csrf_token": csrf},
-        )
-        assert response.status_code == 303
-        assert response.headers["location"] == "/admin/users"
+        response = await self.delete(admin_client, user_id, confirm_email=user.email)
+        assert response.status_code == 200
+        assert response.json()["data"]["deleted"] is True
         assert await count(db, User, id=user_id) == 0
 
     async def test_confirmation_is_case_insensitive(self, admin_client, db, user):
         user_id = user.id
-        csrf = set_csrf(admin_client)
-        response = await admin_client.post(
-            f"/admin/users/{user_id}/delete",
-            data={"confirm_email": user.email.upper(), "csrf_token": csrf},
-        )
-        assert response.status_code == 303
+        response = await self.delete(admin_client, user_id, confirm_email=user.email.upper())
+        assert response.status_code == 200
         assert await count(db, User, id=user_id) == 0
 
     async def test_a_wrong_confirmation_deletes_nothing(self, admin_client, db, user):
-        # The modal is a courtesy; this check is the one that still applies to a
-        # hand-crafted POST.
-        csrf = set_csrf(admin_client)
-        response = await admin_client.post(
-            f"/admin/users/{user.id}/delete",
-            data={"confirm_email": "someone-else@example.com", "csrf_token": csrf},
+        response = await self.delete(
+            admin_client, user.id, confirm_email="someone-else@example.com"
         )
         assert response.status_code == 400
-        # Jinja escapes the apostrophe in "doesn't".
-        assert "match this account" in response.text
+        assert "match this account" in response.json()["error"]["message"]
 
         assert await count(db, User, id=user.id) == 1
 
     async def test_a_missing_confirmation_deletes_nothing(self, admin_client, db, user):
-        csrf = set_csrf(admin_client)
-        response = await admin_client.post(
-            f"/admin/users/{user.id}/delete", data={"csrf_token": csrf}
-        )
+        response = await self.delete(admin_client, user.id)
         assert response.status_code == 400
         assert await count(db, User, id=user.id) == 1
 
     async def test_delete_requires_csrf(self, admin_client, db, user):
+        """A session cookie alone must not be enough: the whole point of the
+        double-submit token is that a cross-site form cannot read it."""
         response = await admin_client.post(
-            f"/admin/users/{user.id}/delete", data={"confirm_email": user.email}
+            f"/api/internal/admin/users/{user.id}/delete",
+            json={"confirm_email": user.email},
         )
         assert response.status_code == 403
         assert await count(db, User, id=user.id) == 1
 
     async def test_a_non_admin_cannot_delete_anyone(self, auth_client, db, pro_user):
-        csrf = set_csrf(auth_client)
-        response = await auth_client.post(
-            f"/admin/users/{pro_user.id}/delete",
-            data={"confirm_email": pro_user.email, "csrf_token": csrf},
-        )
+        response = await self.delete(auth_client, pro_user.id, confirm_email=pro_user.email)
         assert response.status_code == 403
         assert await count(db, User, id=pro_user.id) == 1
 
     async def test_deleting_a_missing_user_is_a_404(self, admin_client):
-        csrf = set_csrf(admin_client)
-        response = await admin_client.post(
-            "/admin/users/999999/delete",
-            data={"confirm_email": "ghost@example.com", "csrf_token": csrf},
-        )
+        response = await self.delete(admin_client, 999999, confirm_email="ghost@example.com")
         assert response.status_code == 404
 
     async def test_self_deletion_is_refused_at_the_route(self, admin_client, db, admin):
-        csrf = set_csrf(admin_client)
-        response = await admin_client.post(
-            f"/admin/users/{admin.id}/delete",
-            data={"confirm_email": admin.email, "csrf_token": csrf},
-        )
+        response = await self.delete(admin_client, admin.id, confirm_email=admin.email)
         assert response.status_code == 400
         assert await count(db, User, id=admin.id) == 1
 
-    async def test_the_user_page_offers_deletion(self, admin_client, user):
-        response = await admin_client.get(f"/admin/users/{user.id}")
-        assert response.status_code == 200
-        assert "Delete this account" in response.text
-        assert f'action="/admin/users/{user.id}/delete"' in response.text
+    async def test_the_user_view_reports_what_deletion_would_remove(self, admin_client, db, user):
+        """The warning names counts, so it has to be able to."""
+        await populate(db, user)
+
+        payload = (await admin_client.get(f"/api/internal/admin/users/{user.id}")).json()["data"]
+        assert payload["targets"]
+        assert payload["open_alert_count"] + payload["suppressed_count"] >= 0

@@ -7,12 +7,13 @@ import { Button } from "../components/ui/Button";
 import { InlineNotice } from "../components/ui/InlineNotice";
 import { useCurrentUser } from "../features/auth/hooks/useCurrentUser";
 
+// These values are the ContactCategory enum the API accepts, not a wish list.
+// An option the server does not know is rejected as a validation error, so the
+// person sees "invalid request" for having picked the choice we offered them.
 const CATEGORIES = [
-  { value: "question", label: "A question" },
   { value: "bug", label: "Something is broken" },
-  { value: "false_positive", label: "A finding that should not be a finding" },
-  { value: "missed", label: "Something you should have caught" },
-  { value: "billing", label: "Billing" },
+  { value: "feedback", label: "Feedback or a feature request" },
+  { value: "billing", label: "Billing or my subscription" },
   { value: "other", label: "Something else" },
 ];
 
@@ -20,7 +21,7 @@ export function ContactPage() {
   const { data: auth } = useCurrentUser();
   const signedIn = auth?.authenticated === true;
 
-  const [category, setCategory] = useState("question");
+  const [category, setCategory] = useState("bug");
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(null);

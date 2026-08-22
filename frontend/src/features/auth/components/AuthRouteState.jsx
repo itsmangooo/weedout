@@ -61,8 +61,11 @@ export function AuthRouteState({ loginHref, onRetry, state }) {
               </a>
             ) : null}
             {state === "forbidden" ? (
-              <Link className="text-link" to="/auth-boundary">
-                Return to the protected boundary
+              // Their dashboard, not the boundary scaffold this used to point
+              // at: somebody refused from an admin URL wants the part of the
+              // product they do have, not a page about routing.
+              <Link className="text-link" to="/dashboard">
+                Back to your dashboard
               </Link>
             ) : null}
             {state === "unavailable" ? (

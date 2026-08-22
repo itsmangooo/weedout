@@ -25,11 +25,10 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.core.types import Tier
-from app.deps import CurrentUser, DbSession
+from app.deps import DbSession
 from app.logging_config import get_logger
 from app.models import User
 from app.security import verify_dodo_signature
-from app.templating import render
 
 log = get_logger(__name__)
 
@@ -64,35 +63,6 @@ def build_checkout_url(settings, user: User) -> str | None:
         }
     )
     return f"{settings.dodo_checkout_base}/buy/{settings.dodo_product_id_pro_monthly}?{query}"
-
-
-@router.get("/billing")
-async def billing_page(request: Request, user: CurrentUser):
-    settings = get_settings()
-    return render(
-        request,
-        "billing.html",
-        {
-            "page_title": "Billing",
-            "dodo_enabled": settings.dodo_enabled,
-            "checkout_url": build_checkout_url(settings, user),
-        },
-    )
-
-
-@router.get("/billing/success")
-async def billing_success(request: Request, user: CurrentUser):
-    """Landing page after checkout.
-
-    Shows a "processing" state rather than confirming the upgrade, because the
-    webhook is what actually grants it and may not have arrived yet. Claiming
-    success here and being contradicted a second later is worse than waiting.
-    """
-    return render(
-        request,
-        "billing_success.html",
-        {"page_title": "Thanks!", "already_upgraded": user.tier is Tier.PRO},
-    )
 
 
 @router.post("/webhooks/dodo", include_in_schema=False)

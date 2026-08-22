@@ -220,14 +220,20 @@ class TestPublicDocs:
 # ---------------------------------------------------------------------------
 
 
+#: The doc CMS moved to /api/internal/admin/docs when the panel became React.
+#: The shell at /admin/docs is served to anyone and holds nothing; these are
+#: the paths that hold the pages.
 ADMIN_DOC_ROUTES = [
-    ("GET", "/admin/docs"),
-    ("GET", "/admin/docs/new"),
-    ("POST", "/admin/docs"),
-    ("GET", "/admin/docs/{id}"),
-    ("POST", "/admin/docs/{id}"),
-    ("POST", "/admin/docs/{id}/delete"),
+    ("GET", "/api/internal/admin/docs"),
+    ("POST", "/api/internal/admin/docs"),
+    ("GET", "/api/internal/admin/docs/{id}"),
+    ("POST", "/api/internal/admin/docs/{id}"),
+    ("POST", "/api/internal/admin/docs/{id}/delete"),
 ]
+
+
+def doc_payload(**overrides) -> dict:
+    return {"title": "", "slug": "", "summary": "", "content": "", "published": False, **overrides}
 
 
 class TestAdminDocsAccessControl:
@@ -241,22 +247,26 @@ class TestAdminDocsAccessControl:
             if method == "GET":
                 response = await auth_client.get(url)
             else:
-                response = await auth_client.post(url, data={"csrf_token": csrf})
+                response = await auth_client.post(
+                    url, json=doc_payload(), headers={"X-CSRF-Token": csrf}
+                )
             if response.status_code != 403:
                 failures.append(f"{method} {url} -> {response.status_code}")
 
         assert not failures, "non-admin reached: " + "; ".join(failures)
 
-    async def test_anonymous_visitors_are_redirected_to_login(self, client):
-        response = await client.get("/admin/docs")
-        assert response.status_code == 303
-        assert "/login" in response.headers["location"]
+    async def test_anonymous_callers_get_401(self, client):
+        """401 rather than a redirect: this is a JSON endpoint, and a `fetch`
+        cannot do anything useful with the login page's HTML."""
+        response = await client.get("/api/internal/admin/docs")
+        assert response.status_code == 401
 
     async def test_a_non_admin_cannot_create_a_page(self, auth_client, db):
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
-            "/admin/docs",
-            data={"title": "Sneaky", "content": "x", "csrf_token": csrf},
+            "/api/internal/admin/docs",
+            json=doc_payload(title="Sneaky", content="x"),
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 403
         assert await db.scalar(select(DocPage).where(DocPage.title == "Sneaky")) is None
@@ -266,8 +276,9 @@ class TestAdminDocsAccessControl:
         csrf = set_csrf(auth_client)
 
         response = await auth_client.post(
-            f"/admin/docs/{page.id}",
-            data={"title": "Hijacked", "slug": page.slug, "content": "x", "csrf_token": csrf},
+            f"/api/internal/admin/docs/{page.id}",
+            json=doc_payload(title="Hijacked", slug=page.slug, content="x"),
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 403
 
@@ -279,7 +290,9 @@ class TestAdminDocsAccessControl:
         csrf = set_csrf(auth_client)
 
         response = await auth_client.post(
-            f"/admin/docs/{page.id}/delete", data={"csrf_token": csrf}
+            f"/api/internal/admin/docs/{page.id}/delete",
+            json={},
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 403
         assert await db.get(DocPage, page.id) is not None
@@ -297,17 +310,12 @@ class TestAdminDocsAccessControl:
 
 class TestAdminDocsCrud:
     async def test_creates_a_page_and_derives_the_slug(self, admin_client, db):
-        csrf = set_csrf(admin_client)
         response = await admin_client.post(
-            "/admin/docs",
-            data={
-                "title": "Getting Started Here",
-                "content": "# Hi\n\nBody.",
-                "published": "on",
-                "csrf_token": csrf,
-            },
+            "/api/internal/admin/docs",
+            json=doc_payload(title="Getting Started Here", content="# Hi\n\nBody.", published=True),
+            headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
-        assert response.status_code == 303
+        assert response.status_code == 200
 
         page = await db.scalar(select(DocPage).where(DocPage.title == "Getting Started Here"))
         assert page is not None
@@ -315,97 +323,99 @@ class TestAdminDocsCrud:
         assert page.published is True
 
     async def test_a_new_page_defaults_to_draft(self, admin_client, db):
-        csrf = set_csrf(admin_client)
         await admin_client.post(
-            "/admin/docs", data={"title": "Quiet", "content": "x", "csrf_token": csrf}
+            "/api/internal/admin/docs",
+            json=doc_payload(title="Quiet", content="x"),
+            headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
         page = await db.scalar(select(DocPage).where(DocPage.title == "Quiet"))
         assert page.published is False
 
     async def test_edits_an_existing_page(self, admin_client, db):
         page = await make_page(db, slug="old", title="Old")
-        csrf = set_csrf(admin_client)
 
         response = await admin_client.post(
-            f"/admin/docs/{page.id}",
-            data={
-                "title": "New Title",
-                "slug": "new-slug",
-                "content": "Updated body.",
-                "published": "on",
-                "csrf_token": csrf,
-            },
+            f"/api/internal/admin/docs/{page.id}",
+            json=doc_payload(
+                title="New Title", slug="new-slug", content="Updated body.", published=True
+            ),
+            headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
-        assert response.status_code == 303
+        assert response.status_code == 200
 
         await db.refresh(page)
         assert page.title == "New Title"
         assert page.slug == "new-slug"
         assert page.content == "Updated body."
 
-    async def test_unchecking_published_takes_a_page_offline(self, admin_client, client, db):
+    async def test_unpublishing_takes_a_page_offline(self, admin_client, client, db):
         page = await make_page(db, slug="live", title="Live")
         assert (await client.get("/api/internal/docs/live")).status_code == 200
 
-        csrf = set_csrf(admin_client)
         await admin_client.post(
-            f"/admin/docs/{page.id}",
-            data={"title": "Live", "slug": "live", "content": "x", "csrf_token": csrf},
+            f"/api/internal/admin/docs/{page.id}",
+            json=doc_payload(title="Live", slug="live", content="x", published=False),
+            headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
         assert (await client.get("/api/internal/docs/live")).status_code == 404
 
     async def test_deletes_a_page(self, admin_client, db):
         page = await make_page(db)
-        csrf = set_csrf(admin_client)
 
         response = await admin_client.post(
-            f"/admin/docs/{page.id}/delete", data={"csrf_token": csrf}
+            f"/api/internal/admin/docs/{page.id}/delete",
+            json={},
+            headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
-        assert response.status_code == 303
+        assert response.status_code == 200
         assert await db.get(DocPage, page.id) is None
 
     async def test_a_duplicate_slug_is_rejected(self, admin_client, db):
         await make_page(db, slug="taken", title="Taken")
-        csrf = set_csrf(admin_client)
 
         response = await admin_client.post(
-            "/admin/docs",
-            data={"title": "Another", "slug": "taken", "content": "x", "csrf_token": csrf},
+            "/api/internal/admin/docs",
+            json=doc_payload(title="Another", slug="taken", content="x"),
+            headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
         assert response.status_code == 400
-        assert "already exists" in response.text
+        assert "already exists" in response.json()["error"]["message"]
 
     async def test_a_page_can_keep_its_own_slug_on_edit(self, admin_client, db):
         page = await make_page(db, slug="keep", title="Keep")
-        csrf = set_csrf(admin_client)
 
         response = await admin_client.post(
-            f"/admin/docs/{page.id}",
-            data={"title": "Keep", "slug": "keep", "content": "y", "csrf_token": csrf},
+            f"/api/internal/admin/docs/{page.id}",
+            json=doc_payload(title="Keep", slug="keep", content="y"),
+            headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
-        assert response.status_code == 303
+        assert response.status_code == 200
 
     async def test_a_missing_title_is_rejected(self, admin_client, db):
-        csrf = set_csrf(admin_client)
         response = await admin_client.post(
-            "/admin/docs", data={"title": "", "content": "x", "csrf_token": csrf}
+            "/api/internal/admin/docs",
+            json=doc_payload(title="", content="x"),
+            headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
         assert response.status_code == 400
         assert (await db.scalars(select(DocPage))).all() == []
 
     async def test_crud_requires_csrf(self, admin_client, db):
-        response = await admin_client.post("/admin/docs", data={"title": "No token"})
+        response = await admin_client.post(
+            "/api/internal/admin/docs", json=doc_payload(title="No token")
+        )
         assert response.status_code == 403
         assert await db.scalar(select(DocPage).where(DocPage.title == "No token")) is None
 
     async def test_editing_a_missing_page_is_a_404(self, admin_client):
-        assert (await admin_client.get("/admin/docs/999999")).status_code == 404
+        assert (await admin_client.get("/api/internal/admin/docs/999999")).status_code == 404
 
     async def test_the_admin_list_shows_drafts(self, admin_client, db):
         await make_page(db, slug="draft", title="Hidden Draft", published=False)
-        response = await admin_client.get("/admin/docs")
-        assert "Hidden Draft" in response.text
-        assert "Draft" in response.text
+
+        pages = (await admin_client.get("/api/internal/admin/docs")).json()["data"]["pages"]
+        draft = next(page for page in pages if page["title"] == "Hidden Draft")
+        assert draft["published"] is False
 
 
 # ---------------------------------------------------------------------------

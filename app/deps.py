@@ -26,6 +26,7 @@ __all__ = [
     "CSRF_HEADER_NAME",
     "CurrentAdmin",
     "CurrentApiKey",
+    "CurrentInternalAdmin",
     "CurrentInternalUser",
     "CurrentUser",
     "DbSession",
@@ -34,6 +35,7 @@ __all__ = [
     "get_current_user",
     "require_admin",
     "require_api_key",
+    "require_internal_admin",
     "require_internal_user",
     "require_user",
     "set_csrf_cookie",
@@ -203,6 +205,43 @@ async def require_admin(
     return user
 
 
+async def require_internal_admin(
+    request: Request,
+    user: Annotated[User, Depends(require_internal_user)],
+) -> User:
+    """`require_admin` for the React admin panel, with JSON-native failures.
+
+    The rule is identical to the rendered panel's: a signed-in non-admin gets a
+    hard 403, not a 404 and not a redirect. Only the shape of the refusal
+    differs — anonymous callers get the 401 envelope from
+    `require_internal_user` rather than a 303 to the login page, because a
+    `fetch` cannot follow one usefully and would report the login HTML as a
+    parse error instead of as "sign in".
+
+    The same denial is logged, because a non-admin probing admin URLs is worth
+    seeing however the panel is rendered.
+    """
+    if not user.is_admin:
+        log.warning(
+            "admin.access_denied",
+            user_id=user.id,
+            path=request.url.path,
+            method=request.method,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": {
+                    "code": "FORBIDDEN",
+                    "message": "You don't have access to that.",
+                }
+            },
+            headers={"Cache-Control": "private, no-store", "Vary": "Cookie"},
+        )
+
+    return user
+
+
 async def require_api_key(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -291,6 +330,7 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(require_user)]
 CurrentInternalUser = Annotated[User, Depends(require_internal_user)]
 CurrentAdmin = Annotated[User, Depends(require_admin)]
+CurrentInternalAdmin = Annotated[User, Depends(require_internal_admin)]
 CurrentApiKey = Annotated[ApiKey, Depends(require_api_key)]
 ScanKey = Annotated[ApiKey, Depends(require_scope(KeyScope.SCAN))]
 ReadKey = Annotated[ApiKey, Depends(require_scope(KeyScope.READ))]

@@ -39,6 +39,39 @@
   background: color-mix(in srgb, var(--wo-accent) 13%, transparent);
 }
 
+.button--ghost {
+  background: transparent;
+  color: var(--wo-text-muted);
+  box-shadow: inset 0 0 0 1px var(--wo-border);
+}
+
+.button--ghost:hover {
+  color: var(--wo-text);
+  box-shadow: inset 0 0 0 1px var(--wo-border-strong);
+}
+
+/* Reserved for actions that destroy something. Never used for emphasis: a
+   colour that means "this deletes data" stops meaning it the moment it is
+   also the colour of "save". */
+.button--danger {
+  background: var(--wo-critical-quiet);
+  color: var(--wo-critical);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-critical) 32%, transparent);
+}
+
+.button--danger:hover {
+  background: color-mix(in srgb, var(--wo-critical) 18%, transparent);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button:disabled:hover {
+  transform: none;
+}
+
 .inline-notice {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

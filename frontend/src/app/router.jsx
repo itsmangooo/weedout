@@ -1,6 +1,7 @@
 import { createBrowserRouter, createMemoryRouter } from "react-router";
 
 import { RouteErrorBoundary } from "../components/feedback/AppErrorBoundary";
+import { AdminShell } from "../components/layout/AdminShell";
 import { AppShell } from "../components/layout/AppShell";
 import { FoundationLayout } from "../components/layout/FoundationLayout";
 import { AdminRoute } from "../features/auth/components/AdminRoute";
@@ -146,6 +147,20 @@ export const appRoutes = [
                 },
               },
               {
+                path: "billing",
+                lazy: async () => {
+                  const { BillingPage } = await import("../pages/BillingPage");
+                  return { Component: BillingPage };
+                },
+              },
+              {
+                path: "billing/success",
+                lazy: async () => {
+                  const { BillingPage } = await import("../pages/BillingPage");
+                  return { Component: BillingPage };
+                },
+              },
+              {
                 path: "settings",
                 lazy: async () => {
                   const { SettingsPage } = await import("../pages/SettingsPage");
@@ -172,6 +187,111 @@ export const appRoutes = [
                   const { ProjectPage } = await import("../pages/ProjectPage");
                   return { Component: ProjectPage };
                 },
+              },
+            ],
+          },
+          {
+            // The admin panel. Nested inside ProtectedRoute so an expired
+            // session shows "sign in" rather than "not allowed", then behind
+            // AdminRoute, which is presentation only — every endpoint under
+            // /api/internal/admin enforces the same rule in Python.
+            element: <AdminRoute />,
+            children: [
+              {
+                element: <AdminShell />,
+                children: [
+                  {
+                    path: "admin",
+                    lazy: async () => {
+                      const { AdminOverviewPage } = await import(
+                        "../pages/admin/AdminOverviewPage"
+                      );
+                      return { Component: AdminOverviewPage };
+                    },
+                  },
+                  {
+                    path: "admin/users",
+                    lazy: async () => {
+                      const { AdminUsersPage } = await import("../pages/admin/AdminUsersPage");
+                      return { Component: AdminUsersPage };
+                    },
+                  },
+                  {
+                    path: "admin/users/:userId",
+                    lazy: async () => {
+                      const { AdminUserPage } = await import("../pages/admin/AdminUserPage");
+                      return { Component: AdminUserPage };
+                    },
+                  },
+                  {
+                    path: "admin/billing",
+                    lazy: async () => {
+                      const { AdminBillingPage } = await import(
+                        "../pages/admin/AdminBillingPage"
+                      );
+                      return { Component: AdminBillingPage };
+                    },
+                  },
+                  {
+                    path: "admin/inbox",
+                    lazy: async () => {
+                      const { AdminInboxPage } = await import("../pages/admin/AdminInboxPage");
+                      return { Component: AdminInboxPage };
+                    },
+                  },
+                  {
+                    path: "admin/inbox/:messageId",
+                    lazy: async () => {
+                      const { AdminMessagePage } = await import(
+                        "../pages/admin/AdminMessagePage"
+                      );
+                      return { Component: AdminMessagePage };
+                    },
+                  },
+                  {
+                    path: "admin/email",
+                    lazy: async () => {
+                      const { AdminComposePage } = await import(
+                        "../pages/admin/AdminComposePage"
+                      );
+                      return { Component: AdminComposePage };
+                    },
+                  },
+                  {
+                    path: "admin/docs",
+                    lazy: async () => {
+                      const { AdminDocsPage } = await import("../pages/admin/AdminDocsPage");
+                      return { Component: AdminDocsPage };
+                    },
+                  },
+                  {
+                    // Before ":pageId", so "new" is the create form rather
+                    // than a lookup for a page whose id is the word "new".
+                    path: "admin/docs/new",
+                    lazy: async () => {
+                      const { AdminDocEditPage } = await import(
+                        "../pages/admin/AdminDocEditPage"
+                      );
+                      return { Component: AdminDocEditPage };
+                    },
+                  },
+                  {
+                    path: "admin/docs/:pageId",
+                    lazy: async () => {
+                      const { AdminDocEditPage } = await import(
+                        "../pages/admin/AdminDocEditPage"
+                      );
+                      return { Component: AdminDocEditPage };
+                    },
+                  },
+                  {
+                    path: "admin/audit",
+                    lazy: async () => {
+                      const { AdminAuditPage } = await import("../pages/admin/AdminAuditPage");
+                      return { Component: AdminAuditPage };
+                    },
+                  },
+                ],
               },
             ],
           },

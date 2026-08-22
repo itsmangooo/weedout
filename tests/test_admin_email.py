@@ -57,29 +57,34 @@ async def make_users(
     await db.flush()
 
 
+#: The composer moved to /api/internal/admin/email with the panel. The two
+#: steps are unchanged: preview resolves and counts, send carries that count
+#: back, and a mismatch is refused.
+COMPOSER = "/api/internal/admin/email"
+
+DRAFT = {
+    "subject": "A message",
+    "body": "Hello there, this is the body.",
+    "audience": "all",
+    "audience_email": "",
+}
+
+
 async def preview(client, **overrides) -> object:
-    data = {
-        "csrf_token": set_csrf(client),
-        "subject": "A message",
-        "body": "Hello there, this is the body.",
-        "audience": "all",
-        "audience_email": "",
-    }
-    data.update(overrides)
-    return await client.post("/admin/email/preview", data=data)
+    return await client.post(
+        f"{COMPOSER}/preview",
+        json={**DRAFT, **overrides},
+        headers={"X-CSRF-Token": set_csrf(client)},
+    )
 
 
 async def send(client, *, confirmed_count, **overrides) -> object:
-    data = {
-        "csrf_token": set_csrf(client),
-        "subject": "A message",
-        "body": "Hello there, this is the body.",
-        "audience": "all",
-        "audience_email": "",
-        "confirmed_count": str(confirmed_count),
-    }
-    data.update(overrides)
-    return await client.post("/admin/email/send", data=data)
+    """`confirmed_count=None` is the un-previewed case: the field is absent."""
+    return await client.post(
+        f"{COMPOSER}/send",
+        json={**DRAFT, "confirmed_count": confirmed_count, **overrides},
+        headers={"X-CSRF-Token": set_csrf(client)},
+    )
 
 
 async def logs(db) -> list[EmailLog]:
@@ -88,56 +93,27 @@ async def logs(db) -> list[EmailLog]:
 
 class TestAccessControl:
     async def test_a_normal_user_cannot_open_the_composer(self, auth_client):
-        response = await auth_client.get("/admin/email", follow_redirects=False)
-        assert response.status_code in (303, 403, 404)
+        response = await auth_client.get(COMPOSER)
+        assert response.status_code == 403
 
     async def test_a_normal_user_cannot_send(self, auth_client, db, user):
         await make_users(db, free=3)
-        response = await auth_client.post(
-            "/admin/email/send",
-            data={
-                "csrf_token": set_csrf(auth_client),
-                "subject": "hi",
-                "body": "hi",
-                "audience": "all",
-                "confirmed_count": "4",
-            },
-            follow_redirects=False,
-        )
-        assert response.status_code in (303, 403, 404)
+        response = await send(auth_client, confirmed_count=4)
+        assert response.status_code == 403
         assert await logs(db) == []
 
     async def test_a_normal_user_cannot_preview_the_user_list(self, auth_client, db):
         """The preview leaks who is on the platform, so it is not a read-only
         page that happens to live under /admin."""
         await make_users(db, pro=2)
-        response = await auth_client.post(
-            "/admin/email/preview",
-            data={
-                "csrf_token": set_csrf(auth_client),
-                "subject": "hi",
-                "body": "hi",
-                "audience": "pro",
-            },
-            follow_redirects=False,
-        )
-        assert response.status_code in (303, 403, 404)
+        response = await preview(auth_client, audience="pro")
+        assert response.status_code == 403
         assert "pro0@example.com" not in response.text
 
     async def test_a_logged_out_visitor_cannot_send(self, client, db):
         await make_users(db, free=2)
-        response = await client.post(
-            "/admin/email/send",
-            data={
-                "csrf_token": set_csrf(client),
-                "subject": "hi",
-                "body": "hi",
-                "audience": "all",
-                "confirmed_count": "2",
-            },
-            follow_redirects=False,
-        )
-        assert response.status_code in (303, 403, 404)
+        response = await send(client, confirmed_count=2)
+        assert response.status_code == 401
         assert await logs(db) == []
 
 
@@ -149,7 +125,7 @@ class TestTheCountIsAPromise:
         response = await preview(admin_client)
         assert response.status_code == 200
         # 3 pro + 2 free + the admin themselves.
-        assert "This will send to 6 people" in response.text
+        assert response.json()["data"]["count"] == 6
 
         assert (await send(admin_client, confirmed_count=6)).status_code == 200
 
@@ -175,8 +151,10 @@ class TestTheCountIsAPromise:
 
         response = await send(admin_client, confirmed_count=3)
         assert response.status_code == 409
-        assert "audience changed" in response.text
-        assert "Nothing was sent" in response.text
+
+        message = response.json()["error"]["message"]
+        assert "audience changed" in message
+        assert "Nothing was sent" in message
         assert await logs(db) == []
 
     async def test_a_send_is_refused_if_the_audience_shrank(self, admin_client, db):
@@ -201,9 +179,9 @@ class TestTheCountIsAPromise:
         await make_users(db, free=5)
         await db.commit()
 
-        response = await send(admin_client, confirmed_count="")
+        response = await send(admin_client, confirmed_count=None)
         assert response.status_code == 400
-        assert "Preview the message" in response.text
+        assert "Preview the message" in response.json()["error"]["message"]
         assert await logs(db) == []
 
     async def test_suspended_accounts_are_never_included(self, admin_client, db):
@@ -211,7 +189,7 @@ class TestTheCountIsAPromise:
         await db.commit()
 
         response = await preview(admin_client)
-        assert "This will send to 3 people" in response.text
+        assert response.json()["data"]["count"] == 3
 
         await send(admin_client, confirmed_count=3)
         delivered = {entry.recipient for entry in await logs(db)}
@@ -255,7 +233,7 @@ class TestAudiences:
     async def test_an_empty_audience_is_refused_before_the_confirmation(self, admin_client, db):
         response = await preview(admin_client, audience="pro")
         assert response.status_code == 400
-        assert "nobody in it" in response.text
+        assert "nobody in it" in response.json()["error"]["message"]
 
 
 class TestVariables:
@@ -306,9 +284,11 @@ class TestVariables:
         await db.commit()
 
         response = await preview(admin_client, audience="pro", body="Dear {{user_email}}, hello.")
-        assert "Dear shown@example.com, hello." in response.text
-        # And the raw variable is not what is shown as the sample.
-        assert "Dear {{user_email}}" not in response.text.split("mail-preview__body")[1][:200]
+
+        rendered = response.json()["data"]
+        assert rendered["body"] == "Dear shown@example.com, hello."
+        # The sample is the resolved text, not the raw variable.
+        assert "{{" not in rendered["body"]
 
     async def test_the_body_is_not_evaluated_as_a_template(self, admin_client, db):
         """The body is typed into a browser by a human. Handing it to Jinja
@@ -373,7 +353,10 @@ class TestTheSendLog:
         response = await send(admin_client, audience="pro", confirmed_count=2)
 
         assert response.status_code == 200
-        assert "2 failed" in response.text
+
+        report = response.json()["data"]
+        assert report["failed"] == 2
+        assert report["sent"] == 0
 
         entries = await logs(db)
         assert all(entry.status is EmailStatus.FAILED for entry in entries)
@@ -401,6 +384,6 @@ class TestTheSendLog:
         await preview(admin_client, audience="pro")
         await send(admin_client, audience="pro", confirmed_count=1)
 
-        response = await admin_client.get("/admin/email")
-        assert "pro0@example.com" in response.text
-        assert "sender@example.com" in response.text
+        sends = (await admin_client.get(COMPOSER)).json()["data"]["sends"]
+        assert [entry["recipient"] for entry in sends] == ["pro0@example.com"]
+        assert sends[0]["actor_email"] == "sender@example.com"

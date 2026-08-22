@@ -10,6 +10,7 @@
 @import "./auth.css";
 @import "./project.css";
 @import "./context-menu.css";
+@import "./admin.css";
 
 @layer base {
   *,

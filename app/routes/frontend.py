@@ -63,12 +63,25 @@ SHELL_ROUTES = (
     "/targets/{target_id}",
     "/alerts",
     "/settings",
+    "/billing",
+    "/billing/success",
     "/pricing",
     "/cli",
     "/contact",
     "/docs",
     "/docs/{slug}",
     "/alerts/{match_id}",
+    "/admin",
+    "/admin/users",
+    "/admin/users/{user_id}",
+    "/admin/billing",
+    "/admin/inbox",
+    "/admin/inbox/{message_id}",
+    "/admin/email",
+    "/admin/docs",
+    "/admin/docs/new",
+    "/admin/docs/{page_id}",
+    "/admin/audit",
 )
 
 
@@ -177,6 +190,23 @@ async def docs_article_entry(slug: str) -> FileResponse:
     return _shell()
 
 
+@router.get("/billing", include_in_schema=False)
+async def billing_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/billing/success", include_in_schema=False)
+async def billing_success_entry() -> FileResponse:
+    """Where Dodo returns somebody after checkout.
+
+    The address is kept rather than folded into /billing with a query
+    parameter, because it is baked into every checkout link already issued —
+    including any open in a browser tab right now. Changing it would turn a
+    payment that has just succeeded into a 404.
+    """
+    return _shell()
+
+
 @router.get("/settings", include_in_schema=False)
 async def settings_entry() -> FileResponse:
     return _shell()
@@ -201,4 +231,79 @@ async def project_entry(target_id: int) -> FileResponse:
     registered first, but typing this one means a stray `/targets/anything`
     is a 422 rather than a shell that then fails to load a project.
     """
+    return _shell()
+
+
+# ---------------------------------------------------------------------------
+# The admin panel
+#
+# Shell routes like every other, and deliberately not behind `require_admin`.
+# The shell holds no data: what a non-admin gets here is an empty page that
+# immediately asks `/api/internal/auth/me` and renders "not allowed". Every
+# byte of admin data comes from `/api/internal/admin/*`, which does enforce it.
+#
+# Guarding these would mean two places that have to agree about who is an
+# administrator, and the redirect a guard produces is useless to the router
+# that would receive it.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/admin", include_in_schema=False)
+async def admin_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/admin/users", include_in_schema=False)
+async def admin_users_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/admin/users/{user_id}", include_in_schema=False)
+async def admin_user_entry(user_id: int) -> FileResponse:
+    return _shell()
+
+
+@router.get("/admin/billing", include_in_schema=False)
+async def admin_billing_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/admin/inbox", include_in_schema=False)
+async def admin_inbox_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/admin/inbox/{message_id}", include_in_schema=False)
+async def admin_message_entry(message_id: int) -> FileResponse:
+    return _shell()
+
+
+@router.get("/admin/email", include_in_schema=False)
+async def admin_email_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/admin/docs", include_in_schema=False)
+async def admin_docs_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/admin/docs/new", include_in_schema=False)
+async def admin_doc_new_entry() -> FileResponse:
+    """Registered before the id route, so "new" is the create form.
+
+    The id route is typed as an int as well, so both halves of the protection
+    are in place: order decides it, and a type makes a mismatch a 422 rather
+    than a shell that then fails to load a page called "new".
+    """
+    return _shell()
+
+
+@router.get("/admin/docs/{page_id}", include_in_schema=False)
+async def admin_doc_entry(page_id: int) -> FileResponse:
+    return _shell()
+
+
+@router.get("/admin/audit", include_in_schema=False)
+async def admin_audit_entry() -> FileResponse:
     return _shell()

@@ -83,6 +83,12 @@ PUBLIC_ROUTES: dict[str, str] = {
         "either way, and the API is what refuses."
     ),
     "/contact": "the static React shell for the contact form",
+    "/billing": "the static React shell; the plan itself comes from the API",
+    "/billing/success": (
+        "where Dodo returns somebody after checkout. Served to anyone, "
+        "because the shell holds nothing — what it shows comes from the API, "
+        "which is session-guarded."
+    ),
     "/settings": (
         "the static React shell. Nothing about the account is in it; the "
         "settings API behind it is session-guarded and answers 401."
@@ -99,6 +105,25 @@ PUBLIC_ROUTES: dict[str, str] = {
         "the static React shell; it contains no user data and every dashboard "
         "read remains behind the internal session dependencies"
     ),
+    # The admin panel's shell routes. Unguarded on purpose and reviewed as a
+    # group: they serve the same bytes to every caller, hold no data at all,
+    # and every figure on the panel comes from /api/internal/admin/*, which
+    # enforces is-admin. Guarding these too would mean two places that have to
+    # agree about who is an administrator, and the redirect a guard produces is
+    # useless to the router that would receive it.
+    # `TestTheAdminShellHoldsNothing` asserts the shell really is identical for
+    # an administrator and a stranger, which is what makes this safe.
+    "/admin": "the admin shell; every figure on it comes from the guarded API",
+    "/admin/users": "the admin shell",
+    "/admin/users/{user_id}": "the admin shell, served for any id",
+    "/admin/billing": "the admin shell",
+    "/admin/inbox": "the admin shell",
+    "/admin/inbox/{message_id}": "the admin shell, served for any id",
+    "/admin/email": "the admin shell",
+    "/admin/docs": "the admin shell",
+    "/admin/docs/new": "the admin shell",
+    "/admin/docs/{page_id}": "the admin shell, served for any id",
+    "/admin/audit": "the admin shell",
     "/assets/{asset_path:path}": "content-hashed public frontend build assets",
     "/webhooks/dodo": "authenticated by HMAC signature, not by session",
 }
@@ -169,6 +194,7 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/projects/{target_id}/webhook/remove": "internal_user",
     "/api/internal/alerts/{match_id}": "internal_user",
     "/api/internal/alerts/{match_id}/status": "internal_user",
+    "/api/internal/billing": "internal_user",
     "/api/internal/settings": "internal_user",
     "/api/internal/settings/alerts": "internal_user",
     "/api/internal/settings/password": "internal_user",
@@ -180,6 +206,27 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/settings/2fa/disable": "internal_user",
     "/api/internal/settings/api-keys": "internal_user",
     "/api/internal/settings/api-keys/{key_id}/revoke": "internal_user",
+    # The admin panel. `internal_admin` is `internal_user` plus the is_admin
+    # boolean, so a signed-in customer reaching any of these is a 403 — the
+    # same answer the rendered panel gives, in the JSON shape a fetch can read.
+    "/api/internal/admin/overview": "internal_admin",
+    "/api/internal/admin/users": "internal_admin",
+    "/api/internal/admin/users/{user_id}": "internal_admin",
+    "/api/internal/admin/users/{user_id}/tier": "internal_admin",
+    "/api/internal/admin/users/{user_id}/suspend": "internal_admin",
+    "/api/internal/admin/users/{user_id}/unsuspend": "internal_admin",
+    "/api/internal/admin/users/{user_id}/delete": "internal_admin",
+    "/api/internal/admin/billing": "internal_admin",
+    "/api/internal/admin/docs": "internal_admin",
+    "/api/internal/admin/docs/{page_id}": "internal_admin",
+    "/api/internal/admin/docs/{page_id}/delete": "internal_admin",
+    "/api/internal/admin/inbox": "internal_admin",
+    "/api/internal/admin/inbox/{message_id}": "internal_admin",
+    "/api/internal/admin/inbox/{message_id}/status": "internal_admin",
+    "/api/internal/admin/email": "internal_admin",
+    "/api/internal/admin/email/preview": "internal_admin",
+    "/api/internal/admin/email/send": "internal_admin",
+    "/api/internal/admin/audit": "internal_admin",
 }
 
 
@@ -262,6 +309,11 @@ def classify(route: APIRoute) -> str:
         return "admin"
     if "require_api_key" in names:
         return "api_key"
+    # Checked before `internal_user`, because the admin guard is built on top
+    # of it — an admin route reports both names, and the stricter one is the
+    # one that describes it.
+    if "require_internal_admin" in names:
+        return "internal_admin"
     if "require_internal_user" in names:
         return "internal_user"
     if "require_user" in names:
@@ -298,16 +350,43 @@ class TestInventory:
 
 
 class TestAdminSurface:
-    def test_every_admin_route_requires_admin(self, routes):
+    def test_no_admin_shell_route_serves_data(self, routes):
+        """`/admin/*` is the React shell and is deliberately unguarded.
+
+        What makes that acceptable is that the handler is `_shell` and nothing
+        else — the moment one of these grows a database session it is serving
+        admin data to anonymous callers, and this is the assertion that says so.
+        """
+        wrong = [
+            (sorted(r.methods), r.path, sorted(dependency_names(r)))
+            for r in routes
+            if r.path.startswith("/admin")
+            and (r.endpoint.__module__ != "app.routes.frontend" or classify(r) != "none")
+        ]
+        assert wrong == [], f"admin shell routes that are not plain shells: {wrong}"
+
+    def test_every_admin_api_route_requires_admin(self, routes):
+        """The React panel's endpoints are the same access-control surface.
+
+        Swept by prefix rather than by a list, for the reason the whole module
+        exists: an endpoint someone forgot to add to a list is exactly the one
+        that would ship unguarded.
+        """
         wrong = [
             (sorted(r.methods), r.path, classify(r))
             for r in routes
-            if r.path.startswith("/admin") and classify(r) != "admin"
+            if r.path.startswith("/api/internal/admin") and classify(r) != "internal_admin"
         ]
-        assert wrong == [], f"admin routes not behind require_admin: {wrong}"
+        assert wrong == [], f"admin API routes not behind require_internal_admin: {wrong}"
 
-    def test_there_are_admin_routes_to_check(self, routes):
-        assert any(r.path.startswith("/admin") for r in routes)
+    def test_there_are_admin_api_routes_to_check(self, routes):
+        assert any(r.path.startswith("/api/internal/admin") for r in routes)
+
+    def test_no_admin_route_hides_behind_a_plain_session(self, routes):
+        """`internal_user` on an /admin path would mean any customer got in."""
+        for route in routes:
+            if route.path.startswith("/api/internal/admin"):
+                assert "require_internal_admin" in dependency_names(route)
 
 
 class TestApiSurface:

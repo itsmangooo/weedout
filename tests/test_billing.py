@@ -767,3 +767,51 @@ class TestExpireSubscriptionsJob:
         assert await tasks.expire_subscriptions_task() == 0
 
         assert user.tier is Tier.PRO
+
+
+class TestTheBillingEndpoint:
+    """What the React billing page reads.
+
+    Read-only by construction. The only thing in this area that can change what
+    somebody has paid for is Dodo's webhook, which is authenticated by an HMAC
+    over the raw body — so a session, however obtained, cannot grant a plan.
+    """
+
+    async def test_it_reports_the_current_plan(self, auth_client, user):
+        response = await auth_client.get("/api/internal/billing")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["tier"] == "free"
+        assert data["is_pro"] is False
+
+    async def test_it_offers_no_checkout_when_dodo_is_off(self, auth_client):
+        """A self-hosted instance with no credentials says so rather than
+        showing a button that goes nowhere."""
+        data = (await auth_client.get("/api/internal/billing")).json()["data"]
+
+        assert data["checkout_enabled"] is False
+        assert data["checkout_url"] is None
+
+    async def test_a_pro_account_is_offered_no_checkout_link(self, client, pro_user):
+        """Nothing to buy. A live link here is an invitation to pay twice."""
+        from tests.conftest import sign_in
+
+        await sign_in(client, pro_user.email)
+
+        data = (await client.get("/api/internal/billing")).json()["data"]
+        assert data["is_pro"] is True
+        assert data["checkout_url"] is None
+
+    async def test_it_has_no_way_to_change_a_plan(self, auth_client, db, user):
+        """The endpoint is a GET and there is no sibling that writes. Granting
+        Pro is the webhook's job, because the thing that took the payment
+        should be the thing that grants what was paid for."""
+        response = await auth_client.post("/api/internal/billing", json={"tier": "pro"})
+
+        assert response.status_code in {404, 405}
+        await db.refresh(user)
+        assert user.tier is not Tier.PRO
+
+    async def test_signed_out_callers_get_nothing(self, client):
+        assert (await client.get("/api/internal/billing")).status_code == 401

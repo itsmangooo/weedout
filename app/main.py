@@ -24,15 +24,16 @@ from app.db import configure_event_loop_policy, dispose_engine
 from app.deps import RedirectToLogin
 from app.logging_config import configure_logging, get_logger
 from app.routes import (
-    admin,
     api,
     billing,
     events,
     frontend,
     health,
+    internal_admin,
     internal_alerts,
     internal_auth,
     internal_auth_actions,
+    internal_billing,
     internal_dashboard,
     internal_findings,
     internal_marketing,
@@ -159,7 +160,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(frontend.router)
     app.include_router(health.router)
+    app.include_router(internal_admin.router)
     app.include_router(internal_alerts.router)
+    app.include_router(internal_billing.router)
     app.include_router(internal_auth.router)
     app.include_router(internal_auth_actions.router)
     app.include_router(internal_dashboard.router)
@@ -171,7 +174,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(pages.router)
     app.include_router(targets.router)
     app.include_router(billing.router)
-    app.include_router(admin.router)
     app.include_router(api.router)
     app.include_router(events.router)
 

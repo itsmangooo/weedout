@@ -12,6 +12,9 @@ Two properties matter here and neither is obvious from reading the handler:
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 from sqlalchemy import select
 
@@ -177,13 +180,19 @@ class TestAnyoneCanSend:
 
 
 class TestTheInbox:
+    """The admin queue, now served from /api/internal/admin/inbox.
+
+    /admin/inbox is the React shell and holds nothing, so the access-control
+    assertions are against the endpoint that holds the messages.
+    """
+
     async def test_a_non_admin_cannot_reach_the_inbox(self, auth_client):
-        response = await auth_client.get("/admin/inbox", follow_redirects=False)
-        assert response.status_code in (303, 403, 404)
+        response = await auth_client.get("/api/internal/admin/inbox")
+        assert response.status_code == 403
 
     async def test_a_logged_out_visitor_cannot_reach_the_inbox(self, client):
-        response = await client.get("/admin/inbox", follow_redirects=False)
-        assert response.status_code in (303, 403, 404)
+        response = await client.get("/api/internal/admin/inbox")
+        assert response.status_code == 401
 
     async def test_the_admin_sees_a_message(self, admin_client, db):
         db.add(
@@ -195,10 +204,12 @@ class TestTheInbox:
         )
         await db.commit()
 
-        response = await admin_client.get("/admin/inbox")
+        response = await admin_client.get("/api/internal/admin/inbox")
         assert response.status_code == 200
-        assert "stranger@example.com" in response.text
-        assert "shows a finding twice" in response.text
+
+        messages = response.json()["data"]["messages"]
+        assert [row["email"] for row in messages] == ["stranger@example.com"]
+        assert "shows a finding twice" in messages[0]["preview"]
 
     async def test_opening_a_message_marks_it_read(self, admin_client, db):
         row = ContactMessage(
@@ -208,7 +219,7 @@ class TestTheInbox:
         await db.commit()
         assert row.status is MessageStatus.NEW
 
-        response = await admin_client.get(f"/admin/inbox/{row.id}")
+        response = await admin_client.get(f"/api/internal/admin/inbox/{row.id}")
         assert response.status_code == 200
 
         await db.refresh(row)
@@ -221,13 +232,12 @@ class TestTheInbox:
         db.add(row)
         await db.commit()
 
-        csrf = set_csrf(admin_client)
         response = await admin_client.post(
-            f"/admin/inbox/{row.id}/status",
-            data={"csrf_token": csrf, "status": "resolved", "note": "Fixed in 08a2671."},
-            follow_redirects=False,
+            f"/api/internal/admin/inbox/{row.id}/status",
+            json={"status": "resolved", "note": "Fixed in 08a2671."},
+            headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
-        assert response.status_code == 303
+        assert response.status_code == 200
 
         await db.refresh(row)
         assert row.status is MessageStatus.RESOLVED
@@ -253,12 +263,11 @@ class TestTheInbox:
         db.add(row)
         await db.commit()
 
-        csrf = set_csrf(admin_client)
         for status in ("resolved", "new"):
             await admin_client.post(
-                f"/admin/inbox/{row.id}/status",
-                data={"csrf_token": csrf, "status": status},
-                follow_redirects=False,
+                f"/api/internal/admin/inbox/{row.id}/status",
+                json={"status": status},
+                headers={"X-CSRF-Token": set_csrf(admin_client)},
             )
 
         await db.refresh(row)
@@ -267,5 +276,48 @@ class TestTheInbox:
         assert row.handled_by_email is None
 
     async def test_a_missing_message_is_a_404_not_a_500(self, admin_client):
-        response = await admin_client.get("/admin/inbox/999999")
+        response = await admin_client.get("/api/internal/admin/inbox/999999")
         assert response.status_code == 404
+
+
+class TestTheFormOffersOnlyRealCategories:
+    """The select in the React page must not offer a value the API rejects.
+
+    This drifted once already: the page listed "question", "false_positive" and
+    "missed", none of which are `ContactCategory` members, so three of its six
+    options produced "invalid request" for somebody who picked exactly what
+    they were offered. Reading the options out of the source is ugly, but it is
+    the only thing that fails when the two lists diverge again.
+    """
+
+    OPTIONS = re.compile(r'\{\s*value:\s*"([a-z_]+)"\s*,\s*label:', re.MULTILINE)
+
+    def _page(self) -> str:
+        path = (
+            Path(__file__).resolve().parents[1] / "frontend" / "src" / "pages" / "ContactPage.jsx"
+        )
+        return path.read_text(encoding="utf-8")
+
+    def test_the_options_were_found_at_all(self):
+        """If the regex stops matching, the assertion below passes vacuously."""
+        assert self.OPTIONS.findall(self._page())
+
+    def test_every_offered_category_is_one_the_api_accepts(self):
+        offered = set(self.OPTIONS.findall(self._page()))
+        known = {member.value for member in ContactCategory}
+        assert offered <= known, f"the form offers categories the API rejects: {offered - known}"
+
+    async def test_each_offered_category_is_actually_accepted(self, client, db):
+        """End to end, not just against the enum — the schema could narrow it."""
+        for value in self.OPTIONS.findall(self._page()):
+            csrf = set_csrf(client)
+            response = await client.post(
+                "/api/internal/contact",
+                json={
+                    "message": f"Testing the {value} category end to end.",
+                    "category": value,
+                    "email": f"{value}@example.com",
+                },
+                headers={"X-CSRF-Token": csrf},
+            )
+            assert response.status_code == 200, f"{value} was rejected: {response.text}"
