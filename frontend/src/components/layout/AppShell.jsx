@@ -1,4 +1,4 @@
-import { Bell, FolderKanban, LayoutDashboard, Settings, Sprout } from "lucide-react";
+import { Bell, FolderKanban, LayoutDashboard, Settings, ShieldCheck, Sprout } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
 
 import { useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
@@ -32,22 +32,43 @@ export function AppShell() {
           >
             <LayoutDashboard aria-hidden="true" size={16} /> Dashboard
           </NavLink>
-          <a className="app-shell__nav-link" href="/alerts">
+          <NavLink
+            className={({ isActive }) => `app-shell__nav-link${isActive ? " is-active" : ""}`}
+            to="/alerts"
+          >
             <Bell aria-hidden="true" size={16} /> Findings
-          </a>
-          <a className="app-shell__nav-link" href="/targets">
-            <FolderKanban aria-hidden="true" size={16} /> Projects
-          </a>
+          </NavLink>
+          {/* /targets, the projects index, went with the Jinja panel — the
+              dashboard is the project list now. This points at adding one,
+              which is the only thing that page offered beyond the list. */}
+          <NavLink
+            className={({ isActive }) => `app-shell__nav-link${isActive ? " is-active" : ""}`}
+            to="/targets/new"
+          >
+            <FolderKanban aria-hidden="true" size={16} /> Add a project
+          </NavLink>
+
+          {/* Convenience only. The access control is on
+              /api/internal/admin/*; hiding this link protects nothing. */}
+          {data?.user?.is_admin ? (
+            <NavLink
+              className={({ isActive }) => `app-shell__nav-link${isActive ? " is-active" : ""}`}
+              to="/admin"
+            >
+              <ShieldCheck aria-hidden="true" size={16} /> Admin
+            </NavLink>
+          ) : null}
         </nav>
+
 
         <div className="app-shell__account">
           <span className="app-shell__account-copy">
             <span className="app-shell__account-email">{account?.email}</span>
             <span className="app-shell__account-tier">{account?.tier} workspace</span>
           </span>
-          <a aria-label="Open legacy settings" className="app-shell__account-link" href="/settings">
+          <NavLink aria-label="Settings" className="app-shell__account-link" to="/settings">
             <Settings aria-hidden="true" size={16} />
-          </a>
+          </NavLink>
         </div>
       </aside>
       <main className="app-shell__main" id="main">

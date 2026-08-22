@@ -119,48 +119,77 @@ copied onto `Alert` rows (those carry `discord:{target_id}`).
 
 ### Recently (this stretch of work)
 
-- **The React migration, in progress.** This is the thing to understand before
-  touching anything in `app/routes/` or `app/templates/`.
+- **The React migration, finished.** Read this before touching anything in
+  `app/routes/` or `app/templates/`.
 
-  The application is **deliberately half Jinja and half React**, and that is a
-  staged migration rather than a mess. React owns `/`, `/dashboard`, `/login`,
-  `/login/2fa`, `/signup`, `/forgot-password` and `/reset-password`. Jinja
-  still owns projects, alerts, settings, billing, pricing, docs, contact, the
-  CLI page and the whole admin panel — **31 templates**.
+  Every screen is React. `app/templates/` holds exactly two files:
 
-  The two halves are wired to coexist on purpose:
+  - `base.html`, which now only wraps the error page;
+  - `error.html`, which **must keep working without the React bundle**,
+    because one of the things it reports is the bundle being unavailable.
+
+  How the two halves are wired, which still matters because the shape survives:
 
   - `app/routes/frontend.py` serves the React shell on an **explicit list** of
-    paths (`SHELL_ROUTES`), never a catch-all. A catch-all would swallow every
-    route not yet migrated and turn a working server-rendered page into a
-    client-side 404. The explicit list fails the safe way round.
-  - The React app links to Jinja routes with plain `<a href>` (full page load)
-    and to React routes with `<Link to>`. Getting that backwards is how you
-    make `/settings` render the React 404. Check
-    `frontend/src/components/layout/AppShell.jsx` for the pattern.
+    paths (`SHELL_ROUTES`), never a catch-all. A catch-all would swallow any
+    route not in it and turn a real 404 into a client-side one. The explicit
+    list fails the safe way round, and it is also the inventory of what the
+    application serves.
   - Browser JSON lives under `/api/internal/*`, session-cookie authenticated
     with CSRF. `/api/v1/*` remains bearer-key only, for the CLI. The two never
     mix; `tests/test_route_authorization.py` asserts it.
+  - `/` is the one shell route that reads the session, to redirect somebody
+    already signed in to their dashboard.
 
-  **Auth is fully migrated.** The seven `app/templates/auth/*.html` files are
-  gone, along with their routes. The sign-in *decision* did not go with them:
-  it lives in `app/services/login_flow.py`, extracted while both doors existed
-  so they could not drift, and now called by
-  `app/routes/internal_auth_actions.py`.
+  **The admin panel is the same arrangement, and worth understanding
+  separately.** `/admin/*` serves the shell like every other page and is
+  deliberately **not** behind `require_admin`. The shell is the same bytes for
+  a stranger and for an administrator and holds no data; everything on the
+  panel comes from `/api/internal/admin/*`, which is behind
+  `require_internal_admin` declared once on the router. Guarding the shell too
+  would mean two places that have to agree about who is an administrator, and
+  the redirect a guard produces is useless to the router that receives it.
+  Three tests hold this up: the shell routes are reviewed as a group in
+  `PUBLIC_ROUTES`, `TestTheAdminShellHoldsNothing` asserts the bytes really are
+  identical, and `TestNonAdminIsRefusedByTheApi` sweeps every endpoint by
+  prefix rather than by a list.
 
-  Three defects were found doing that, all now covered by tests:
-  1. The 2FA endpoint caught a `TwoFactorError` that `verify_code` never
-     raises — it returns a bool. **Every wrong code created a session.**
-  2. The 2FA rate limit was given its own bucket. It must share the `login`
-     buckets, or an attacker who has spent the password allowance gets a fresh
-     budget for guessing six digits.
-  3. The password-reset limit used a literal `5` while
-     `password_reset_rate_limit_per_ip` is `10`, and answered `200` when
-     throttled — hiding the throttle from the person waiting for the mail.
+  Two admin guards are the last thing in front of something irreversible and
+  are enforced server-side, not in the dialog:
+
+  1. Deleting an account requires its address typed back. The modal is a
+     courtesy; the check is what still applies to a hand-crafted request.
+  2. Sending a campaign requires the recipient count the admin agreed to in the
+     preview, and 409s if the audience moved in between. A screen saying 47
+     while the send reaches 48 makes the count decorative.
+
+  **Defects found by migrating**, each now with a named test:
+
+  - The 2FA endpoint caught a `TwoFactorError` that `verify_code` never raises
+    — it returns a bool. **Every wrong code created a session.**
+  - The 2FA rate limit was given its own bucket. It must share the `login`
+    buckets, or an attacker who has spent the password allowance gets a fresh
+    budget for guessing six digits.
+  - The password-reset limit used a literal `5` while
+    `password_reset_rate_limit_per_ip` is `10`, and answered `200` when
+    throttled — hiding the throttle from the person waiting for the mail.
+  - The React contact form offered three category values the API rejects, so
+    half its options returned "invalid request" for picking what we offered.
+    `TestTheFormOffersOnlyRealCategories` reads the options out of the source
+    and posts each one, because that is the only thing that fails when the two
+    lists diverge again.
+  - The admin user page dereferenced a nullable `manifest_kind`, which 500s the
+    whole page for a project added by repository URL. Latent in the rendered
+    panel too.
 
   If you add an endpoint under `/api/internal/`, two guardrails will fail until
   you declare it in `INTERNAL_SESSION_ROUTES` (and `PUBLIC_ROUTES` if it is
   reachable signed-out). That is the intended workflow, not an obstacle.
+
+  **Known consequence, not yet decided:** `/`, `/pricing`, `/cli` and `/docs/*`
+  are client-rendered with no SSR, so a crawler that does not run JavaScript
+  sees an empty shell. The mitigation is to prerender those four at build time;
+  their data endpoints are public and cacheable, so nothing else has to change.
 
 - **API key scopes + CLI/web parity** — the machine API grew from one endpoint
   to seven, so keys grew a scope: `scan` (push a scan, the default and what
@@ -294,7 +323,6 @@ mistake to avoid repeating.
 
 | Feature | State |
 |---|---|
-| React screens for the other 31 templates | Not started. See the migration table below. |
 | Admin: xlsx findings export | Nothing. Needs `openpyxl`. |
 | Scope selector on the *account* settings key form | Built. Both key forms offer it and both key tables show it. |
 | Admin: DB backup download | Nothing. `backup_service.run_backup` exists for the scheduled job. |
@@ -323,10 +351,11 @@ Also unresolved:
 
 ## Next steps, in the order I would do them
 
-1. **Continue the React migration**, in this order — each is a vertical slice
-   of a JSON endpoint under `/api/internal/`, a React screen, and tests on both
-   sides. Follow `internal_auth_actions.py` + `pages/LoginPage.jsx` as the
-   worked example.
+1. **The React migration is done.** Kept here as the record of what moved and
+   in what order, because the shape of a slice — a JSON endpoint under
+   `/api/internal/`, a React screen, tests on both sides — is the pattern to
+   follow for anything new. `internal_auth_actions.py` + `pages/LoginPage.jsx`
+   is the worked example.
 
    | Slice | Templates retired | State |
    |---|---|---|
@@ -336,16 +365,17 @@ Also unresolved:
    | Landing + legacy dashboard | 4 | **Done** |
    | Settings | 1 | **Done** |
    | Marketing (pricing, cli, contact, docs x2, hero partial) | 6 | **Done** |
-   | Billing (+ success) | 2 | Next. Touches Dodo; do it awake |
-   | Admin | 12 | Last. Internal-only, and the least costly to leave rendered |
-   | base.html, error.html | 2 | Only after both of the above |
+   | Billing (+ success) | 2 | **Done** |
+   | Admin | 12 | **Done** |
+   | base.html, error.html | 2 | **Kept, on purpose** |
 
-   **16 templates left**: twelve admin, two billing, plus base.html and
-   error.html. error.html is the last server-rendered page and has to keep
-   working without the React bundle — one of the things it reports is the
-   bundle being unavailable.
+   `base.html` and `error.html` stay. `error.html` is the last server-rendered
+   page and has to keep working without the React bundle, because one of the
+   things it reports is the bundle being unavailable; `base.html` is what wraps
+   it. Do not migrate them.
 
-   Do not delete a template before its React screen is serving the route. The
+   The rule that governed every slice, in case another one is ever needed: do
+   not delete a template before its React screen is serving the route. The
    deletion is the last step of a slice, not the first.
 
 2. **Pricing / landing / docs copy.** Now unblocked: every Pro feature the
@@ -362,6 +392,32 @@ Known consequence of the migration, not yet addressed:
   execute JavaScript to see them. The data endpoints are public and cacheable,
   so the fix is a prerender step at build time rather than reverting anything.
   Nobody has decided whether it matters yet.
+- **The legacy asset pipeline is now dead weight, and retiring it is a slice
+  of its own.** `app/static/` still holds `css/weedout.css` (7k lines),
+  `js/app.js`, `js/marketing.js` and `js/cli-hero.js`. They were the whole
+  application's front end; the only page that loads any of them now is
+  `error.html`, through `base.html`, and it needs a fraction of the CSS and
+  none of the JavaScript beyond `theme.js`.
+
+  Not done here because it is not a tail on the migration: `test_design_system.py`
+  and `test_sessions_and_theme.py` are pinned to those files and would have to
+  be rewritten or retired with them, and the page at stake is the one that has
+  to render when everything else has failed. Do it deliberately: give
+  `error.html` a small stylesheet of its own, make it standalone rather than
+  extending `base.html`, then delete the rest and the tests that describe it.
+
+- **`base.html`'s signed-in chrome can no longer render.** The sidebar,
+  command palette and shortcut sheet only appear when the template context
+  carries a `user`, which only happens when the *failing route* resolved a
+  session — and every HTML route left is either a static shell or `/`, which
+  redirects a signed-in visitor before it can fail. The chrome is therefore
+  unreachable furniture, and it goes when the point above is done.
+
+  One thing was salvaged rather than left: its sign-out form posts to
+  `/logout`, which was deleted with the Jinja auth routes and had become a
+  404. `/logout` is back in `internal_auth_actions.py` as a form-posting
+  sibling of the JSON endpoint, sharing the same `revoke_session` call so
+  there is one way to end a session and not two.
 
 Still flagged for a decision, not started:
 

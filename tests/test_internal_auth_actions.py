@@ -317,6 +317,44 @@ class TestSigningOut:
         assert response.status_code == 200
 
 
+class TestSigningOutWithoutJavaScript:
+    """The form-posting `/logout`, which only `error.html` uses.
+
+    That page is the last server-rendered one and exists for the case where the
+    React bundle did not load, so its sign-out cannot be a fetch. This existed
+    as a form post all along, was deleted with the Jinja auth routes, and left
+    the error page with a button that 404s — hence a test rather than trust.
+    """
+
+    async def test_the_form_post_ends_the_session_and_redirects(self, client, db, user):
+        await post(client, LOGIN, {"email": user.email, "password": PASSWORD})
+        stolen = client.cookies.get("weedout_session")
+        assert stolen
+
+        token = await csrf(client)
+        response = await client.post("/logout", data={"csrf_token": token}, follow_redirects=False)
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
+        assert not client.cookies.get("weedout_session")
+
+        # Revoked server-side, not merely dropped from the jar.
+        client.cookies.set("weedout_session", stolen)
+        assert (await client.get("/api/internal/dashboard")).status_code == 401
+
+    async def test_the_form_post_needs_a_csrf_token(self, client, db, user):
+        await post(client, LOGIN, {"email": user.email, "password": PASSWORD})
+
+        response = await client.post("/logout", data={}, follow_redirects=False)
+        assert response.status_code == 403
+        assert client.cookies.get("weedout_session")
+
+    async def test_signing_out_twice_is_not_an_error(self, client):
+        token = await csrf(client)
+        response = await client.post("/logout", data={"csrf_token": token}, follow_redirects=False)
+        assert response.status_code == 303
+
+
 class TestRecovery:
     async def test_the_answer_is_the_same_for_known_and_unknown_addresses(self, client, db, user):
         known = await post(client, FORGOT, {"email": user.email})

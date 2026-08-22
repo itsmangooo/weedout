@@ -165,6 +165,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(internal_billing.router)
     app.include_router(internal_auth.router)
     app.include_router(internal_auth_actions.router)
+    app.include_router(internal_auth_actions.form_router)
     app.include_router(internal_dashboard.router)
     app.include_router(internal_findings.router)
     app.include_router(internal_marketing.router)

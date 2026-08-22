@@ -21,10 +21,17 @@ from __future__ import annotations
 from datetime import timedelta
 
 from fastapi import APIRouter, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ValidationError
 
-from app.deps import AppSettings, CsrfProtected, DbSession, OptionalUser, set_csrf_cookie
+from app.deps import (
+    AppSettings,
+    CsrfProtected,
+    DbSession,
+    OptionalUser,
+    redirect,
+    set_csrf_cookie,
+)
 from app.logging_config import get_logger
 from app.schemas import (
     CurrentAuthState,
@@ -59,6 +66,11 @@ from app.services.twofactor_service import verify_code as verify_second_factor
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/internal/auth", tags=["internal-auth"])
+
+#: One form-posting route, unprefixed, for the error page. Kept in this module
+#: rather than in a survivor of the old auth router so that ending a session
+#: has exactly one implementation.
+form_router = APIRouter(tags=["internal-auth"])
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +373,31 @@ async def logout(
             ).model_dump()
         },
     )
+    response.delete_cookie(settings.session_cookie_name, path="/")
+    _prepare(response, request)
+    return response
+
+
+@form_router.post("/logout", dependencies=[CsrfProtected])
+async def logout_form(
+    request: Request,
+    db: DbSession,
+    settings: AppSettings,
+) -> RedirectResponse:
+    """Sign out from a page that has no JavaScript.
+
+    `error.html` is the last server-rendered page, and it exists precisely for
+    the case where the React bundle did not load — so its sign-out button
+    cannot be a fetch. It posts a form here and gets a redirect, which is the
+    one thing that works with nothing running in the browser.
+
+    The session-clearing itself is the same call the JSON endpoint makes, so
+    there is one way to end a session and not two that can drift.
+    """
+    await revoke_session(db, request.cookies.get(settings.session_cookie_name))
+    await db.commit()
+
+    response = redirect("/login")
     response.delete_cookie(settings.session_cookie_name, path="/")
     _prepare(response, request)
     return response

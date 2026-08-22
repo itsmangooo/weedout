@@ -124,6 +124,12 @@ PUBLIC_ROUTES: dict[str, str] = {
     "/admin/docs/new": "the admin shell",
     "/admin/docs/{page_id}": "the admin shell, served for any id",
     "/admin/audit": "the admin shell",
+    "/logout": (
+        "ends a session and redirects; harmless without one. A form post "
+        "rather than a fetch because the error page — the only server-rendered "
+        "page left — has to work when the React bundle did not load, which is "
+        "one of the things it exists to report."
+    ),
     "/assets/{asset_path:path}": "content-hashed public frontend build assets",
     "/webhooks/dodo": "authenticated by HMAC signature, not by session",
 }

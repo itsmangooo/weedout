@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -10,6 +11,12 @@ from app.core.types import AlertStatus, Ecosystem, KeyScope, ManifestKind, Verdi
 from app.models import ApiKey, CVEMatch, DependencyRecord, ScanRun, TrackedTarget
 from tests.conftest import create_project, set_csrf, sign_in
 from tests.test_scan_pipeline import LODASH_ADVISORY, MANIFEST, seed_mirror
+
+#: Read once at import. Reading it inside an async test would be a blocking
+#: call on the event loop, and the file does not change between tests.
+BASE_TEMPLATE = (Path(__file__).resolve().parents[1] / "app" / "templates" / "base.html").read_text(
+    encoding="utf-8"
+)
 
 
 class TestPublicPages:
@@ -598,3 +605,59 @@ class TestAlertRoutes:
             headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 404
+
+
+class TestTheErrorPage:
+    """The last server-rendered page, and the reason base.html still exists.
+
+    It has to work when the React bundle did not load — that is one of the
+    things it reports — so every control on it must function without any
+    JavaScript. Its sign-out form broke silently when the Jinja auth routes
+    were deleted and `/logout` went with them, which is why the address it
+    posts to is asserted rather than assumed.
+
+    Note that the signed-in chrome in `base.html` no longer has a path that
+    renders it: an error page only carries a user when the failing route
+    resolved a session, and every HTML route left is either a static shell or
+    `/`, which redirects a signed-in visitor before it can fail. The form is
+    tested anyway, because a template outlives assumptions about which routes
+    exist.
+    """
+
+    async def test_a_missing_page_renders_html_for_a_browser(self, client):
+        response = await client.get("/no-such-page", headers={"accept": "text/html"})
+
+        assert response.status_code == 404
+        assert "text/html" in response.headers["content-type"]
+        assert "Internal Server Error" not in response.text
+
+    async def test_it_survives_the_bundle_being_missing(self, client, monkeypatch):
+        """The scenario the page exists for. It must not itself need the
+        bundle to report that the bundle is gone."""
+        from pathlib import Path as _Path
+
+        monkeypatch.setattr("app.routes.frontend.FRONTEND_INDEX", _Path("/nope/index.html"))
+
+        response = await client.get("/", headers={"accept": "text/html"})
+
+        assert response.status_code == 503
+        assert "temporarily unavailable" in response.text
+        assert "Internal Server Error" not in response.text
+
+    async def test_the_sign_out_form_posts_somewhere_that_exists(self, auth_client):
+        """`base.html` carries a form posting to `/logout`. That address has to
+        be live, rather than a 404 waiting for the day the form renders."""
+        assert 'action="/logout"' in BASE_TEMPLATE
+
+        csrf = set_csrf(auth_client)
+        posted = await auth_client.post(
+            "/logout", data={"csrf_token": csrf}, follow_redirects=False
+        )
+        assert posted.status_code == 303
+        assert posted.headers["location"] == "/login"
+
+    async def test_a_json_client_gets_json(self, client):
+        response = await client.get("/no-such-page", headers={"accept": "application/json"})
+
+        assert response.status_code == 404
+        assert response.headers["content-type"].startswith("application/json")
