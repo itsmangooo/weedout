@@ -277,3 +277,29 @@ async def pro_client(client: httpx.AsyncClient, pro_user: User) -> httpx.AsyncCl
     response = await sign_in(client, pro_user.email)
     assert response.status_code == 200, response.text
     return client
+
+
+@pytest.fixture
+async def other_client(db: AsyncSession) -> AsyncIterator[httpx.AsyncClient]:
+    """A second, genuinely independent browser.
+
+    `auth_client` returns the same object as `client`, so signing that one in
+    as somebody else replaces the session rather than adding one. Anything
+    testing two sessions at once — sign out everywhere else, or reaching
+    another account's session by id — needs a separate cookie jar or it ends up
+    asserting against itself.
+    """
+    from app.main import create_app
+
+    app = create_app(get_settings())
+
+    async def override_get_db() -> AsyncIterator[AsyncSession]:
+        yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver", follow_redirects=False
+    ) as http_client:
+        yield http_client

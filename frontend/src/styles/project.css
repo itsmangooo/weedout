@@ -506,3 +506,173 @@
   font-size: 0.85rem;
   white-space: pre;
 }
+
+/* --- Account settings ---------------------------------------------------- */
+
+.settings-page {
+  display: grid;
+  gap: var(--wo-space-7);
+}
+
+.settings-section {
+  display: grid;
+  gap: var(--wo-space-4);
+  padding-top: var(--wo-space-6);
+  border-top: 1px solid var(--wo-border);
+}
+
+.settings-section:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.settings-section h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--wo-space-2);
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 640;
+}
+
+.settings-section__lede {
+  margin: 0;
+  max-width: var(--wo-measure);
+  color: var(--wo-text-muted);
+  line-height: 1.6;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wo-space-3);
+}
+
+.toggle-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--wo-space-3);
+  align-items: start;
+  cursor: pointer;
+}
+
+.toggle-row input {
+  margin-top: 0.2rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--wo-accent);
+}
+
+.toggle-row strong {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 620;
+}
+
+.toggle-row small {
+  display: block;
+  margin-top: var(--wo-space-1);
+  color: var(--wo-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+/* --- Two-factor setup ---------------------------------------------------- */
+
+.tfa-setup {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--wo-space-5);
+  align-items: center;
+  padding: var(--wo-space-5);
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius);
+  background: var(--wo-level-1);
+}
+
+.tfa-setup__qr svg {
+  display: block;
+  width: 10rem;
+  height: 10rem;
+  /* The QR is pure black-on-white geometry; on a dark surface it needs its own
+     light plate or a scanner cannot read it. */
+  padding: var(--wo-space-2);
+  border-radius: var(--wo-radius-xs);
+  background: #fff;
+}
+
+.tfa-setup__manual p {
+  margin: 0 0 var(--wo-space-2);
+  color: var(--wo-text-muted);
+  font-size: 0.85rem;
+}
+
+.tfa-setup__manual code {
+  font-family: var(--wo-font-mono);
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  word-break: break-all;
+}
+
+.backup-codes {
+  display: grid;
+  gap: var(--wo-space-1);
+  margin: 0 0 var(--wo-space-3);
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  font-size: 0.92rem;
+  letter-spacing: 0.06em;
+}
+
+/* --- Sessions ------------------------------------------------------------ */
+
+.session-list {
+  display: grid;
+  gap: var(--wo-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wo-space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--wo-space-4);
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-level-1);
+}
+
+.session-row__device {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wo-space-2);
+  margin: 0;
+  font-weight: 620;
+}
+
+.session-row__badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-accent-quiet);
+  color: var(--wo-accent-strong);
+  font-size: 0.72rem;
+  font-weight: 640;
+  letter-spacing: 0.03em;
+}
+
+.session-row__meta {
+  margin: var(--wo-space-1) 0 0;
+  color: var(--wo-text-dim);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 34rem) {
+  .tfa-setup {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

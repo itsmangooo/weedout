@@ -26,7 +26,6 @@ from app.logging_config import configure_logging, get_logger
 from app.routes import (
     admin,
     api,
-    auth,
     billing,
     contact,
     docs,
@@ -170,7 +169,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(internal_public.router)
     app.include_router(internal_settings.router)
     app.include_router(pages.router)
-    app.include_router(auth.router)
     app.include_router(targets.router)
     app.include_router(billing.router)
     app.include_router(contact.router)

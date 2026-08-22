@@ -227,7 +227,7 @@ async def login(
         return response
 
     if outcome.result is LoginResult.CHALLENGE:
-        from app.routes.auth import set_challenge_cookie
+        from app.services.challenge_service import set_challenge_cookie
 
         response = JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -261,7 +261,7 @@ async def second_factor(
     body: SecondFactorBody,
 ) -> JSONResponse:
     """Complete a sign-in that is waiting on a code."""
-    from app.routes.auth import clear_challenge_cookie, read_challenge
+    from app.services.challenge_service import clear_challenge_cookie, read_challenge
 
     user_id = read_challenge(request)
     if user_id is None:

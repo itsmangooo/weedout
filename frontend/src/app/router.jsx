@@ -111,6 +111,13 @@ export const appRoutes = [
                 },
               },
               {
+                path: "settings",
+                lazy: async () => {
+                  const { SettingsPage } = await import("../pages/SettingsPage");
+                  return { Component: SettingsPage };
+                },
+              },
+              {
                 path: "alerts",
                 lazy: async () => {
                   const { AlertsPage } = await import("../pages/AlertsPage");

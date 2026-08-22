@@ -33,7 +33,7 @@ APP = (
 #: palette — the React layouts set data-theme themselves — so asserting on the
 #: HTML for those paths would be asserting on the shell, not on the seam.
 RENDERED_PUBLIC = ("/pricing", "/cli")
-RENDERED_APP = ("/settings", "/docs", "/contact")
+RENDERED_APP = ("/docs", "/contact")
 
 
 class TestTheSeam:
@@ -99,7 +99,7 @@ class TestWhatIsRendered:
         assert "data-theme-set" not in body
 
     async def test_the_application_leaves_the_palette_to_the_visitor(self, auth_client):
-        body = (await auth_client.get("/settings")).text
+        body = (await auth_client.get("/docs")).text
         assert 'data-surface="public"' not in body
         # No server-pinned theme: theme.js applies the saved preference before
         # the first paint.

@@ -168,8 +168,8 @@ class TestNonAdminIsRefused:
 
     async def test_the_admin_nav_link_is_not_rendered_for_regular_users(self, auth_client):
         # Checked on a page that still renders the shared nav. The dashboard
-        # is React now and builds its own.
-        response = await auth_client.get("/settings")
+        # and settings are React now and build their own.
+        response = await auth_client.get("/docs")
         assert response.status_code == 200
         assert 'href="/admin"' not in response.text
 
@@ -214,7 +214,7 @@ class TestAdminIsAllowed:
         assert not failures, "admin was blocked from: " + "; ".join(failures)
 
     async def test_admin_sees_the_nav_link(self, admin_client):
-        response = await admin_client.get("/settings")
+        response = await admin_client.get("/docs")
         assert 'href="/admin"' in response.text
 
 

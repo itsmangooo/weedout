@@ -27,7 +27,7 @@ from app.core.types import KeyScope
 from app.deps import CsrfProtected, CurrentInternalUser, DbSession
 from app.logging_config import get_logger
 from app.schemas import AlertPreferencesForm, ApiKeyForm, ChangePasswordForm, first_error
-from app.security import hash_session_token
+from app.security import hash_session_token, verify_password
 from app.services.api_key_service import ApiKeyError, issue_api_key, keys_for_user, revoke_api_key
 from app.services.auth_service import (
     AuthError,
@@ -247,18 +247,21 @@ async def start_two_factor(db: DbSession, user: CurrentInternalUser) -> dict:
     when a correct code proves the authenticator actually holds it — otherwise
     a mis-scanned QR would lock somebody out of their own account.
     """
-    offer = await begin_setup(db, user)
+    try:
+        offer = await begin_setup(db, user)
+    except TwoFactorError as exc:
+        raise _fail(status.HTTP_400_BAD_REQUEST, "REJECTED", str(exc)) from None
+
     await db.commit()
 
     uri = provisioning_uri(offer.secret, account=user.email, issuer=TOTP_ISSUER)
     return {
         "data": {
-            # Shown once, here. It is never returned again — only the confirmed
-            # state is readable afterwards.
+            # Shown once, here. Never returned again — only the confirmed state
+            # is readable afterwards.
             "secret": offer.secret,
             "uri": uri,
             "qr_svg": qr_svg(uri),
-            "backup_codes": list(offer.backup_codes),
         }
     }
 
@@ -270,13 +273,18 @@ class CodeBody(BaseModel):
 @router.post("/settings/2fa/confirm", dependencies=[CsrfProtected])
 async def confirm_two_factor(db: DbSession, user: CurrentInternalUser, body: CodeBody) -> dict:
     try:
-        await confirm_setup(db, user, body.code)
+        generated = await confirm_setup(db, user, body.code)
     except TwoFactorError as exc:
         raise _fail(status.HTTP_400_BAD_REQUEST, "INVALID_CODE", str(exc)) from None
 
     await db.commit()
     log.info("twofactor.enabled", user_id=user.id)
-    return {"data": {"two_factor_enabled": True}}
+
+    # The backup codes arrive here rather than at setup, which is the right
+    # moment: they are the way back in once the factor is actually on, and
+    # handing them out before it is confirmed would leave a set in circulation
+    # for an account that never enabled anything. Shown once.
+    return {"data": {"two_factor_enabled": True, "backup_codes": list(generated.codes)}}
 
 
 @router.post("/settings/2fa/codes", dependencies=[CsrfProtected])
@@ -294,9 +302,9 @@ async def new_backup_codes(db: DbSession, user: CurrentInternalUser) -> dict:
             "Two-factor is not switched on for this account.",
         )
 
-    codes = await regenerate_backup_codes(db, user)
+    generated = await regenerate_backup_codes(db, user)
     await db.commit()
-    return {"data": {"backup_codes": list(codes)}}
+    return {"data": {"backup_codes": list(generated.codes)}}
 
 
 class DisableBody(BaseModel):
@@ -311,11 +319,20 @@ async def disable_two_factor(db: DbSession, user: CurrentInternalUser, body: Dis
     machine must not be enough to remove the control that protects the account
     when a password leaks.
     """
-    try:
-        await disable_two_factor_for(db, user, body.password)
-    except TwoFactorError as exc:
-        raise _fail(status.HTTP_400_BAD_REQUEST, "REJECTED", str(exc)) from None
+    # The password is checked here, not in the service — `disable` takes only
+    # the account and destroys the secret unconditionally. An earlier version
+    # of this handler passed the password to it and assumed it was verified,
+    # which raised rather than silently skipping the check; had the signature
+    # happened to accept and ignore it, a borrowed session would have been
+    # enough to strip the second factor.
+    if not user.password_hash or not verify_password(body.password, user.password_hash):
+        raise _fail(
+            status.HTTP_400_BAD_REQUEST,
+            "REJECTED",
+            "That password isn't right. Two-factor is still on.",
+        )
 
+    await disable_two_factor_for(db, user)
     await db.commit()
     log.info("twofactor.disabled", user_id=user.id)
     return {"data": {"two_factor_enabled": False}}

@@ -74,6 +74,10 @@ PUBLIC_ROUTES: dict[str, str] = {
         "including one belonging to somebody else — the shell is identical "
         "either way, and the API is what refuses."
     ),
+    "/settings": (
+        "the static React shell. Nothing about the account is in it; the "
+        "settings API behind it is session-guarded and answers 401."
+    ),
     "/alerts": (
         "the static React shell, as with /dashboard — no findings are in it, "
         "and the API behind it is session-guarded."

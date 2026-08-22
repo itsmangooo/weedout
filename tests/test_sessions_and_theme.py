@@ -91,14 +91,16 @@ class TestRevocationTakesEffect:
         assert after.status_code == 401
         assert after.json()["error"]["code"] == "SESSION_EXPIRED"
 
-    async def test_signing_out_everywhere_else_from_the_settings_page(self, auth_client, db, user):
+    async def test_signing_out_everywhere_else_keeps_this_session(self, auth_client, db, user):
         other = await create_session(db, user, "curl/8.4.0", None)
         await db.commit()
         assert len(await active_sessions(db, user)) == 2
 
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
-            "/settings/sessions/revoke-others", data={"csrf_token": csrf}
+            "/api/internal/settings/sessions/revoke-others",
+            json={},
+            headers={"X-CSRF-Token": csrf},
         )
         assert response.status_code == 200
 
