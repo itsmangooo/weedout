@@ -847,8 +847,12 @@ Or write it to a file next to your code:
 weedout init
 ```
 
-That creates `.weedout.yml`. **Do not commit it if it contains a key** \u2014 use
-the environment variable in CI and keep the file for local work.
+That creates `.weedout`, which holds the key. **Do not commit it** \u2014 use the
+environment variable in CI and keep the file for local work.
+
+`.weedout` is not `.weedout.yml`. The first holds a credential and stays out of
+the repository; the second holds your scan rules and belongs in it. See
+[Scan rules](/docs/scan-rules).
 
 ## Scanning
 
@@ -885,11 +889,19 @@ These need a key with **manage** access.
 ```bash
 weedout rules                                   # what is in force
 weedout rules ignore GHSA-xxxx --reason "..."   # stop reporting one advisory
+weedout rules ignore --package "@acme/*" --reason "..."
+                                                # stop reporting a family
 weedout rules unignore GHSA-xxxx                # report it again
 ```
 
 A reason is required, and it is recorded. Six months from now the question is
 never "is this ignored" \u2014 it is "who decided that, and why".
+
+Quote the glob. An unquoted `@acme/*` is expanded by your shell against the
+working directory before Weedout ever sees it.
+
+Full syntax, and the rules that cannot be silenced, in
+[Scan rules](/docs/scan-rules).
 
 ## Everything else
 
@@ -913,6 +925,149 @@ every time.
 The gap between `1` and `2` is the one that matters. A pipeline treating every
 non-zero exit as "vulnerabilities found" will eventually treat an expired key as
 a security finding, and somebody will fix that by deleting the step.
+""",
+    },
+    {
+        "slug": "scan-rules",
+        "title": "Scan rules",
+        "summary": "Thresholds, ignores and .weedout.yml \u2014 and the two things a rule cannot silence.",
+        "content": """
+Weedout's defaults are deliberate, and most projects should leave them alone.
+Scan rules exist for the cases where your codebase knows something the advisory
+feed does not.
+
+Rules are part of the **Pro** plan. They are enforced when a scan runs, not when
+they are saved, so a subscription that lapses stops applying them without
+deleting anything you configured.
+
+## Three places a rule can live
+
+| Where | Good for |
+|---|---|
+| `.weedout.yml` in your repository | Anything a reviewer should see. This is the default answer. |
+| The project's settings page | One-off decisions, and anything you would rather not publish. |
+| `weedout rules` from the CLI | The same as the settings page, from a terminal. |
+
+**The file wins.** A rule about a codebase belongs beside the codebase: it goes
+through review, it moves with a branch, and `git log` answers "who silenced this
+and when" without a separate audit trail. A settings page that could quietly
+override the file would make a CI run depend on something invisible from the
+checkout.
+
+Precedence is per setting, not all-or-nothing. A file that only sets thresholds
+does not wipe out ignores you added in the interface \u2014 it says nothing about
+them, and silence is not an instruction. Ignores from both sources are unioned
+for the same reason.
+
+## `.weedout.yml`
+
+Commit this one. It is not `.weedout`, which holds your API key and must stay
+out of the repository.
+
+```yaml
+severity:
+  direct: high        # a dependency you declared
+  transitive: critical  # something further down the tree
+  dev: critical       # something that never ships
+
+epss:
+  alert_above: 0.5    # exploitation probability, 0 to 1
+
+ignore:
+  - cve: CVE-2021-23337
+    reason: Not reachable from any entry point we ship.
+
+  - package: "@acme/*"
+    reason: Our own packages, mirrored under a name that also exists publicly.
+```
+
+Every key is optional. A file that sets one thing changes one thing.
+
+### Severity floors
+
+`low`, `medium`, `high` or `critical`. A finding below the floor for its
+position is recorded and filed rather than raised.
+
+`dev` is the odd one out: leaving it unset does not mean "use the default", it
+means dev-only findings stay filed the way they always have. Setting it says
+something more precise \u2014 tell me about build tooling, but only when it is
+this bad. A critical in a linter is not a critical in a web framework, and it is
+not nothing either.
+
+### Ignoring one advisory
+
+```yaml
+ignore:
+  - cve: CVE-2021-23337
+    reason: The affected code path is not reachable from our entry points.
+```
+
+Matched against every alias the advisory carries, so ignoring the CVE also
+covers the GHSA that aliases it. A rule that only worked if you happened to name
+the same identifier the feed did would be a rule that quietly stopped working.
+
+### Ignoring a family of packages
+
+```yaml
+ignore:
+  - package: "@acme/*"
+    reason: Internal packages mirrored under a name that also exists publicly.
+```
+
+For the case an advisory id cannot serve. A private package sharing a name with
+a public one matches advisories written about somebody else's code, and there is
+no fixed list of ids to enumerate \u2014 the next advisory that other project
+publishes is a new one.
+
+`*` matches any run of characters and `?` matches exactly one. Matching is
+case-insensitive. These are globs, not regular expressions: every pattern is
+evaluated against every dependency on every scan, and a regular expression is
+where that becomes a way to hang the scanner on a crafted package name.
+
+A pattern that matches every package is refused. That is not a filter, it is the
+scan switched off, and a project is switched off by deactivating it \u2014 which
+says so on the dashboard, where a rule that happens to match everything does
+not.
+
+### The reason is required
+
+An entry without one is skipped, and the scan says so. Not because we can check
+the reason, but because writing one is the difference between a decision and a
+reflex, and because six months later it is the only thing that makes the entry
+reviewable.
+
+## What a rule cannot silence
+
+Two things are reported however you have configured the project.
+
+**Known exploitation.** An ignore is a judgement about a risk, made at a moment
+in time. A CISA KEV listing is new information about that same risk, so the
+judgement is out of date rather than binding. The finding is raised, and the
+rule is marked on the settings page as having been set aside \u2014 whoever wrote
+"ignore this, it is disputed" needs to see that it is now being exploited.
+
+**Malware.** An advisory saying a package *is* malicious is not the risk your
+rule was a judgement about. This matters most for package globs: `@acme/*` is
+exactly the pattern somebody writes for their private scope, and if an attacker
+publishes a typosquat into that scope, the rule written to silence registry-name
+collisions must not be what hides it.
+
+## Nothing is deleted
+
+An ignored finding stays on the **Filtered** tab with the rule named as the
+reason. "What am I not being told about?" has to have an answer, and a filter
+you cannot audit is a filter you have to take on faith.
+
+## A broken file fails loudly, in the safe direction
+
+If `.weedout.yml` cannot be parsed, the whole file is discarded and the scan
+runs on the defaults. Every ignore in it stops applying and every raised
+threshold reverts, so the failure mode is extra alerts \u2014 never silence. The
+error is reported on the project page and by `weedout rules`.
+
+Unknown keys are skipped with a warning rather than refused: a file mentioning
+something this version does not know about was written for a later one, and
+breaking a repository on every upgrade would be the wrong trade.
 """,
     },
     {

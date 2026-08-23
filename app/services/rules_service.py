@@ -25,8 +25,14 @@ from dataclasses import dataclass, replace
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.matching import DEFAULT_POLICY, MatchPolicy, normalise_ids
+from app.core.matching import (
+    DEFAULT_POLICY,
+    MatchPolicy,
+    normalise_ids,
+    normalise_packages,
+)
 from app.core.policy import parse_policy
+from app.core.types import IgnoreKind
 from app.logging_config import get_logger
 from app.models import IgnoreRule, TrackedTarget, User, utcnow
 from app.tiers import can_use_custom_rules, scan_depth_for
@@ -51,10 +57,18 @@ class EffectivePolicy:
     #: Identifiers ignored, and where each came from, for the settings page.
     ignored_from_file: tuple[str, ...] = ()
     ignored_from_settings: tuple[str, ...] = ()
+    #: The same, for package globs.
+    packages_from_file: tuple[str, ...] = ()
+    packages_from_settings: tuple[str, ...] = ()
 
     @property
     def has_custom_rules(self) -> bool:
-        return bool(self.ignored_from_file or self.ignored_from_settings)
+        return bool(
+            self.ignored_from_file
+            or self.ignored_from_settings
+            or self.packages_from_file
+            or self.packages_from_settings
+        )
 
 
 async def build_policy(
@@ -95,8 +109,10 @@ async def build_policy(
     notes.extend(parsed.warnings)
 
     rows = await list_rules(db, target.id)
-    from_settings = tuple(row.identifier for row in rows)
+    from_settings = tuple(row.identifier for row in rows if row.kind is IgnoreKind.ADVISORY)
+    packages_from_settings = tuple(row.identifier for row in rows if row.kind is IgnoreKind.PACKAGE)
     from_file = parsed.ignored_ids
+    packages_from_file = parsed.ignored_packages
 
     policy = replace(
         policy,
@@ -121,6 +137,7 @@ async def build_policy(
         # Unioned rather than replaced: a file that says nothing about an
         # identifier is not asking for it to be un-ignored.
         ignored_ids=normalise_ids([*from_settings, *from_file]),
+        ignored_packages=normalise_packages([*packages_from_settings, *packages_from_file]),
     )
 
     return EffectivePolicy(
@@ -128,6 +145,8 @@ async def build_policy(
         notes=tuple(notes),
         ignored_from_file=from_file,
         ignored_from_settings=from_settings,
+        packages_from_file=packages_from_file,
+        packages_from_settings=packages_from_settings,
     )
 
 
@@ -156,6 +175,12 @@ async def record_overrides(db: AsyncSession, target_id: int, identifiers: set[st
     upper = {value.upper() for value in identifiers}
     marked = 0
     for rule in await list_rules(db, target_id):
+        # Advisory rules only. A package glob is not overridden by one KEV
+        # listing -- it still holds for every other advisory it covers -- so
+        # marking it as set aside would be a false statement on the settings
+        # page.
+        if rule.kind is not IgnoreKind.ADVISORY:
+            continue
         if rule.identifier.upper() in upper and rule.overridden_at is None:
             rule.overridden_at = utcnow()
             marked += 1

@@ -205,6 +205,20 @@ class ActionableReason(StrEnum):
         }[self.value]
 
 
+class IgnoreKind(StrEnum):
+    """What an ignore rule names.
+
+    `ADVISORY` is one identifier, matched against every alias the advisory
+    carries. `PACKAGE` is a glob over dependency names, for the case an
+    identifier cannot serve: a private package sharing a name with a public one
+    matches advisories for somebody else's code, and the list of ids to
+    enumerate grows every time that other project publishes one.
+    """
+
+    ADVISORY = "advisory"
+    PACKAGE = "package"
+
+
 class SuppressionReason(StrEnum):
     """Why a real version match was filtered out instead of alerted on."""
 

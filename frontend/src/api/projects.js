@@ -124,10 +124,16 @@ export async function revokeProjectKey(id, keyId) {
   });
 }
 
-export async function addIgnoreRule(id, { identifier, reason }) {
+/**
+ * Ignore an advisory, or a family of packages.
+ *
+ * `kind` defaults to "advisory" on the server too, so leaving it off means the
+ * same thing on both sides rather than relying on this default alone.
+ */
+export async function addIgnoreRule(id, { identifier, reason, kind = "advisory" }) {
   const payload = await api(`${projectPath(id)}/rules`, {
     method: "POST",
-    body: { identifier, reason },
+    body: { identifier, reason, kind },
   });
   return payload?.data;
 }

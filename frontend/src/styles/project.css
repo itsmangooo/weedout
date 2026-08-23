@@ -349,8 +349,21 @@
 }
 
 .rule-row__id {
+  display: flex;
+  align-items: baseline;
+  gap: var(--wo-space-2);
   margin: 0;
   font-weight: 640;
+}
+
+/* On a package rule only. Reads as part of the sentence — "@acme/* — every
+   advisory" — rather than as a status chip, because it is describing what the
+   rule covers, not what state it is in. */
+.rule-row__kind {
+  color: var(--wo-text-dim);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .rule-row__reason {

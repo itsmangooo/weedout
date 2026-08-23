@@ -28,7 +28,11 @@ web request.
 
 from __future__ import annotations
 
+import fnmatch
+import re
+from collections.abc import Callable
 from dataclasses import dataclass, replace
+from functools import lru_cache
 
 from app.core.types import (
     ActionableReason,
@@ -44,7 +48,14 @@ from app.core.types import (
 )
 from app.core.versions import first_fixed_version, version_matches
 
-__all__ = ["DEFAULT_POLICY", "MatchPolicy", "normalise_ids", "triage", "triage_all"]
+__all__ = [
+    "DEFAULT_POLICY",
+    "MatchPolicy",
+    "normalise_ids",
+    "normalise_packages",
+    "triage",
+    "triage_all",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,14 +128,41 @@ class MatchPolicy:
     #: did would be a rule that quietly stopped working.
     ignored_ids: frozenset[str] = frozenset()
 
+    #: Package-name globs this project has chosen not to hear about, whatever
+    #: the advisory: `@acme/*`, `karma-*`, `eslint-plugin-jest`.
+    #:
+    #: The case an ignore-by-id cannot serve. A private package mirrored under
+    #: a name that also exists on the public registry matches advisories for
+    #: somebody else's code, and there is no fixed list of ids to enumerate --
+    #: the next advisory published against the public package is a new one.
+    #:
+    #: Glob, not regular expression, and that is a decision. Every pattern here
+    #: is evaluated against every dependency on every scan, from input a user
+    #: supplies; a regular expression is where that becomes a way to hang the
+    #: scanner on a crafted package name. Globs cannot backtrack, and `@acme/*`
+    #: is what people actually want to write.
+    ignored_packages: frozenset[str] = frozenset()
+
     def within_depth(self, dependency: Dependency) -> bool:
         return self.max_depth is None or dependency.depth <= self.max_depth
 
-    def ignores(self, vulnerability: Vulnerability) -> bool:
-        if not self.ignored_ids:
-            return False
-        candidates = {vulnerability.id, *vulnerability.aliases, *vulnerability.cve_ids}
-        return any(candidate.upper() in self.ignored_ids for candidate in candidates)
+    def ignores(self, vulnerability: Vulnerability, dependency: Dependency | None = None) -> bool:
+        """Whether a rule on this project silences this finding.
+
+        `dependency` is optional so a caller asking only "is this advisory
+        ignored?" -- the settings page listing which rules are in force -- can
+        still ask. A triage decision always passes it.
+        """
+        if self.ignored_ids:
+            candidates = {vulnerability.id, *vulnerability.aliases, *vulnerability.cve_ids}
+            if any(candidate.upper() in self.ignored_ids for candidate in candidates):
+                return True
+
+        if self.ignored_packages and dependency is not None:
+            name = dependency.name.strip().lower()
+            return any(_glob(pattern)(name) for pattern in self.ignored_packages)
+
+        return False
 
     def threshold_for(self, reachability: Reachability) -> Severity:
         if reachability is Reachability.RUNTIME_DIRECT:
@@ -132,6 +170,38 @@ class MatchPolicy:
         if reachability is Reachability.DEV_ONLY and self.dev_threshold is not None:
             return self.dev_threshold
         return self.transitive_threshold
+
+
+@lru_cache(maxsize=512)
+def _glob(pattern: str) -> Callable[[str], bool]:
+    """Compile one glob into a matcher, once.
+
+    `fnmatch.translate` produces a regular expression with no nested
+    quantifiers, so the result is safe to run against arbitrary package names
+    -- which is the property that makes offering globs reasonable where
+    offering regular expressions would not be.
+
+    Cached because a scan evaluates every pattern against every dependency, and
+    the pattern set is the same for all of them.
+    """
+    return re.compile(fnmatch.translate(pattern), re.IGNORECASE).match  # type: ignore[return-value]
+
+
+def normalise_packages(patterns: object) -> frozenset[str]:
+    """Lower-cased, de-duplicated package-name globs.
+
+    Lower-cased rather than upper-cased, unlike advisory ids: package names are
+    written in lower case nearly everywhere, and matching is case-insensitive
+    anyway. Keeping the stored form close to what the user typed makes the
+    settings page readable.
+    """
+    if not patterns:
+        return frozenset()
+    cleaned = set()
+    for value in patterns:  # type: ignore[union-attr]
+        if isinstance(value, str) and value.strip():
+            cleaned.add(value.strip().lower())
+    return frozenset(cleaned)
 
 
 def normalise_ids(ids: object) -> frozenset[str]:
@@ -220,7 +290,7 @@ def triage(
             base,
             verdict=Verdict.ACTIONABLE,
             actionable_reason=ActionableReason.MALICIOUS_PACKAGE,
-            ignore_overridden=policy.ignores(vulnerability),
+            ignore_overridden=policy.ignores(vulnerability, dependency),
         )
 
     if is_kev and policy.always_alert_on_kev:
@@ -233,10 +303,10 @@ def triage(
             base,
             verdict=Verdict.ACTIONABLE,
             actionable_reason=ActionableReason.EXPLOITED_IN_WILD,
-            ignore_overridden=policy.ignores(vulnerability),
+            ignore_overridden=policy.ignores(vulnerability, dependency),
         )
 
-    if policy.ignores(vulnerability):
+    if policy.ignores(vulnerability, dependency):
         # Filed, not deleted. It stays on the Filtered tab with the rule named
         # as the reason, so "what am I not being told about?" has an answer.
         return replace(base, suppression_reason=SuppressionReason.IGNORED_BY_RULE)

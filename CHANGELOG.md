@@ -14,6 +14,39 @@ Entries note breaking changes and anything a deployment has to do by hand.
 
 ### 2026-08-24
 
+**An ignore rule can name a package, not only an advisory.** `@acme/*` covers
+every advisory written about anything in that scope, including the ones
+published after the rule. The case ignoring-by-id could not serve: a private
+package mirrored under a name that also exists on the public registry matches
+advisories about somebody else's code, and there is no fixed list of ids to
+enumerate.
+
+- Globs, not regular expressions. Every pattern is evaluated against every
+  dependency on every scan, from input a user supplies, and a regular
+  expression is where that becomes a way to hang the scanner on a crafted
+  package name. `@acme/*` is also what people want to write.
+- Available in `.weedout.yml` (`- package: "@acme/*"`), on the settings page,
+  and as `weedout rules ignore --package`.
+- A pattern matching every package is refused. That is the scan switched off,
+  not a filter, and a project is switched off by deactivating it — which says
+  so on the dashboard, where a rule that matches everything does not.
+- Known exploitation and malware are still reported. This matters more here
+  than for advisory rules: `@acme/*` is exactly the pattern somebody writes for
+  their private scope, and a typosquat published into that scope must not be
+  hidden by the rule written for registry-name collisions.
+- **Deployment note:** the migration is additive. Existing rows default to
+  `advisory` and mean what they always meant.
+
+**Scan rules are documented.** A Pro feature with no page anywhere: the
+`.weedout.yml` syntax existed only in the parser's docstring. New
+`/docs/scan-rules` covers the three sources and their precedence, every key,
+and the two things a rule cannot silence.
+
+- Corrected three places claiming `weedout init` writes `.weedout.yml`. It
+  writes `.weedout`, which holds a credential. `.weedout.yml` is the policy
+  file and belongs in the repository — telling people not to commit the file
+  that should be committed was the worst version of that mistake.
+
 **Tier gating audited end to end.** One sweep, `tests/test_tier_gating_audit.py`,
 walks every Pro capability and asserts the server refuses it for Free — at the
 endpoint, not only in the service. Two things keep it honest: it reads the plan

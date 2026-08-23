@@ -412,6 +412,7 @@ async def list_scan_rules(db: DbSession, key: ManageKey):
         "ignores": [
             {
                 "identifier": rule.identifier,
+                "kind": str(rule.kind),
                 "reason": rule.reason,
                 "created_by": rule.created_by_email,
                 "created_at": _iso(rule.created_at),
@@ -426,13 +427,20 @@ async def list_scan_rules(db: DbSession, key: ManageKey):
             "updated_at": _iso(target.policy_file_updated_at),
             "error": target.policy_file_error,
             "ignores": list(policy.ignored_ids),
+            "ignored_packages": list(policy.ignored_packages),
         },
     }
 
 
 @router.post("/rules")
 async def add_scan_rule(request: Request, db: DbSession, key: ManageKey):
-    """Ignore an advisory on this project. The reason is required."""
+    """Ignore an advisory, or a family of packages, on this project.
+
+    The reason is required. `kind` is `advisory` by default, so every client
+    written before package rules existed keeps working and keeps meaning what
+    it meant.
+    """
+    from app.core.types import IgnoreKind
     from app.models import IgnoreRule
     from app.schemas import IgnoreRuleForm
     from app.services.rules_service import list_rules
@@ -453,15 +461,27 @@ async def add_scan_rule(request: Request, db: DbSession, key: ManageKey):
     if not isinstance(payload, dict):
         raise _fail(status.HTTP_400_BAD_REQUEST, "bad_json", "Send a JSON object.")
 
+    raw_kind = payload.get("kind") or IgnoreKind.ADVISORY.value
+    try:
+        kind = IgnoreKind(str(raw_kind).strip().lower())
+    except ValueError:
+        raise _fail(
+            status.HTTP_400_BAD_REQUEST,
+            "invalid_rule",
+            "An ignore rule names either an advisory or a package.",
+        ) from None
+
     try:
         form = IgnoreRuleForm(
             identifier=str(payload.get("identifier", "")),
             reason=str(payload.get("reason", "")),
+            kind=kind,
         )
     except ValidationError as exc:
         raise _fail(status.HTTP_400_BAD_REQUEST, "invalid_rule", _first_error(exc)) from None
 
-    if any(r.identifier == form.identifier for r in await list_rules(db, key.target_id)):
+    existing = await list_rules(db, key.target_id)
+    if any(r.kind is form.kind and r.identifier == form.identifier for r in existing):
         raise _fail(
             status.HTTP_409_CONFLICT,
             "already_ignored",
@@ -472,6 +492,7 @@ async def add_scan_rule(request: Request, db: DbSession, key: ManageKey):
         IgnoreRule(
             target_id=key.target_id,
             identifier=form.identifier,
+            kind=form.kind,
             reason=form.reason,
             # Attributed to the key rather than to a person: nobody was at a
             # keyboard, and recording an account that did not do it would make
@@ -481,23 +502,38 @@ async def add_scan_rule(request: Request, db: DbSession, key: ManageKey):
     )
     await db.commit()
 
-    log.info("api.rule_added", target_id=key.target_id, identifier=form.identifier)
-    return {"identifier": form.identifier, "reason": form.reason}
+    log.info(
+        "api.rule_added",
+        target_id=key.target_id,
+        identifier=form.identifier,
+        kind=str(form.kind),
+    )
+    return {"identifier": form.identifier, "kind": str(form.kind), "reason": form.reason}
 
 
 @router.delete("/rules/{identifier}")
 async def remove_scan_rule(db: DbSession, key: ManageKey, identifier: str):
+    """Remove one rule by what it names.
+
+    Case-insensitive on both kinds, so a package rule stored as `@acme/*` comes
+    off whether the caller types it that way or not. Advisory ids and package
+    globs do not collide in practice -- one is `CVE-...`, the other has a slash
+    or a wildcard -- so a single path parameter is enough.
+    """
     from app.services.rules_service import list_rules
 
-    wanted = identifier.strip().upper()
+    wanted = identifier.strip().casefold()
     for rule in await list_rules(db, key.target_id):
-        if rule.identifier.upper() == wanted:
+        if rule.identifier.casefold() == wanted:
+            removed = {"identifier": rule.identifier, "kind": str(rule.kind), "removed": True}
             await db.delete(rule)
             await db.commit()
-            log.info("api.rule_removed", target_id=key.target_id, identifier=wanted)
-            return {"identifier": wanted, "removed": True}
+            log.info("api.rule_removed", target_id=key.target_id, identifier=rule.identifier)
+            return removed
 
-    raise _fail(status.HTTP_404_NOT_FOUND, "no_such_rule", f"{wanted} is not ignored here.")
+    raise _fail(
+        status.HTTP_404_NOT_FOUND, "no_such_rule", f"{identifier.strip()} is not ignored here."
+    )
 
 
 def _iso(value) -> str | None:

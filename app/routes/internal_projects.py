@@ -28,7 +28,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import desc, select
 
 from app.config import get_settings
-from app.core.types import KeyScope, Severity
+from app.core.types import IgnoreKind, KeyScope, Severity
 from app.deps import CsrfProtected, CurrentInternalUser, DbSession
 from app.logging_config import get_logger
 from app.models import CVEMatch, DependencyRecord, ScanRun
@@ -206,6 +206,7 @@ async def project_page(
             ProjectIgnoreRuleView(
                 id=rule.id,
                 identifier=rule.identifier,
+                kind=rule.kind,
                 reason=rule.reason,
                 created_by_email=rule.created_by_email,
                 created_at=rule.created_at,
@@ -592,6 +593,26 @@ class ThresholdsBody(BaseModel):
     epss: float | None = None
 
 
+def _ignore_kind(raw: object) -> IgnoreKind:
+    """Default to `advisory` rather than refusing an absent kind.
+
+    Every client that predates package rules sends no kind and means an
+    advisory, and that is also the safer default: a value misread as a package
+    glob could silence more than the caller asked for, and one misread as an
+    advisory id silences nothing that is not named outright.
+    """
+    if raw is None or raw == "":
+        return IgnoreKind.ADVISORY
+    try:
+        return IgnoreKind(str(raw).strip().lower())
+    except ValueError:
+        raise _fail(
+            status.HTTP_400_BAD_REQUEST,
+            "INVALID_REQUEST",
+            "An ignore rule names either an advisory or a package.",
+        ) from None
+
+
 def _require_rules(user) -> None:
     if not can_use_custom_rules(user.tier):
         raise _fail(
@@ -615,11 +636,13 @@ async def add_project_rule(
         form = IgnoreRuleForm(
             identifier=str(payload.get("identifier", "")),
             reason=str(payload.get("reason", "")),
+            kind=_ignore_kind(payload.get("kind")),
         )
     except ValidationError as exc:
         raise _fail(status.HTTP_400_BAD_REQUEST, "INVALID_REQUEST", first_error(exc)) from None
 
-    if any(r.identifier == form.identifier for r in await list_rules(db, target.id)):
+    existing = await list_rules(db, target.id)
+    if any(r.kind is form.kind and r.identifier == form.identifier for r in existing):
         raise _fail(
             status.HTTP_409_CONFLICT,
             "ALREADY_IGNORED",
@@ -629,12 +652,20 @@ async def add_project_rule(
     rule = IgnoreRule(
         target_id=target.id,
         identifier=form.identifier,
+        kind=form.kind,
         reason=form.reason,
         created_by_email=user.email,
     )
     db.add(rule)
     await db.commit()
-    return {"data": {"id": rule.id, "identifier": rule.identifier, "reason": rule.reason}}
+    return {
+        "data": {
+            "id": rule.id,
+            "identifier": rule.identifier,
+            "kind": str(rule.kind),
+            "reason": rule.reason,
+        }
+    }
 
 
 @router.post("/projects/{target_id}/rules/{rule_id}/delete", dependencies=[CsrfProtected])

@@ -211,7 +211,9 @@ function Install() {
       <p className="cli-note">
         The key decides which project the scan belongs to, so there is nothing else to configure.
         Put it in <code>WEEDOUT_API_KEY</code>, or run <code>weedout init</code> to write a{" "}
-        <code>.weedout.yml</code>.
+        <code>.weedout</code> — which holds the key, so keep it out of the repository.
+        <code>.weedout.yml</code> is the other file: your scan rules, and that one belongs
+        in version control.
       </p>
     </section>
   );

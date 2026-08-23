@@ -202,18 +202,45 @@ function KeysSection({ keys, projectId }) {
   );
 }
 
+/** What each kind of ignore rule is for, in the words of the person writing one. */
+const RULE_KINDS = [
+  {
+    value: "advisory",
+    label: "One advisory",
+    field: "Advisory",
+    placeholder: "CVE-2021-23337",
+    submit: "Ignore this advisory",
+    hint: "Matched against every alias, so ignoring the CVE also covers the GHSA that aliases it.",
+  },
+  {
+    value: "package",
+    label: "A package, or a family of them",
+    field: "Package",
+    placeholder: "@acme/*",
+    submit: "Ignore these packages",
+    hint: "Use * and ? as wildcards. For packages mirrored under a name that also exists on the public registry, where the advisories are for somebody else's code.",
+  },
+];
+
 function RulesSection({ page, projectId }) {
   const [identifier, setIdentifier] = useState("");
   const [reason, setReason] = useState("");
+  const [kind, setKind] = useState("advisory");
   const [direct, setDirect] = useState(page.thresholds.direct ?? "");
   const [transitive, setTransitive] = useState(page.thresholds.transitive ?? "");
 
-  const add = useProjectMutation(projectId, () => addIgnoreRule(projectId, { identifier, reason }), {
-    onSuccess: () => {
-      setIdentifier("");
-      setReason("");
+  const selectedKind = RULE_KINDS.find((option) => option.value === kind) ?? RULE_KINDS[0];
+
+  const add = useProjectMutation(
+    projectId,
+    () => addIgnoreRule(projectId, { identifier, reason, kind }),
+    {
+      onSuccess: () => {
+        setIdentifier("");
+        setReason("");
+      },
     },
-  });
+  );
   const remove = useProjectMutation(projectId, (ruleId) => removeIgnoreRule(projectId, ruleId));
   const save = useProjectMutation(projectId, () =>
     setThresholds(projectId, { direct, transitive, epss: page.thresholds.epss }),
@@ -285,7 +312,7 @@ function RulesSection({ page, projectId }) {
         </div>
       </form>
 
-      <h3 className="u-mt-6">Ignored advisories</h3>
+      <h3 className="u-mt-6">Ignored</h3>
       {add.isError ? <InlineNotice tone="danger">{add.error.message}</InlineNotice> : null}
 
       {page.rules.length === 0 ? (
@@ -295,7 +322,12 @@ function RulesSection({ page, projectId }) {
           {page.rules.map((rule) => (
             <li className="rule-row" key={rule.id}>
               <div>
-                <p className="rule-row__id">{rule.identifier}</p>
+                <p className="rule-row__id">
+                  {rule.identifier}
+                  {rule.kind === "package" ? (
+                    <span className="rule-row__kind">every advisory</span>
+                  ) : null}
+                </p>
                 <p className="rule-row__reason">{rule.reason}</p>
                 <p className="rule-row__meta">
                   {rule.created_by_email}
@@ -328,17 +360,38 @@ function RulesSection({ page, projectId }) {
         }}
       >
         <div className="auth-field">
+          <label className="auth-field__label" htmlFor="rule-kind">
+            Ignore
+          </label>
+          <select
+            className="auth-field__input"
+            id="rule-kind"
+            onChange={(event) => {
+              setKind(event.target.value);
+              setIdentifier("");
+            }}
+            value={kind}
+          >
+            {RULE_KINDS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="auth-field">
           <label className="auth-field__label" htmlFor="rule-id">
-            Advisory
+            {selectedKind.field}
           </label>
           <input
             className="auth-field__input"
             id="rule-id"
             onChange={(event) => setIdentifier(event.target.value)}
-            placeholder="CVE-2021-23337"
+            placeholder={selectedKind.placeholder}
             type="text"
             value={identifier}
           />
+          <p className="auth-field__hint">{selectedKind.hint}</p>
         </div>
         <div className="auth-field">
           <label className="auth-field__label" htmlFor="rule-reason">
@@ -364,7 +417,7 @@ function RulesSection({ page, projectId }) {
             type="submit"
             variant="secondary"
           >
-            {add.isPending ? "Adding…" : "Ignore this advisory"}
+            {add.isPending ? "Adding…" : selectedKind.submit}
           </Button>
         </div>
       </form>

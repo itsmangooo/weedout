@@ -22,11 +22,13 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.policy import MATCHES_EVERYTHING, MAX_PATTERN_LENGTH
 from app.core.types import (
     AlertStatus,
     AudienceKind,
     ContactCategory,
     Ecosystem,
+    IgnoreKind,
     KeyScope,
     MessageStatus,
     Reachability,
@@ -432,30 +434,32 @@ class ComposeEmailForm(BaseModel):
 
 
 class IgnoreRuleForm(BaseModel):
-    """Silencing one advisory on one project.
+    """Silencing one advisory, or one family of packages, on one project.
 
     The reason is required, and the refusal when it is missing is the feature.
     An ignore with no reason is unreviewable six months later, and the person
     adding it is the only one who can supply it.
+
+    `identifier` is validated differently depending on `kind`, which is why the
+    check is a model validator rather than two field validators: an advisory id
+    has a shape, and a package glob has a different one.
     """
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    identifier: Annotated[str, Field(max_length=64)]
+    identifier: Annotated[str, Field(max_length=MAX_PATTERN_LENGTH)]
     reason: Annotated[str, Field(max_length=1000)]
+    kind: IgnoreKind = IgnoreKind.ADVISORY
 
-    @field_validator("identifier")
-    @classmethod
-    def _looks_like_an_advisory_id(cls, value: str) -> str:
-        cleaned = value.strip().upper()
-        if not cleaned:
-            raise ValueError("Which advisory? Paste a CVE or GHSA id.")
-        if not re.fullmatch(r"[A-Z0-9][A-Z0-9._-]{2,63}", cleaned):
-            raise ValueError(
-                "That does not look like an advisory id. Use something like "
-                "CVE-2021-23337 or GHSA-jf85-cpcp-j695."
-            )
-        return cleaned
+    @model_validator(mode="after")
+    def _check_the_identifier_against_its_kind(self) -> IgnoreRuleForm:
+        cleaned = (
+            _clean_package_pattern(self.identifier)
+            if self.kind is IgnoreKind.PACKAGE
+            else _clean_advisory_id(self.identifier)
+        )
+        object.__setattr__(self, "identifier", cleaned)
+        return self
 
     @field_validator("reason")
     @classmethod
@@ -466,6 +470,46 @@ class IgnoreRuleForm(BaseModel):
                 "need it, and that might be you."
             )
         return value.strip()
+
+
+#: What a package glob may be made of. Deliberately narrow: every character
+#: here appears in a real package name on some registry, and nothing else does.
+#: `[`, `]` and `!` are glob syntax rather than name characters.
+_PACKAGE_PATTERN = re.compile(rf"[a-z0-9@/*?\[\]!._+-]{{1,{MAX_PATTERN_LENGTH}}}")
+
+
+def _clean_advisory_id(value: str) -> str:
+    cleaned = value.strip().upper()
+    if not cleaned:
+        raise ValueError("Which advisory? Paste a CVE or GHSA id.")
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9._-]{2,63}", cleaned):
+        raise ValueError(
+            "That does not look like an advisory id. Use something like "
+            "CVE-2021-23337 or GHSA-jf85-cpcp-j695."
+        )
+    return cleaned
+
+
+def _clean_package_pattern(value: str) -> str:
+    """A glob over dependency names: `@acme/*`, `karma-*`, `spring-core`.
+
+    Lower-cased rather than upper-cased: matching is case-insensitive anyway,
+    and the stored form is what gets listed back on the settings page.
+    """
+    cleaned = value.strip().lower()
+    if not cleaned:
+        raise ValueError("Which packages? Use a name or a pattern like @acme/*.")
+    if cleaned in MATCHES_EVERYTHING:
+        raise ValueError(
+            "That ignores every package, which switches the scan off rather than "
+            "filtering it. Deactivate the project instead."
+        )
+    if not re.fullmatch(_PACKAGE_PATTERN, cleaned):
+        raise ValueError(
+            "Use a package name or a glob over one -- letters, digits, and "
+            "@ / . _ - + with * or ? as wildcards."
+        )
+    return cleaned
 
 
 class ThresholdForm(BaseModel):
@@ -705,6 +749,8 @@ class ProjectIgnoreRuleView(BaseModel):
 
     id: int
     identifier: str
+    #: Whether `identifier` is an advisory id or a glob over package names.
+    kind: IgnoreKind
     reason: str
     created_by_email: str
     created_at: datetime | None

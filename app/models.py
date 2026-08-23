@@ -51,6 +51,7 @@ from app.core.types import (
     Ecosystem,
     EmailStatus,
     EmailTrigger,
+    IgnoreKind,
     KeyScope,
     ManifestKind,
     MessageStatus,
@@ -1337,17 +1338,34 @@ class IgnoreRule(Base):
     """
 
     __tablename__ = "ignore_rules"
-    __table_args__ = (UniqueConstraint("target_id", "identifier", name="uq_ignore_rule_identity"),)
+    __table_args__ = (
+        # Keyed on the kind as well: `@acme/*` as a package glob and `@acme/*`
+        # as an advisory id would be different rules, however unlikely the
+        # second is to exist.
+        UniqueConstraint("target_id", "kind", "identifier", name="uq_ignore_rule_identity"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     target_id: Mapped[int] = mapped_column(
         ForeignKey("tracked_targets.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
-    #: A CVE or advisory id, upper-cased on the way in. Matched against every
-    #: alias an advisory carries, so ignoring the CVE also silences the GHSA
-    #: that aliases it.
-    identifier: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: Whether `identifier` names an advisory or globs over package names.
+    kind: Mapped[IgnoreKind] = mapped_column(
+        enum_column(IgnoreKind, "ignore_kind"),
+        nullable=False,
+        default=IgnoreKind.ADVISORY,
+        server_default=IgnoreKind.ADVISORY.value,
+    )
+
+    #: For `advisory`, a CVE or advisory id, upper-cased on the way in and
+    #: matched against every alias an advisory carries, so ignoring the CVE
+    #: also silences the GHSA that aliases it.
+    #:
+    #: For `package`, a lower-cased glob over dependency names -- `@acme/*`.
+    #: Longer than an advisory id needs, because a scoped package name plus
+    #: glob syntax does not fit in 64.
+    identifier: Mapped[str] = mapped_column(String(256), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
 
     #: Who and when, so the rule carries its own audit trail alongside the one

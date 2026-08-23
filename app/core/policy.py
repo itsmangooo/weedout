@@ -28,9 +28,11 @@ from dataclasses import dataclass, field
 
 import yaml
 
-from app.core.types import Severity
+from app.core.types import IgnoreKind, Severity
 
 __all__ = [
+    "MATCHES_EVERYTHING",
+    "MAX_PATTERN_LENGTH",
     "MAX_POLICY_BYTES",
     "IgnoreEntry",
     "ParsedPolicy",
@@ -51,12 +53,31 @@ _THRESHOLDS = {
 }
 
 
+#: A pattern that matches every package name is not an ignore rule, it is the
+#: product switched off, and a project is switched off by deactivating it. The
+#: distinction matters because these two are silent in different ways: a
+#: deactivated project says so on the dashboard, and a rule that happens to
+#: match everything does not.
+MATCHES_EVERYTHING = {"*", "**", "?*", "*?"}
+
+#: Long enough for the longest real package name (npm caps at 214) plus glob
+#: syntax around it. Anything past that is not a package name.
+MAX_PATTERN_LENGTH = 256
+
+
 @dataclass(frozen=True, slots=True)
 class IgnoreEntry:
-    """One advisory this project has chosen not to hear about."""
+    """One thing this project has chosen not to hear about.
+
+    `identifier` is an advisory id or a package-name glob depending on `kind`.
+    Two shapes rather than two classes because everything downstream of here --
+    the reason requirement, the audit trail, the Filtered tab -- treats them
+    identically, and the only difference is what they are matched against.
+    """
 
     identifier: str
     reason: str
+    kind: IgnoreKind = IgnoreKind.ADVISORY
 
 
 @dataclass(slots=True)
@@ -94,7 +115,13 @@ class ParsedPolicy:
 
     @property
     def ignored_ids(self) -> tuple[str, ...]:
-        return tuple(entry.identifier for entry in self.ignores)
+        return tuple(
+            entry.identifier for entry in self.ignores if entry.kind is IgnoreKind.ADVISORY
+        )
+
+    @property
+    def ignored_packages(self) -> tuple[str, ...]:
+        return tuple(entry.identifier for entry in self.ignores if entry.kind is IgnoreKind.PACKAGE)
 
 
 def parse_policy(content: str | bytes | None) -> ParsedPolicy:
@@ -226,40 +253,92 @@ def _read_ignores(block: object) -> tuple[list[IgnoreEntry], list[str]]:
 
     entries: list[IgnoreEntry] = []
     warnings: list[str] = []
-    seen: set[str] = set()
+    seen: set[tuple[IgnoreKind, str]] = set()
 
     for index, raw in enumerate(block):
         position = f"ignore[{index}]"
 
         if not isinstance(raw, dict):
-            warnings.append(f"{position} should be a mapping with `cve` and `reason`; skipped.")
-            continue
-
-        identifier = raw.get("cve") or raw.get("id")
-        if not isinstance(identifier, str) or not identifier.strip():
-            warnings.append(f"{position} has no `cve`; skipped.")
-            continue
-        identifier = identifier.strip().upper()
-
-        reason = raw.get("reason")
-        if not isinstance(reason, str) or not reason.strip():
-            # Required, and the refusal is the feature. An ignore with no
-            # reason is unreviewable six months later, and the person who
-            # wrote it is the only one who can supply it.
             warnings.append(
-                f"{position} ({identifier}) has no `reason`, so it was skipped. "
-                "Every ignore needs one."
+                f"{position} should be a mapping with `cve` or `package`, and `reason`; skipped."
             )
             continue
 
-        if identifier in seen:
-            warnings.append(f"{identifier} is listed more than once; using the first entry.")
+        parsed = _read_one_ignore(position, raw)
+        if isinstance(parsed, str):
+            warnings.append(parsed)
             continue
 
-        seen.add(identifier)
-        entries.append(IgnoreEntry(identifier=identifier, reason=reason.strip()[:500]))
+        key = (parsed.kind, parsed.identifier)
+        if key in seen:
+            warnings.append(f"{parsed.identifier} is listed more than once; using the first entry.")
+            continue
+
+        seen.add(key)
+        entries.append(parsed)
 
     return entries, warnings
+
+
+def _read_one_ignore(position: str, raw: dict) -> IgnoreEntry | str:
+    """One entry, or the warning explaining why it was skipped."""
+    advisory = raw.get("cve") or raw.get("id")
+    package = raw.get("package")
+
+    if advisory and package:
+        # Two subjects in one entry has no single reading, and guessing which
+        # one was meant would silence something the author did not ask to
+        # silence.
+        return f"{position} sets both `cve` and `package`; write them as two entries. Skipped."
+
+    if package is not None:
+        identifier, problem = _read_package_pattern(position, package)
+    else:
+        identifier, problem = _read_advisory_id(position, advisory)
+    if problem is not None:
+        return problem
+
+    reason = raw.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        # Required, and the refusal is the feature. An ignore with no reason is
+        # unreviewable six months later, and the person who wrote it is the
+        # only one who can supply it.
+        return (
+            f"{position} ({identifier}) has no `reason`, so it was skipped. Every ignore needs one."
+        )
+
+    kind = IgnoreKind.PACKAGE if package is not None else IgnoreKind.ADVISORY
+    return IgnoreEntry(identifier=identifier, reason=reason.strip()[:500], kind=kind)
+
+
+def _read_advisory_id(position: str, value: object) -> tuple[str, str | None]:
+    if not isinstance(value, str) or not value.strip():
+        return "", f"{position} has no `cve` or `package`; skipped."
+    return value.strip().upper(), None
+
+
+def _read_package_pattern(position: str, value: object) -> tuple[str, str | None]:
+    """A glob over dependency names.
+
+    Not upper-cased, unlike an advisory id: matching is case-insensitive
+    anyway, and keeping the stored form close to what was written makes the
+    rule readable where it is listed back.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return "", f"{position} has an empty `package`; skipped."
+
+    pattern = value.strip().lower()
+
+    if len(pattern) > MAX_PATTERN_LENGTH:
+        return "", f"{position} has a `package` pattern that is too long; skipped."
+
+    if pattern in MATCHES_EVERYTHING:
+        return "", (
+            f"{position} would ignore every package, which turns the scan off rather than "
+            "filtering it. Deactivate the project instead. Skipped."
+        )
+
+    return pattern, None
 
 
 def _first_line(exc: Exception) -> str:
