@@ -201,7 +201,7 @@
 
 .hero-signal--reduced.hero-signal--exploited .hero-signal__payoff {
   padding-inline: var(--wo-space-3);
-  border-left: 3px solid var(--wo-critical);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-critical) 26%, transparent);
   background: var(--wo-critical-quiet);
 }
 
@@ -277,7 +277,7 @@
   gap: var(--wo-space-3) var(--wo-space-6);
   padding: var(--wo-space-5);
   border-bottom: 0;
-  border-left: 3px solid var(--wo-critical);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-critical) 26%, transparent);
   background: var(--wo-critical-quiet);
 }
 
@@ -558,7 +558,7 @@
 .filter-story__field li.is-exploited {
   padding-inline: var(--wo-space-3);
   border-bottom: 0;
-  border-left: 3px solid var(--wo-critical);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-critical) 26%, transparent);
   background: var(--wo-critical-quiet);
   color: var(--wo-critical);
 }
@@ -742,7 +742,7 @@
   gap: var(--wo-space-4);
   margin-top: clamp(3rem, 7vw, 6rem);
   padding: var(--wo-space-4) 0 var(--wo-space-4) var(--wo-space-4);
-  border-left: 3px solid var(--wo-critical);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-critical) 26%, transparent);
   color: var(--wo-text-muted);
   font-family: var(--wo-font-mono);
   font-size: 0.62rem;
@@ -1519,5 +1519,250 @@
 
   .showcase__step.is-current .showcase__step-track {
     background: var(--wo-accent);
+  }
+}
+
+/* --- The CLI section ------------------------------------------------------ */
+
+.landing-cli {
+  display: grid;
+  gap: clamp(2.5rem, 6vw, 5rem);
+  align-items: center;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  width: min(100% - 3rem, var(--wo-page-max));
+  margin-inline: auto;
+  padding-block: clamp(4rem, 9vw, 7rem);
+}
+
+.landing-cli__copy h2 {
+  margin: var(--wo-space-4) 0 0;
+  font-family: var(--wo-font-display);
+  font-size: clamp(2rem, 3.6vw, 3.1rem);
+  font-weight: 580;
+  letter-spacing: -0.042em;
+  line-height: 1.04;
+}
+
+.landing-cli__lede {
+  max-width: 46ch;
+  margin-top: var(--wo-space-5);
+  color: var(--wo-text-muted);
+  line-height: 1.7;
+}
+
+.landing-cli__command {
+  overflow-x: auto;
+  margin: var(--wo-space-5) 0 0;
+  padding: var(--wo-space-4);
+  border-radius: var(--wo-radius-sm);
+  background: var(--wo-surface-low);
+  box-shadow: inset 0 0 0 1px var(--wo-border);
+  font-family: var(--wo-font-mono);
+  font-size: 0.82rem;
+}
+
+.landing-cli__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wo-space-4);
+  margin-top: var(--wo-space-5);
+}
+
+.landing-cli__secondary {
+  color: var(--wo-text-muted);
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+/* --- The pipeline --------------------------------------------------------- */
+
+.pipeline {
+  padding: var(--wo-space-5);
+  border-radius: var(--wo-radius-lg);
+  background: var(--wo-surface);
+  box-shadow: inset 0 0 0 1px var(--wo-border);
+}
+
+.pipeline__field {
+  position: relative;
+  overflow: hidden;
+  height: 15rem;
+  border-radius: var(--wo-radius);
+  background: var(--wo-surface-low);
+}
+
+.pipeline__lane {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--wo-separator);
+  opacity: 0.6;
+}
+
+.pipeline__lane:nth-child(1) { top: 12%; }
+.pipeline__lane:nth-child(2) { top: 24%; }
+.pipeline__lane:nth-child(3) { top: 36%; }
+.pipeline__lane:nth-child(4) { top: 48%; }
+.pipeline__lane:nth-child(5) { top: 60%; }
+.pipeline__lane:nth-child(6) { top: 72%; }
+.pipeline__lane:nth-child(7) { top: 84%; }
+
+/* The gate: where the filtering happens, and where all but one stop. */
+.pipeline__gate {
+  position: absolute;
+  top: 8%;
+  bottom: 8%;
+  left: 62%;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--wo-accent) 15%,
+    var(--wo-accent) 85%,
+    transparent
+  );
+}
+
+.pipeline__gate-label {
+  position: absolute;
+  bottom: -0.4rem;
+  left: 50%;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-surface);
+  color: var(--wo-text-dim);
+  font-family: var(--wo-font-mono);
+  font-size: 0.62rem;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.pipeline__dot {
+  position: absolute;
+  top: calc(12% + var(--lane) * 12%);
+  left: 0;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: var(--wo-text-dim);
+  opacity: 0;
+  /* Nudged up by half its own size so it rides the lane rather than hanging
+     off it, whatever size it is. */
+  translate: 0 calc(var(--size) / -2);
+}
+
+/* Held still until the section is on screen: motion that has already finished
+   by the time you scroll to it is motion nobody sees. */
+.pipeline.is-running .pipeline__dot {
+  animation: pipeline-drift calc(5.5s / var(--speed)) linear infinite;
+  animation-delay: calc(var(--offset) * -5.5s);
+}
+
+.pipeline__dot.is-survivor {
+  width: 7px;
+  height: 7px;
+  background: var(--wo-critical);
+  translate: 0 -3.5px;
+}
+
+.pipeline.is-running .pipeline__dot.is-survivor {
+  animation-name: pipeline-through;
+}
+
+/* Almost everything fades out at the gate. */
+@keyframes pipeline-drift {
+  0% { left: -2%; opacity: 0; }
+  12% { opacity: 0.75; }
+  52% { opacity: 0.75; }
+  60% { left: 60%; opacity: 0; }
+  100% { left: 60%; opacity: 0; }
+}
+
+/* The one that does not. */
+@keyframes pipeline-through {
+  0% { left: -2%; opacity: 0; }
+  10% { opacity: 1; }
+  60% { left: 60%; opacity: 1; }
+  70% { left: 66%; opacity: 1; }
+  92% { left: 96%; opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+/* Reduced motion: the still frame the animation exists to arrive at — the
+   stream stopped at the gate, one through. */
+@media (prefers-reduced-motion: reduce) {
+  .pipeline__dot {
+    left: calc(6% + var(--offset) * 48%);
+    opacity: 0.65;
+    animation: none !important;
+  }
+
+  .pipeline__dot.is-survivor {
+    left: 88%;
+    opacity: 1;
+  }
+}
+
+.pipeline__verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--wo-space-3);
+  margin: var(--wo-space-4) 0 0;
+  color: var(--wo-text-muted);
+  font-size: 0.85rem;
+}
+
+.pipeline__verdict-code {
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-critical-quiet);
+  color: var(--wo-critical);
+  font-family: var(--wo-font-mono);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.landing-cli__legend {
+  display: grid;
+  gap: var(--wo-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  margin: var(--wo-space-5) 0 0;
+}
+
+.landing-cli__legend dt {
+  color: var(--wo-text-dim);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.landing-cli__legend dd {
+  margin: 0.2rem 0 0;
+  font-family: var(--wo-font-display);
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.landing-cli__legend .is-blocking dd {
+  color: var(--wo-critical);
+}
+
+@media (max-width: 62rem) {
+  .landing-cli {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 40rem) {
+  .landing-cli {
+    width: min(100% - 2rem, var(--wo-page-max));
+  }
+
+  .pipeline__field {
+    height: 12rem;
   }
 }

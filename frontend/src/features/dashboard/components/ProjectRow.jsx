@@ -11,6 +11,7 @@ import {
 
 import { EntityContextMenu } from "../../../components/ui/EntityContextMenu";
 import { relativeTime } from "../../../lib/time";
+import { Link } from "react-router";
 
 function projectState(project) {
   if (project.findings.exploited > 0) {
@@ -56,9 +57,9 @@ export function ProjectRow({ project }) {
           <div className="project-row__identity">
             <div className="project-row__title-line">
               <h3 aria-label={project.name}>
-                <a aria-label={`Open project ${project.name}`} href={projectHref}>
+                <Link aria-label={`Open project ${project.name}`} to={projectHref}>
                   {project.name}
-                </a>
+                </Link>
               </h3>
               <span className={`project-row__state project-row__state--${state.tone}`}>
                 <Icon aria-hidden="true" size={14} /> {state.label}

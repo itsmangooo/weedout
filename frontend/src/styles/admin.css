@@ -79,10 +79,22 @@
 
 .tabs {
   display: flex;
-  flex-wrap: wrap;
+  /* Scrolls rather than wraps, for the reason in project.css: a wrapped tab
+     row puts the underline under the wrong line. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: var(--wo-space-1);
   margin-bottom: var(--wo-space-6);
   border-bottom: 1px solid var(--wo-border);
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  flex: 0 0 auto;
 }
 
 .tabs--sub {

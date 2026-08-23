@@ -5,6 +5,15 @@
  * application theme without a second palette to keep in step.
  */
 
+/* Clear of the bar the sidebar becomes at narrow widths. Without this the
+   eyebrow sits a few pixels under it and reads as part of the chrome. */
+@media (max-width: 64rem) {
+  .project-page,
+  .page-narrow {
+    padding-top: var(--wo-space-6);
+  }
+}
+
 .page-narrow {
   width: min(100%, 46rem);
   margin-inline: auto;
@@ -156,6 +165,29 @@
   border-bottom: 1px solid var(--wo-border);
 }
 
+/* One line that scrolls, rather than two lines with a rule between them.
+   Wrapping a tab row leaves the container's underline under the *second* row
+   and the active indicator on the first, which reads as two broken controls.
+   Scrolling keeps the row a row. */
+.view-tabs,
+.filter-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.view-tabs::-webkit-scrollbar,
+.filter-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.view-tab,
+.filter-tab {
+  flex: 0 0 auto;
+}
+
+
 .view-tab,
 .filter-tab {
   display: inline-flex;
@@ -270,16 +302,20 @@
   background: var(--wo-level-1);
 }
 
+/* Tinted whole, for the same reason as the finding rows: an edge rule is
+   invisible on a phone, where these stack into a single column. */
 .signal-row--concerning {
-  border-left: 3px solid var(--wo-critical);
+  background: var(--wo-critical-quiet);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-critical) 20%, transparent);
 }
 
 .signal-row--notable {
-  border-left: 3px solid var(--wo-warning);
+  background: var(--wo-warning-quiet);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-warning) 20%, transparent);
 }
 
 .signal-row--informational {
-  border-left: 3px solid var(--wo-border-strong);
+  box-shadow: inset 0 0 0 1px var(--wo-border);
 }
 
 .signal-row__title {
@@ -465,7 +501,8 @@
 .alert-summary {
   margin: 0 0 var(--wo-space-6);
   padding: var(--wo-space-4);
-  border-left: 3px solid var(--wo-border-strong);
+  border-radius: var(--wo-radius-sm);
+  background: var(--wo-surface-low);
   color: var(--wo-text-muted);
   line-height: 1.65;
 }

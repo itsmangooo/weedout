@@ -255,23 +255,28 @@
   background: var(--wo-warning);
 }
 
+/* The state is the colour of the whole panel. A rule down the left edge was
+   easy to miss and vanished the moment the layout stacked. */
 .attention-summary {
   margin-top: var(--wo-space-7);
   border-radius: var(--wo-radius-lg);
   background: var(--wo-surface-low);
-  box-shadow: inset 3px 0 var(--wo-separator-strong);
+  box-shadow: inset 0 0 0 1px var(--wo-border);
 }
 
 .attention-summary--exploited {
-  box-shadow: inset 3px 0 var(--wo-critical);
+  background: var(--wo-critical-quiet);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-critical) 22%, transparent);
 }
 
 .attention-summary--open {
-  box-shadow: inset 3px 0 var(--wo-warning);
+  background: var(--wo-warning-quiet);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-warning) 22%, transparent);
 }
 
 .attention-summary--clear {
-  box-shadow: inset 3px 0 var(--wo-success);
+  background: var(--wo-success-quiet);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wo-success) 22%, transparent);
 }
 
 .attention-summary__body {
@@ -404,28 +409,22 @@
   align-items: center;
   gap: var(--wo-space-4);
   min-height: 4.35rem;
-  padding: 0.78rem var(--wo-space-4) 0.78rem var(--wo-space-6);
+  padding: 0.78rem var(--wo-space-4);
   border-top: 1px solid var(--wo-separator);
   transition: background-color var(--wo-duration-fast);
 }
 
-.finding-row::before {
-  position: absolute;
-  inset-block: 1rem;
-  left: 0.7rem;
-  width: 2px;
-  border-radius: 99rem;
-  background: var(--wo-text-dim);
-  content: "";
+/* Severity tints the row rather than marking its edge. Kept faint: a queue
+   is mostly rows, and a page of saturated bands is as unreadable as a page of
+   none. The written severity beside it is what carries the meaning; this is
+   the second encoding, not the only one. */
+.finding-row--critical,
+.finding-row--high {
+  background: color-mix(in srgb, var(--wo-critical) 6%, transparent);
 }
 
-.finding-row--critical::before,
-.finding-row--high::before {
-  background: var(--wo-critical);
-}
-
-.finding-row--medium::before {
-  background: var(--wo-warning);
+.finding-row--medium {
+  background: color-mix(in srgb, var(--wo-warning) 6%, transparent);
 }
 
 .finding-row:hover,
@@ -969,6 +968,38 @@
 @media (max-width: 40rem) {
   .app-shell__nav-link {
     padding-inline: 0.55rem;
+  }
+
+  /* Stacked. The menu trigger goes back on the title line rather than
+     floating at the top right of a card it no longer sits beside. */
+  .finding-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: var(--wo-space-2);
+    padding: var(--wo-space-4);
+  }
+
+  .finding-row__identity {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .finding-row > .entity-menu-trigger {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .finding-row__project,
+  .finding-row__signals,
+  .finding-row__state {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .finding-row__state {
+    display: flex;
+    align-items: baseline;
+    gap: var(--wo-space-2);
   }
 
   .dashboard-page {

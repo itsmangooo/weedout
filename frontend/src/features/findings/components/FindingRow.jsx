@@ -1,5 +1,6 @@
 import { ArrowUpRight, Flame, FolderOpen, Package, RadioTower } from "lucide-react";
 import { motion } from "motion/react";
+import { Link } from "react-router";
 
 import { EntityContextMenu } from "../../../components/ui/EntityContextMenu";
 
@@ -37,14 +38,16 @@ export function FindingRow({ finding }) {
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="finding-row__identity">
-          <a href={findingHref}>{finding.identifier}</a>
+          <Link to={findingHref}>{finding.identifier}</Link>
           <span className="finding-row__package">
             <Package aria-hidden="true" size={13} />
             {finding.package_name}@{finding.installed_version}
           </span>
         </div>
 
-        <a className="finding-row__project" href={projectHref}>{finding.project.name}</a>
+        <Link className="finding-row__project" to={projectHref}>
+          {finding.project.name}
+        </Link>
 
         <div className="finding-row__signals" aria-label="Finding signals">
           {finding.is_exploited ? (
