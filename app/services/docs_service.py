@@ -810,6 +810,163 @@ Each project is limited to 60 scans an hour, which is far above what a normal
 pipeline needs and low enough that a misconfigured loop cannot run away.
 """,
     },
+    {
+        "slug": "the-cli",
+        "title": "The CLI, command by command",
+        "summary": (
+            "Scan, read and change what gets reported \u2014 without opening the dashboard."
+        ),
+        "content": """
+The CLI is a single static binary with no dependencies. It does three kinds of
+thing: it scans, it reads what the dashboard would show you, and it changes
+what gets reported. Which of those a given key can do is decided by the key's
+scope \u2014 see [API keys and scopes](/docs/api-keys-and-scopes).
+
+## Install
+
+```bash
+curl -sSL https://weedout.dev/install.sh | sh
+```
+
+On Windows, `irm https://weedout.dev/install.ps1 | iex`. Both scripts verify
+the checksum of the release they download. There is no package manager step and
+nothing lands in your project's dependency tree.
+
+## Point it at a project
+
+The key is the configuration. It identifies the project, so there is nothing
+else to set up.
+
+```bash
+export WEEDOUT_API_KEY=wo_...
+```
+
+Or write it to a file next to your code:
+
+```bash
+weedout init
+```
+
+That creates `.weedout.yml`. **Do not commit it if it contains a key** \u2014 use
+the environment variable in CI and keep the file for local work.
+
+## Scanning
+
+```bash
+weedout scan              # report, always exit 0
+weedout scan --ci         # exit 1 if something blocking is found
+weedout scan --json       # the same result, machine-readable
+weedout scan --quiet      # print nothing; the exit code is the answer
+```
+
+`--fail-on high` widens the gate from the default `critical`. Confirmed
+exploitation fails at either setting.
+
+## Reading, without the dashboard
+
+These need a key with **read** access. Everything the web dashboard shows is
+available here, which is the point: if you would rather live in a terminal, you
+never have to open a browser after setup.
+
+| Command | Answers |
+|---|---|
+| `weedout status` | Counts, when it was last checked, when it is next due. |
+| `weedout findings` | What is open, with fixes and how each one got in. |
+| `weedout history` | Recent scans, and how the count has moved. |
+| `weedout supply-chain` | Signals about the packages themselves. |
+
+Every one of them takes `--json`, so they compose with `jq` and with whatever
+your team already runs.
+
+## Changing what gets reported
+
+These need a key with **manage** access.
+
+```bash
+weedout rules                                   # what is in force
+weedout rules ignore GHSA-xxxx --reason "..."   # stop reporting one advisory
+weedout rules unignore GHSA-xxxx                # report it again
+```
+
+A reason is required, and it is recorded. Six months from now the question is
+never "is this ignored" \u2014 it is "who decided that, and why".
+
+## Everything else
+
+```bash
+weedout version           # what you are running
+weedout update            # install the newest release
+weedout --interactive     # turn the menu on for this installation
+```
+
+`--interactive` is a preference, saved next to the binary, not a flag you pass
+every time.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | It ran. Nothing blocking. |
+| `1` | It ran and found something blocking. `--ci` only. |
+| `2` | It did **not** run \u2014 bad key, unreachable service, or no manifest. |
+
+The gap between `1` and `2` is the one that matters. A pipeline treating every
+non-zero exit as "vulnerabilities found" will eventually treat an expired key as
+a security finding, and somebody will fix that by deleting the step.
+""",
+    },
+    {
+        "slug": "api-keys-and-scopes",
+        "title": "API keys and scopes",
+        "summary": "What each kind of key can do, and why a CI key should be the weakest one.",
+        "content": """
+Every key belongs to **one project** and carries **one scope**. Create them in
+Settings, on the project they are for.
+
+A key is shown once, when you create it. We store only a hash, so we cannot
+show it to you again and neither can anyone who reads our database.
+
+## The three scopes
+
+| Scope | Can | Cannot |
+|---|---|---|
+| `scan` | Push a scan. | Read findings, change rules. |
+| `read` | Push a scan, read findings, history and supply-chain signals. | Change rules. |
+| `manage` | All of it, including ignoring advisories. | \u2014 |
+
+`scan` is the default, and it is what every key created before scopes existed
+already was.
+
+## Why the split exists
+
+A CI key lives in an environment variable. Anyone who can read a build log, open
+a pull request against your workflow, or compromise a runner can take it.
+
+If that key could add an ignore rule, whoever took it could **silence the alert
+for the vulnerability they are about to exploit** \u2014 and the dashboard would
+show a clean project while it happened. That is the whole reason a scan key
+cannot change what gets reported.
+
+So: put a `scan` key in CI. Keep `read` for a laptop or a dashboard script.
+Create a `manage` key when you need one and revoke it when you are done.
+
+## What a rejected key looks like
+
+Every failure \u2014 missing, malformed, unknown, revoked, or belonging to a
+suspended account \u2014 returns the same `401`. Distinguishing "revoked" from
+"never existed" would tell anyone holding a list of leaked strings which ones
+were once real.
+
+A key with the *wrong scope* is different: that returns `403`, because the
+credential is genuine and saying so leaks nothing. A `401` there would send a
+pipeline into a retry loop over a permission problem no retry can fix.
+
+## Rotating
+
+Revoke the old key, create a new one, update the secret. There is no grace
+period and no partial state: a revoked key stops working on the next request.
+""",
+    },
 ]
 
 STARTER_SLUGS = [page["slug"] for page in STARTER_PAGES]

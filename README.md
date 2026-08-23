@@ -305,7 +305,7 @@ which ones were once real.
 ## Scanning from CI
 
 ```bash
-pip install weedout-cli
+curl -sSL https://weedout.dev/install.sh | sh    # irm .../install.ps1 | iex on Windows
 export WEEDOUT_API_KEY=wo_...
 weedout scan --ci
 ```
@@ -315,11 +315,15 @@ the counts. The endpoint is **synchronous** — no worker, no job id to poll —
 because the caller is a pipeline that is blocking on the answer anyway. That is
 affordable only because of the local mirror.
 
-The CLI lives in `cli/` and ships as a **separate distribution** (`weedout-cli`)
-with **no runtime dependencies**. It gets installed into the same environment as
-the project being built, so anything it brought with it would become a version
-constraint someone else's build has to satisfy — to solve a problem that is one
-POST request and one argument parser wide. `urllib` and `argparse` are enough.
+The CLI lives in its own repository, **`itsmangooo/weedout-cli`**, and is a
+single static Go binary with **no dependencies at all** — `go.mod` is empty of
+them, and the `/cli` page reads that file live rather than asserting it here.
+
+It used to be a Python package installed with `pip`, which was a mistake worth
+naming: it landed in the same environment as the project being built, so
+anything it brought with it became a version constraint someone else's build
+had to satisfy. A downloaded binary has no opinion about your interpreter, and
+a CI runner is the last place that benefits from a dependency tree.
 
 Detection prefers the file that states a fact: `package-lock.json` over
 `package.json`. `node_modules` is never searched, and the walk is two levels

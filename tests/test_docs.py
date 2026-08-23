@@ -462,21 +462,27 @@ class TestDocsService:
 
 class TestStarterSeed:
     async def test_creates_the_starter_pages(self, db):
+        """Counts derived from the source, not written out.
+
+        These were hardcoded to four and broke the day a fifth page was added,
+        which teaches the next person to edit the number rather than read the
+        failure. What is worth asserting is that seeding produces exactly the
+        set that is declared — however many that is.
+        """
+        from app.services.docs_service import STARTER_PAGES
+
         created = await seed_starter_pages(db)
-        assert created == 4
+        assert created == len(STARTER_PAGES)
 
         slugs = {p.slug for p in await list_public(db)}
-        assert slugs == {
-            "getting-started",
-            "scanning-your-project",
-            "understanding-severity-tiers",
-            "gate-your-pipeline",
-        }
+        assert slugs == {page["slug"] for page in STARTER_PAGES}
 
     async def test_is_idempotent(self, db):
-        assert await seed_starter_pages(db) == 4
+        from app.services.docs_service import STARTER_PAGES
+
+        assert await seed_starter_pages(db) == len(STARTER_PAGES)
         assert await seed_starter_pages(db) == 0
-        assert len(await list_public(db)) == 4
+        assert len(await list_public(db)) == len(STARTER_PAGES)
 
     async def test_does_not_overwrite_an_edited_page(self, db):
         await seed_starter_pages(db)
@@ -541,11 +547,11 @@ class TestStarterContentUpdates:
     """
 
     async def test_a_fresh_deployment_reports_every_page_as_missing(self, db):
-        from app.services.docs_service import starter_page_drift
+        from app.services.docs_service import STARTER_PAGES, starter_page_drift
 
         drift = await starter_page_drift(db)
 
-        assert len(drift) == 4
+        assert len(drift) == len(STARTER_PAGES)
         assert all(exists is False for _, exists in drift)
 
     async def test_a_freshly_seeded_deployment_has_no_drift(self, db):
