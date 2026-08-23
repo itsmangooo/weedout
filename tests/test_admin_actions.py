@@ -27,6 +27,7 @@ from app.services.admin_service import (
     unsuspend_user,
 )
 from app.services.auth_service import InvalidCredentials, authenticate, create_session, session_user
+from tests.factories import attach_manifest
 
 
 @pytest.fixture
@@ -53,6 +54,7 @@ async def make_target(db, user, name="proj") -> TrackedTarget:
     )
     db.add(target)
     await db.flush()
+    await attach_manifest(db, target)
     return target
 
 

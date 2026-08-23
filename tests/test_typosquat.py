@@ -24,6 +24,7 @@ from app.core.supply_chain import (
     edit_distance,
 )
 from app.core.types import Ecosystem
+from tests.factories import set_manifest
 
 NPM = Ecosystem.NPM
 PYPI = Ecosystem.PYPI
@@ -156,7 +157,9 @@ class TestReconciliation:
         await seed_mirror(db)
         target = await make_target(db, owner)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {name: "1.0.0" for name in packages}})
+        await set_manifest(
+            db, target, json.dumps({"dependencies": {name: "1.0.0" for name in packages}})
+        )
         return target
 
     async def test_a_pro_scan_raises_the_signal(self, db, pro_user):
@@ -236,7 +239,7 @@ class TestReconciliation:
         await db.commit()
         assert (await db.execute(select(SupplyChainFinding))).scalars().first() is not None
 
-        target.manifest_content = json.dumps({"dependencies": {"express": "1.0.0"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"express": "1.0.0"}}))
         await scan_target(db, target)
         await db.commit()
 
@@ -259,7 +262,7 @@ class TestItIsShownSeparately:
         await seed_mirror(db)
         target = await make_target(db, pro_user)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {"lodahs": "1.0.0"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"lodahs": "1.0.0"}}))
         await scan_target(db, target)
         await db.commit()
 

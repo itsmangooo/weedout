@@ -24,6 +24,7 @@ from app.core.types import (
 )
 from app.models import CVEMatch, TrackedTarget, VulnerabilityRecord
 from app.services.public_service import clear_cache, get_landing_data
+from tests.factories import attach_manifest
 
 
 @pytest.fixture(autouse=True)
@@ -70,9 +71,11 @@ async def make_finding(
     )
     db.add(target)
     await db.flush()
+    manifest = await attach_manifest(db, target)
 
     match = CVEMatch(
         target_id=target.id,
+        manifest_id=manifest.id,
         vulnerability_id=vuln_id,
         ecosystem=Ecosystem.NPM,
         package_name=package,

@@ -34,6 +34,7 @@ from app.core.types import (
     Verdict,
     Vulnerability,
 )
+from tests.factories import set_manifest
 
 MAL_ID = "MAL-2025-137567"
 
@@ -252,7 +253,7 @@ class TestThePipelineSeesIt:
         )
         target = await make_target(db, user)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {"lodash": "4.17.15"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"lodash": "4.17.15"}}))
 
         outcome = await scan_target(db, target)
         assert outcome.actionable_count >= 1

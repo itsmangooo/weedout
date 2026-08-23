@@ -41,6 +41,7 @@ from app.security import hash_password, hash_reset_token
 from app.services.admin_service import AdminActionError, delete_user, is_last_admin
 from app.services.auth_service import create_session
 from tests.conftest import set_csrf, sign_in
+from tests.factories import attach_manifest
 
 
 @pytest.fixture
@@ -73,10 +74,13 @@ async def populate(db, owner: User) -> dict[str, int]:
     )
     db.add(target)
     await db.flush()
+    manifest = await attach_manifest(db, target)
 
+    manifest = await attach_manifest(db, target)
     db.add(
         DependencyRecord(
             target_id=target.id,
+            manifest_id=manifest.id,
             ecosystem=Ecosystem.NPM,
             name="lodash",
             version="4.17.15",
@@ -88,6 +92,7 @@ async def populate(db, owner: User) -> dict[str, int]:
 
     match = CVEMatch(
         target_id=target.id,
+        manifest_id=manifest.id,
         vulnerability_id="GHSA-del-1",
         ecosystem=Ecosystem.NPM,
         package_name="lodash",

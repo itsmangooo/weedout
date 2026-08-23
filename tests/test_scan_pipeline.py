@@ -23,6 +23,7 @@ from sqlalchemy import select
 from app.core.types import AlertStatus, ManifestKind, Verdict
 from app.models import Alert, CVEMatch, KevRecord, ScanRun, TrackedTarget, utcnow
 from app.services.scan_service import scan_target
+from tests.factories import attach_manifest, set_manifest
 
 MANIFEST = json.dumps(
     {
@@ -116,6 +117,7 @@ async def make_target(db, user, manifest: str = MANIFEST) -> TrackedTarget:
     )
     db.add(target)
     await db.flush()
+    await attach_manifest(db, target)
     return target
 
 
@@ -207,7 +209,7 @@ class TestScanPipeline:
         ).status is AlertStatus.OPEN
 
         # The user upgrades past the fix.
-        target.manifest_content = json.dumps({"dependencies": {"lodash": "4.17.21"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"lodash": "4.17.21"}}))
         outcome = await scan_target(db, target)
 
         assert outcome.resolved_count == 1
@@ -221,9 +223,9 @@ class TestScanPipeline:
         target = await make_target(db, user)
 
         await scan_target(db, target)
-        target.manifest_content = json.dumps({"dependencies": {"lodash": "4.17.21"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"lodash": "4.17.21"}}))
         await scan_target(db, target)
-        target.manifest_content = json.dumps({"dependencies": {"lodash": "4.17.15"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"lodash": "4.17.15"}}))
         outcome = await scan_target(db, target)
 
         match = await db.scalar(select(CVEMatch).where(CVEMatch.target_id == target.id))

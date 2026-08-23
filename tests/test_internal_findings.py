@@ -17,6 +17,7 @@ from app.core.types import (
 from app.models import CVEMatch, TrackedTarget, VulnerabilityRecord
 from app.security import content_hash
 from app.services.finding_service import MAX_FINDING_LIMIT
+from tests.factories import attach_manifest
 
 
 def project_for(owner, name: str) -> TrackedTarget:
@@ -53,8 +54,13 @@ async def add_finding(
     db.add(vulnerability)
     await db.flush()
 
+    # `project_for` builds the target synchronously, so the manifest it needs
+    # is attached here — idempotently, since several findings share a project.
+    manifest = await attach_manifest(db, target)
+
     match = CVEMatch(
         target_id=target.id,
+        manifest_id=manifest.id,
         vulnerability_id=vulnerability_id,
         ecosystem=Ecosystem.NPM,
         package_name=package_name,

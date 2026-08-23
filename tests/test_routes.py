@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.core.types import AlertStatus, Ecosystem, KeyScope, ManifestKind, Verdict
 from app.models import ApiKey, CVEMatch, DependencyRecord, ScanRun, TrackedTarget
 from tests.conftest import create_project, set_csrf, sign_in
+from tests.factories import attach_manifest
 from tests.test_scan_pipeline import LODASH_ADVISORY, MANIFEST, seed_mirror
 
 #: Read once at import. Reading it inside an async test would be a blocking
@@ -168,7 +169,9 @@ class TestTargetRoutes:
         )
         db.add(other)
         await db.flush()
+        await attach_manifest(db, other)
 
+        await attach_manifest(db, other)
         response = await auth_client.get(f"/api/internal/projects/{other.id}")
         assert response.status_code == 404
 
@@ -183,7 +186,9 @@ class TestTargetRoutes:
         )
         db.add(other)
         await db.flush()
+        await attach_manifest(db, other)
 
+        await attach_manifest(db, other)
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
             f"/api/internal/projects/{other.id}/delete", data={"csrf_token": csrf}
@@ -444,7 +449,9 @@ class TestProjectLifecycle:
         )
         db.add(other)
         await db.flush()
+        await attach_manifest(db, other)
 
+        await attach_manifest(db, other)
         key = ApiKey(
             user_id=pro_user.id,
             target_id=other.id,
@@ -579,9 +586,12 @@ class TestAlertRoutes:
         )
         db.add(target)
         await db.flush()
+        manifest = await attach_manifest(db, target)
 
+        manifest = await attach_manifest(db, target)
         match = CVEMatch(
             target_id=target.id,
+            manifest_id=manifest.id,
             vulnerability_id="GHSA-other",
             ecosystem=Ecosystem.NPM,
             package_name="x",

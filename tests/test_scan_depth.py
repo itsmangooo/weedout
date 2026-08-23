@@ -33,6 +33,7 @@ from app.core.types import (
     Vulnerability,
 )
 from app.tiers import depth_label, scan_depth_for
+from tests.factories import set_manifest
 
 
 def dep(name: str, depth: int, via: tuple[str, ...] = ()) -> Dependency:
@@ -263,8 +264,7 @@ class TestEndToEnd:
             },
         }
         target = await make_target(db, user)
-        target.manifest_kind = ManifestKind.PACKAGE_LOCK_JSON
-        target.manifest_content = json.dumps(lock)
+        await set_manifest(db, target, json.dumps(lock), kind=ManifestKind.PACKAGE_LOCK_JSON)
 
         outcome = await scan_target(db, target)
 
@@ -286,8 +286,7 @@ class TestEndToEnd:
             },
         }
         target = await make_target(db, pro_user)
-        target.manifest_kind = ManifestKind.PACKAGE_LOCK_JSON
-        target.manifest_content = json.dumps(lock)
+        await set_manifest(db, target, json.dumps(lock), kind=ManifestKind.PACKAGE_LOCK_JSON)
 
         outcome = await scan_target(db, target)
 
@@ -313,8 +312,7 @@ class TestEndToEnd:
             },
         }
         target = await make_target(db, pro_user)
-        target.manifest_kind = ManifestKind.PACKAGE_LOCK_JSON
-        target.manifest_content = json.dumps(lock)
+        await set_manifest(db, target, json.dumps(lock), kind=ManifestKind.PACKAGE_LOCK_JSON)
         await scan_target(db, target)
 
         match = (

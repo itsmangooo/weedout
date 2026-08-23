@@ -20,6 +20,7 @@ from sqlalchemy import select
 from app.core.types import AlertStatus, Ecosystem, ManifestKind, Reachability, Severity, Verdict
 from app.models import CVEMatch, TrackedTarget, VulnerabilityRecord
 from tests.conftest import set_csrf, sign_in
+from tests.factories import attach_manifest
 
 DETAIL = "/api/internal/alerts/{id}"
 STATUS = "/api/internal/alerts/{id}/status"
@@ -37,9 +38,12 @@ async def make_finding(db, owner, *, summary="Prototype pollution") -> CVEMatch:
     )
     db.add(target)
     await db.flush()
+    manifest = await attach_manifest(db, target)
 
+    manifest = await attach_manifest(db, target)
     match = CVEMatch(
         target_id=target.id,
+        manifest_id=manifest.id,
         vulnerability_id="GHSA-test-1",
         ecosystem=Ecosystem.NPM,
         package_name="lodash",

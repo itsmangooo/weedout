@@ -510,6 +510,17 @@ class TrackedTarget(TimestampMixin, Base):
     discord_last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="targets")
+    manifests: Mapped[list[ProjectManifest]] = relationship(
+        back_populates="target",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="ProjectManifest.id",
+        # Eager, unlike the other collections. Every scan walks these and so
+        # does every project view, and a lazy load raises MissingGreenlet the
+        # moment it happens inside the async session — which is everywhere
+        # this is used.
+        lazy="selectin",
+    )
     dependencies: Mapped[list[DependencyRecord]] = relationship(
         back_populates="target", cascade="all, delete-orphan", passive_deletes=True
     )
@@ -564,18 +575,100 @@ class TrackedTarget(TimestampMixin, Base):
         return f"<TrackedTarget id={self.id} name={self.name!r}>"
 
 
+class ProjectManifest(TimestampMixin, Base):
+    """One file a project watches.
+
+    A project used to be one manifest — the kind and the content sat on
+    `TrackedTarget` itself. That is the wrong shape for the ordinary case: a
+    repository with a Go backend and an npm frontend is one project to the
+    person who owns it and two files to the scanner, and forcing them into two
+    projects means two API keys, two entries in the list, and a findings count
+    that has to be added up by hand.
+
+    `path` is what the file was called where it lives, so a monorepo with four
+    `package-lock.json` files can tell them apart. It is a label, not a
+    lookup: the server never sees the repository, so nothing here is resolved
+    against a filesystem.
+
+    The ecosystem is fixed per manifest and never inferred away. Replacing a
+    manifest with one of a different ecosystem is refused — that would silently
+    reinterpret every finding already recorded against it — but *adding* one of
+    a new ecosystem is the whole point of this table.
+    """
+
+    __tablename__ = "project_manifests"
+    __table_args__ = (
+        # A project cannot watch the same path twice. Two files of the same
+        # kind are fine as long as they are in different places, which is
+        # exactly the monorepo case.
+        UniqueConstraint("target_id", "path", name="uq_manifest_target_path"),
+        Index("ix_project_manifests_target", "target_id", "is_active"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    target_id: Mapped[int] = mapped_column(
+        ForeignKey("tracked_targets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    #: Where the file lives in the repository, as the uploader described it.
+    #: Defaults to the bare filename for a single-manifest project, which is
+    #: what every project migrated from the old shape gets.
+    path: Mapped[str] = mapped_column(String(400), nullable=False)
+
+    kind: Mapped[ManifestKind] = mapped_column(
+        enum_column(ManifestKind, "manifest_kind"), nullable=False
+    )
+    ecosystem: Mapped[Ecosystem] = mapped_column(
+        enum_column(Ecosystem, "ecosystem"), nullable=False
+    )
+
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    #: SHA-256, so re-pushing an identical file is a no-op.
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
+    #: A manifest can be switched off without being deleted — useful when a
+    #: sub-project is archived but its finding history is worth keeping.
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
+    dependency_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    parse_warnings: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    last_parsed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    last_parse_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    target: Mapped[TrackedTarget] = relationship(back_populates="manifests")
+
+    def __repr__(self) -> str:
+        return f"<ProjectManifest {self.path!r} {self.ecosystem}>"
+
+
 class DependencyRecord(Base):
     """One resolved dependency of a target, as of the last parse."""
 
     __tablename__ = "dependencies"
     __table_args__ = (
-        UniqueConstraint("target_id", "name", "version", name="uq_dependency_target_name_version"),
+        # Keyed by manifest, not only by project. The same package at the same
+        # version can legitimately appear in a backend and a frontend lockfile,
+        # and — more sharply — the same *name* can exist in two ecosystems.
+        # Keying on the project alone collapsed those into one row whose
+        # ecosystem was whichever parse happened to run last.
+        UniqueConstraint(
+            "manifest_id", "name", "version", name="uq_dependency_manifest_name_version"
+        ),
         Index("ix_dependencies_lookup", "ecosystem", "name", "version"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     target_id: Mapped[int] = mapped_column(
         ForeignKey("tracked_targets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    manifest_id: Mapped[int] = mapped_column(
+        ForeignKey("project_manifests.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     ecosystem: Mapped[Ecosystem] = mapped_column(
@@ -809,9 +902,16 @@ class FeedSync(Base):
 class CVEMatch(TimestampMixin, Base):
     """A vulnerability affecting a tracked target.
 
-    Rows are keyed on (target, package, version, advisory) so a finding keeps a
-    stable identity across scans: `first_seen_at` survives, a dismissal sticks,
-    and re-alerting on something the user already handled cannot happen.
+    Rows are keyed on (manifest, package, version, advisory) so a finding keeps
+    a stable identity across scans: `first_seen_at` survives, a dismissal
+    sticks, and re-alerting on something the user already handled cannot
+    happen.
+
+    Keyed on the manifest rather than the project because "which file do I fix
+    this in" is the actionable half of the answer. In a repository with a
+    backend and a frontend lockfile, the same vulnerable package in both is two
+    pieces of work for probably two different people; collapsing them would
+    report the problem without saying where it is.
 
     Suppressed matches are stored alongside actionable ones. That is deliberate
     — the count of advisories deliberately not shown is the product's core
@@ -822,7 +922,7 @@ class CVEMatch(TimestampMixin, Base):
     __tablename__ = "cve_matches"
     __table_args__ = (
         UniqueConstraint(
-            "target_id",
+            "manifest_id",
             "package_name",
             "package_version",
             "vulnerability_id",
@@ -839,6 +939,11 @@ class CVEMatch(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     target_id: Mapped[int] = mapped_column(
         ForeignKey("tracked_targets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    #: Which of the project's files this was found in. Denormalised alongside
+    #: `target_id` because almost every query filters by project first.
+    manifest_id: Mapped[int] = mapped_column(
+        ForeignKey("project_manifests.id", ondelete="CASCADE"), nullable=False, index=True
     )
     vulnerability_id: Mapped[str] = mapped_column(
         ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False, index=True

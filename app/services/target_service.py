@@ -8,9 +8,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.manifests import ManifestParseError, detect_manifest_kind, parse_manifest
-from app.core.types import AlertStatus, Ecosystem, Severity, Verdict
+from app.core.types import AlertStatus, Ecosystem, ManifestKind, Severity, Verdict
 from app.logging_config import get_logger
-from app.models import CVEMatch, TrackedTarget, User, utcnow
+from app.models import CVEMatch, ProjectManifest, TrackedTarget, User, utcnow
 from app.security import content_hash
 from app.tiers import can_add_target, target_limit_message
 
@@ -102,6 +102,155 @@ async def create_empty_target(
     return target
 
 
+async def load_manifests(db: AsyncSession, target: TrackedTarget) -> list[ProjectManifest]:
+    """This project's manifests, oldest first.
+
+    Queried rather than read off `target.manifests`: a target arrives here by
+    several routes and an unloaded collection raises MissingGreenlet under the
+    async session.
+    """
+    return list(
+        await db.scalars(
+            select(ProjectManifest)
+            .where(ProjectManifest.target_id == target.id)
+            .order_by(ProjectManifest.id)
+        )
+    )
+
+
+def _mirror_primary(target: TrackedTarget, manifests: list[ProjectManifest]) -> None:
+    """Copy the primary manifest's facts onto the target.
+
+    `TrackedTarget.manifest_kind`, `manifest_content`, `content_hash`,
+    `dependency_count` and `parse_warnings` predate manifests being rows. They
+    are kept as a view of the *first active* manifest so that everything
+    reading them — the dashboard, the admin panel, the project API — carries on
+    working while the rest catches up.
+
+    Written here and nowhere else. A mirror updated in five call sites is a
+    mirror that disagrees with its source within a month.
+    """
+    primary = next((m for m in manifests if m.is_active), None)
+    if primary is None:
+        target.manifest_kind = None
+        target.manifest_content = None
+        target.content_hash = None
+        target.dependency_count = 0
+        target.parse_warnings = []
+        return
+
+    target.manifest_kind = primary.kind
+    target.manifest_content = primary.content
+    target.content_hash = primary.content_hash
+    target.ecosystem = primary.ecosystem
+    # The project's totals are the sum across its files, not the first one's.
+    active = [m for m in manifests if m.is_active]
+    target.dependency_count = sum(m.dependency_count for m in active)
+    target.parse_warnings = [w for m in active for w in m.parse_warnings][:50]
+
+
+def _parse_or_refuse(kind: ManifestKind, content: str):
+    """Parse, turning both failure modes into the message the user sees."""
+    try:
+        parsed = parse_manifest(kind, content)
+    except ManifestParseError as exc:
+        raise UnsupportedManifest(str(exc)) from exc
+
+    if not parsed.dependencies:
+        detail = f" ({parsed.warnings[0]})" if parsed.warnings else ""
+        raise UnsupportedManifest(
+            f"No dependencies with checkable versions were found in that file{detail}."
+        )
+    return parsed
+
+
+def _detect_or_refuse(filename: str, content: str) -> ManifestKind:
+    kind = detect_manifest_kind(filename, content)
+    if kind is None:
+        raise UnsupportedManifest(
+            "Could not recognise that file. Supported manifests are package.json, "
+            "package-lock.json, requirements.txt and go.mod."
+        )
+    return kind
+
+
+async def add_manifest(
+    db: AsyncSession,
+    target: TrackedTarget,
+    *,
+    filename: str,
+    content: str,
+    path: str | None = None,
+) -> ProjectManifest:
+    """Add another file to a project.
+
+    This is the one operation that may introduce a new ecosystem. Replacing an
+    existing manifest with one of a different ecosystem is still refused — that
+    would reinterpret findings already recorded against it — but a repository
+    with a Go backend and an npm frontend is one project, and this is how the
+    second file gets in.
+
+    `path` labels the file. It is what distinguishes four `package-lock.json`
+    files in a monorepo, and it is a label rather than a lookup: the server
+    never sees the repository.
+    """
+    kind = _detect_or_refuse(filename, content)
+    parsed = _parse_or_refuse(kind, content)
+
+    label = (path or filename or kind.value).strip()[:400]
+
+    manifests = await load_manifests(db, target)
+    existing = next((m for m in manifests if m.path == label), None)
+    if existing is not None:
+        raise UnsupportedManifest(
+            f"This project already watches {label}. Push it again to update it, "
+            f"or give this one a different path."
+        )
+
+    manifest = ProjectManifest(
+        target_id=target.id,
+        path=label,
+        kind=kind,
+        ecosystem=parsed.ecosystem,
+        content=content,
+        content_hash=content_hash(content),
+        dependency_count=len(parsed.dependencies),
+        parse_warnings=parsed.warnings[:50],
+    )
+    db.add(manifest)
+    await db.flush()
+
+    _mirror_primary(target, [*manifests, manifest])
+    target.next_scan_at = None
+    target.updated_at = utcnow()
+
+    log.info(
+        "manifest.added",
+        target_id=target.id,
+        manifest_id=manifest.id,
+        path=label,
+        ecosystem=parsed.ecosystem.value,
+    )
+    return manifest
+
+
+async def remove_manifest(
+    db: AsyncSession, target: TrackedTarget, manifest: ProjectManifest
+) -> None:
+    """Stop watching one file. Its findings go with it.
+
+    The last manifest can be removed: that returns the project to the state it
+    had before its first upload, which is a supported state and the one an
+    empty project starts in.
+    """
+    await db.delete(manifest)
+    await db.flush()
+
+    _mirror_primary(target, await load_manifests(db, target))
+    target.updated_at = utcnow()
+    log.info("manifest.removed", target_id=target.id, path=manifest.path)
+
+
 async def create_target(
     db: AsyncSession,
     user: User,
@@ -119,40 +268,34 @@ async def create_target(
     if not can_add_target(user.tier, current):
         raise TargetLimitReached(target_limit_message(user.tier))
 
-    kind = detect_manifest_kind(filename, content)
-    if kind is None:
-        raise UnsupportedManifest(
-            "Could not recognise that file. Supported manifests are package.json, "
-            "package-lock.json, requirements.txt and go.mod."
-        )
-
-    try:
-        parsed = parse_manifest(kind, content)
-    except ManifestParseError as exc:
-        raise UnsupportedManifest(str(exc)) from exc
-
-    if not parsed.dependencies:
-        detail = f" ({parsed.warnings[0]})" if parsed.warnings else ""
-        raise UnsupportedManifest(
-            f"No dependencies with checkable versions were found in that file{detail}."
-        )
+    kind = _detect_or_refuse(filename, content)
+    parsed = _parse_or_refuse(kind, content)
 
     name = (display_name or "").strip() or parsed.project_name or filename or kind.value
 
     target = TrackedTarget(
         user_id=user.id,
         name=name[:200],
-        manifest_kind=kind,
         ecosystem=parsed.ecosystem,
-        manifest_content=content,
-        content_hash=content_hash(content),
-        dependency_count=len(parsed.dependencies),
-        parse_warnings=parsed.warnings[:50],
         # Null means "due now", so the next scheduler tick picks it up.
         next_scan_at=None,
     )
     db.add(target)
     await db.flush()
+
+    manifest = ProjectManifest(
+        target_id=target.id,
+        path=(filename or kind.value)[:400],
+        kind=kind,
+        ecosystem=parsed.ecosystem,
+        content=content,
+        content_hash=content_hash(content),
+        dependency_count=len(parsed.dependencies),
+        parse_warnings=parsed.warnings[:50],
+    )
+    db.add(manifest)
+    await db.flush()
+    _mirror_primary(target, [manifest])
 
     log.info(
         "target.created",
@@ -186,7 +329,9 @@ async def replace_manifest(
     if digest == target.content_hash:
         return False
 
-    kind = target.manifest_kind
+    manifests = await load_manifests(db, target)
+    primary = next((m for m in manifests if m.is_active), None)
+    kind = primary.kind if primary else target.manifest_kind
     if filename:
         detected = detect_manifest_kind(filename, content)
         if detected is None:
@@ -205,31 +350,53 @@ async def replace_manifest(
             "package-lock.json, requirements.txt or go.mod."
         )
 
-    try:
-        parsed = parse_manifest(kind, content)
-    except ManifestParseError as exc:
-        raise UnsupportedManifest(str(exc)) from exc
+    parsed = _parse_or_refuse(kind, content)
 
-    if not parsed.dependencies:
-        detail = f" ({parsed.warnings[0]})" if parsed.warnings else ""
-        raise UnsupportedManifest(
-            f"No dependencies with checkable versions were found in that file{detail}."
-        )
-
-    # Switching ecosystem would silently reinterpret every stored finding, so
-    # it is refused rather than applied. A Python project does not become a Go
-    # project; a key pointed at the wrong repository does.
-    if parsed.ecosystem != target.ecosystem:
+    # Switching a manifest's ecosystem would silently reinterpret every finding
+    # already stored against it, so it is refused rather than applied. A Python
+    # file does not become a Go file; a key pointed at the wrong repository
+    # does. Adding a *new* file of another ecosystem is `add_manifest`, and is
+    # allowed — that is the multi-language case rather than a mistake.
+    if primary is not None:
+        if parsed.ecosystem != primary.ecosystem:
+            raise UnsupportedManifest(
+                f"This file is {parsed.ecosystem}, but {primary.path} is {primary.ecosystem}. "
+                f"Add it as another manifest on this project rather than replacing that one."
+            )
+    elif parsed.ecosystem != target.ecosystem:
+        # No file yet, but the project declared an ecosystem when it was
+        # created, and an API key was scoped to it on that basis. A key pointed
+        # at the wrong repository looks exactly like this, so it is refused
+        # rather than quietly redefining what the project is.
         raise UnsupportedManifest(
             f"This project tracks {target.ecosystem} dependencies, but that file is "
             f"{parsed.ecosystem}. Add it as a separate project."
         )
 
-    target.manifest_kind = kind
-    target.manifest_content = content
-    target.content_hash = digest
-    target.dependency_count = len(parsed.dependencies)
-    target.parse_warnings = parsed.warnings[:50]
+    if primary is None:
+        # First manifest for a project created without one.
+        primary = ProjectManifest(
+            target_id=target.id,
+            path=(filename or kind.value)[:400],
+            kind=kind,
+            ecosystem=parsed.ecosystem,
+            content=content,
+            content_hash=digest,
+        )
+        db.add(primary)
+        await db.flush()
+        manifests = [*manifests, primary]
+    else:
+        primary.kind = kind
+        primary.content = content
+        primary.content_hash = digest
+        if filename:
+            primary.path = filename[:400]
+
+    primary.dependency_count = len(parsed.dependencies)
+    primary.parse_warnings = parsed.warnings[:50]
+
+    _mirror_primary(target, manifests)
     target.next_scan_at = None  # re-scan on the next tick
     target.updated_at = utcnow()
     return True

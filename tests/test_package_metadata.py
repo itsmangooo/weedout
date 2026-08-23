@@ -26,6 +26,7 @@ from app.core.supply_chain import (
 )
 from app.core.types import Ecosystem
 from app.feeds.registry import RegistryClient, RegistryError, supports_metadata
+from tests.factories import set_manifest
 
 NPM = Ecosystem.NPM
 PYPI = Ecosystem.PYPI
@@ -215,7 +216,7 @@ class TestTheCache:
         await seed_mirror(db)
         target = await make_target(db, pro_user)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {"express": "4.0.0"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"express": "4.0.0"}}))
         await scan_target(db, target)
         await db.commit()
 
@@ -243,7 +244,7 @@ class TestTheCache:
         )
         target = await make_target(db, pro_user)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {"express": "4.0.0"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"express": "4.0.0"}}))
         await db.flush()
 
         await scan_target(db, target)
@@ -278,7 +279,7 @@ class TestTheCache:
         )
         target = await make_target(db, pro_user)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {"express": "4.0.0"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"express": "4.0.0"}}))
         await db.flush()
 
         await scan_target(db, target)
@@ -303,7 +304,7 @@ class TestTheCache:
         )
         target = await make_target(db, user)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {"express": "4.0.0"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"express": "4.0.0"}}))
         await db.flush()
 
         await scan_target(db, target)

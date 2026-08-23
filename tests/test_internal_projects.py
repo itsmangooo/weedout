@@ -23,6 +23,7 @@ from app.core.types import KeyScope, ManifestKind
 from app.models import ApiKey, IgnoreRule, TrackedTarget
 from app.security import content_hash
 from tests.conftest import set_csrf, sign_in
+from tests.factories import attach_manifest
 
 MANIFEST = json.dumps({"dependencies": {"lodash": "4.17.15"}})
 
@@ -39,6 +40,7 @@ async def make_project(db, owner, name="demo") -> TrackedTarget:
     )
     db.add(target)
     await db.flush()
+    await attach_manifest(db, target)
     return target
 
 

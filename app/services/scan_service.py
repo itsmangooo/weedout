@@ -30,7 +30,15 @@ from app.core.manifests import ManifestParseError, parse_manifest
 from app.core.matching import DEFAULT_POLICY, MatchPolicy, triage_all
 from app.core.types import AlertStatus, Dependency, ScanResult, Verdict
 from app.logging_config import get_logger
-from app.models import CVEMatch, DependencyRecord, ScanRun, TrackedTarget, User, utcnow
+from app.models import (
+    CVEMatch,
+    DependencyRecord,
+    ProjectManifest,
+    ScanRun,
+    TrackedTarget,
+    User,
+    utcnow,
+)
 from app.services.feed_service import load_epss_index, load_kev_index
 from app.services.mirror_service import (
     find_local_vulnerabilities,
@@ -105,8 +113,29 @@ async def scan_target(
     effective = await build_policy(db, target, owner, base=policy)
     policy = effective.policy
 
+    # Queried rather than read off the relationship. `target` reaches this
+    # function by several routes — freshly constructed, loaded by the
+    # scheduler, handed over by the API — and touching a collection that
+    # happens to be unloaded raises MissingGreenlet under the async session.
+    # The same reason `owner` is fetched by id above.
+    manifests = list(
+        await db.scalars(
+            select(ProjectManifest)
+            .where(ProjectManifest.target_id == target.id, ProjectManifest.is_active.is_(True))
+            .order_by(ProjectManifest.id)
+        )
+    )
+
     try:
-        result = await _run_pipeline(db, target, policy)
+        if not manifests:
+            # A project created without a file. Nothing to scan, and refusing
+            # here keeps it out of the "scanned, clean" state it has not
+            # earned.
+            raise NoManifest(
+                "This project has no manifest yet. Upload one, or push a scan with "
+                "the CLI using an API key for this project."
+            )
+        result = await _scan_every_manifest(db, target, manifests, policy)
     except NoManifest as exc:
         # Not a failure: this is what a project looks like between being created
         # and receiving its first file. The run row is discarded rather than
@@ -119,9 +148,15 @@ async def scan_target(
         _schedule_next_scan(target, tier)
         outcome.errors.append(message)
         return outcome
-    except ManifestParseError as exc:
-        message = f"Could not parse manifest: {exc}"
-        log.warning("scan.parse_failed", target_id=target.id, error=str(exc))
+    except AllManifestsFailed as exc:
+        # Every file this project has is unreadable. Reported as a failed run,
+        # exactly as a single unparseable manifest used to be — but a project
+        # where only *one* of three files is broken now reports the other two
+        # and carries the error alongside them, because blinding somebody to
+        # their backend because the frontend lockfile is malformed is a worse
+        # answer than a partial one.
+        message = str(exc)
+        log.warning("scan.parse_failed", target_id=target.id, error=message)
         _finish_run(run, status="failed", error=message)
         target.last_scan_error = message
         target.last_scanned_at = utcnow()
@@ -141,9 +176,7 @@ async def scan_target(
         outcome.errors.append(message)
         return outcome
 
-    scan_result, dependencies = result
-
-    new_matches, resolved_count = await _reconcile_matches(db, target, scan_result)
+    scan_result, dependencies, new_matches, resolved_count = result
 
     # Supply-chain signals are Pro-only and separate from CVE matching. Gated
     # here rather than inside the assessment so that a lapsed subscription
@@ -211,27 +244,24 @@ async def scan_target(
 async def _run_pipeline(
     db: AsyncSession,
     target: TrackedTarget,
+    manifest: ProjectManifest,
     policy: MatchPolicy,
 ) -> tuple[ScanResult, list[Dependency]]:
-    """Parse, look up advisories locally, triage.
+    """Parse one manifest, look up advisories locally, triage.
 
     Makes no outbound HTTP calls. Advisories come from the mirror the worker
     maintains, so a scan is bounded by database latency rather than by OSV's,
     and an OSV outage cannot fail or delay a CI pipeline waiting on this.
     """
-    if not target.has_manifest or target.manifest_kind is None:
-        # A project created without a file. Nothing to scan, and refusing here
-        # keeps it out of the "scanned, clean" state it has not earned.
-        raise NoManifest(
-            "This project has no manifest yet. Upload one, or push a scan with "
-            "the CLI using an API key for this project."
-        )
-
-    parsed = parse_manifest(target.manifest_kind, target.manifest_content)
+    parsed = parse_manifest(manifest.kind, manifest.content)
     dependencies = parsed.dependencies
-    target.parse_warnings = parsed.warnings[:50]
 
-    await _sync_dependency_rows(db, target, dependencies)
+    manifest.parse_warnings = parsed.warnings[:50]
+    manifest.dependency_count = len(dependencies)
+    manifest.last_parsed_at = utcnow()
+    manifest.last_parse_error = None
+
+    await _sync_dependency_rows(db, target, manifest, dependencies)
 
     if not dependencies:
         return ScanResult(dependencies_scanned=0, errors=tuple(parsed.warnings[:5])), []
@@ -279,18 +309,93 @@ async def _run_pipeline(
     )
 
 
+class AllManifestsFailed(RuntimeError):
+    """Every manifest on the project failed to parse."""
+
+
+async def _scan_every_manifest(
+    db: AsyncSession,
+    target: TrackedTarget,
+    manifests: list[ProjectManifest],
+    policy: MatchPolicy,
+) -> tuple[ScanResult, list[Dependency], list[CVEMatch], int]:
+    """Scan each file and add the answers up.
+
+    One project, one outcome — that is still the unit somebody added, pays for
+    and gets alerted about — but the work and the findings are per file.
+
+    A file that will not parse does not stop the others. Its error is carried
+    into the result so it is visible next to the findings that did come back,
+    and it is recorded on the manifest so the project page can point at the
+    file rather than at the project. Only when *every* file fails is the run
+    itself a failure.
+    """
+    results: list[ScanResult] = []
+    dependencies: list[Dependency] = []
+    new_matches: list[CVEMatch] = []
+    resolved = 0
+    parse_errors: list[str] = []
+
+    for manifest in manifests:
+        try:
+            result, deps = await _run_pipeline(db, target, manifest, policy)
+        except ManifestParseError as exc:
+            message = f"{manifest.path}: could not parse ({exc})"
+            manifest.last_parse_error = str(exc)[:500]
+            manifest.last_parsed_at = utcnow()
+            parse_errors.append(message)
+            log.warning(
+                "scan.manifest_parse_failed",
+                target_id=target.id,
+                manifest_id=manifest.id,
+                path=manifest.path,
+                error=str(exc),
+            )
+            continue
+
+        created, gone = await _reconcile_matches(db, target, manifest, result)
+        results.append(result)
+        dependencies.extend(deps)
+        new_matches.extend(created)
+        resolved += gone
+
+    if not results:
+        raise AllManifestsFailed(
+            "; ".join(parse_errors) or "No manifest on this project could be parsed."
+        )
+
+    combined = ScanResult(
+        actionable=tuple(d for r in results for d in r.actionable),
+        suppressed=tuple(d for r in results for d in r.suppressed),
+        dependencies_scanned=sum(r.dependencies_scanned for r in results),
+        # Parse failures first: they explain a number that is lower than the
+        # reader expects, and that is the most important thing on the list.
+        errors=(*parse_errors, *dict.fromkeys(e for r in results for e in r.errors)),
+        unreached_by_depth=sum(r.unreached_by_depth for r in results),
+    )
+    return combined, dependencies, new_matches, resolved
+
+
 async def _sync_dependency_rows(
-    db: AsyncSession, target: TrackedTarget, dependencies: list[Dependency]
+    db: AsyncSession,
+    target: TrackedTarget,
+    manifest: ProjectManifest,
+    dependencies: list[Dependency],
 ) -> None:
-    """Replace the stored dependency list with the freshly parsed one.
+    """Replace one manifest's stored dependency list with the fresh parse.
 
     Wholesale replacement rather than a diff: the dependency table is a cache of
     the manifest for display, it carries no user-owned state, and the manifest
     is the authority. Findings survive because `CVEMatch` denormalises the
     package name and version instead of referencing these rows.
+
+    Scoped to the manifest, not the project. Clearing by `target_id` would wipe
+    the other files' dependencies every time one of them was scanned.
     """
     existing = (
-        await db.scalars(select(DependencyRecord).where(DependencyRecord.target_id == target.id))
+        await db.scalars(
+            select(DependencyRecord).where(DependencyRecord.manifest_id == manifest.id)
+        )
     ).all()
     for row in existing:
         await db.delete(row)
@@ -300,6 +405,7 @@ async def _sync_dependency_rows(
         db.add(
             DependencyRecord(
                 target_id=target.id,
+                manifest_id=manifest.id,
                 ecosystem=dep.ecosystem,
                 name=dep.name,
                 version=dep.version,
@@ -314,14 +420,17 @@ async def _sync_dependency_rows(
 
 
 async def _reconcile_matches(
-    db: AsyncSession, target: TrackedTarget, result: ScanResult
+    db: AsyncSession, target: TrackedTarget, manifest: ProjectManifest, result: ScanResult
 ) -> tuple[list[CVEMatch], int]:
-    """Merge this scan's findings with what is already stored.
+    """Merge one manifest's findings with what is already stored for it.
 
     Returns the newly-created actionable matches (the ones worth emailing about)
     and the count of previously-open matches that no longer apply.
+
+    Scoped to the manifest: resolving by project would mark a finding in the
+    frontend lockfile as fixed because the backend scan did not see it.
     """
-    stored = (await db.scalars(select(CVEMatch).where(CVEMatch.target_id == target.id))).all()
+    stored = (await db.scalars(select(CVEMatch).where(CVEMatch.manifest_id == manifest.id))).all()
     by_identity = {
         (row.package_name, row.package_version, row.vulnerability_id): row for row in stored
     }
@@ -342,6 +451,7 @@ async def _reconcile_matches(
         if existing is None:
             match = CVEMatch(
                 target_id=target.id,
+                manifest_id=manifest.id,
                 vulnerability_id=decision.vulnerability.id,
                 ecosystem=decision.dependency.ecosystem,
                 package_name=decision.dependency.name,

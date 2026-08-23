@@ -25,6 +25,7 @@ from app.services.api_key_service import (
     issue_api_key,
     revoke_api_key,
 )
+from tests.factories import attach_manifest
 from tests.test_scan_pipeline import LODASH_ADVISORY, MANIFEST, seed_mirror
 
 VULNERABLE = json.dumps({"dependencies": {"lodash": "4.17.15"}})
@@ -64,6 +65,7 @@ async def make_target(db, owner, name="demo-app") -> TrackedTarget:
     )
     db.add(target)
     await db.flush()
+    await attach_manifest(db, target)
     return target
 
 

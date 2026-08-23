@@ -34,6 +34,7 @@ from app.core.types import (
     Vulnerability,
 )
 from app.models import CVEMatch
+from tests.factories import set_manifest
 
 LOG4SHELL = "CVE-2021-44228"
 
@@ -255,7 +256,7 @@ class TestEndToEnd:
 
         target = await make_target(db, pro_user)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {"lodash": "4.17.15"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"lodash": "4.17.15"}}))
         await scan_target(db, target)
         await db.commit()
 
@@ -290,7 +291,7 @@ class TestEndToEnd:
 
         target = await make_target(db, user)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {"lodash": "4.17.15"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"lodash": "4.17.15"}}))
         await scan_target(db, target)
         await db.commit()
 

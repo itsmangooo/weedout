@@ -34,6 +34,7 @@ from app.core.types import (
 )
 from app.models import IgnoreRule, TrackedTarget
 from tests.conftest import set_csrf
+from tests.factories import set_manifest
 
 CVE = "CVE-2021-23337"
 
@@ -378,7 +379,7 @@ class TestEndToEnd:
         await seed_mirror(db, LODASH_ADVISORY)
         target = await make_target(db, pro_user)
         target.manifest_kind = ManifestKind.PACKAGE_JSON
-        target.manifest_content = json.dumps({"dependencies": {"lodash": "4.17.15"}})
+        await set_manifest(db, target, json.dumps({"dependencies": {"lodash": "4.17.15"}}))
 
         before = await scan_target(db, target)
         assert before.suppressed_count + before.actionable_count > 0

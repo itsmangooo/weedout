@@ -23,6 +23,7 @@ from app.core.types import ContactCategory, MessageStatus, Tier
 from app.models import AdminAuditLog, ContactMessage, DocPage, User
 from app.security import hash_password
 from tests.conftest import set_csrf, sign_in
+from tests.factories import attach_manifest
 
 API = "/api/internal/admin"
 
@@ -155,9 +156,11 @@ class TestUserDetail:
         db.add(target)
         db.add(VulnerabilityRecord(id="GHSA-api-1", summary="test advisory"))
         await db.flush()
+        manifest = await attach_manifest(db, target)
 
         match = CVEMatch(
             target_id=target.id,
+            manifest_id=manifest.id,
             vulnerability_id="GHSA-api-1",
             ecosystem=Ecosystem.NPM,
             package_name="lodash",
