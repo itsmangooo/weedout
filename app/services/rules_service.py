@@ -78,7 +78,12 @@ async def build_policy(
         # file a Pro pipeline pushed earlier. They simply stop applying, which
         # is the same shape as every other tier check here: enforced at use,
         # not by deleting the user's configuration.
-        if target.policy_file or target.direct_threshold or target.transitive_threshold:
+        if (
+            target.policy_file
+            or target.direct_threshold
+            or target.transitive_threshold
+            or target.dev_threshold
+        ):
             notes.append("Custom scan rules are part of the Pro plan, so they were not applied.")
         return EffectivePolicy(policy=policy, notes=tuple(notes))
 
@@ -104,6 +109,10 @@ async def build_policy(
             or target.transitive_threshold
             or policy.transitive_threshold
         ),
+        # No default to fall back on: unset means the coarse switch decides,
+        # so `policy.dev_threshold` stays None rather than picking a floor
+        # nobody asked for.
+        dev_threshold=(parsed.dev_threshold or target.dev_threshold or policy.dev_threshold),
         # `or` is wrong for a float that can legitimately be 0-ish, so this is
         # explicit about which source spoke.
         epss_threshold=(

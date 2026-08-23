@@ -71,6 +71,9 @@ class ParsedPolicy:
 
     direct_threshold: Severity | None = None
     transitive_threshold: Severity | None = None
+    #: Severity floor for dependencies that never ship. See
+    #: `MatchPolicy.dev_threshold`.
+    dev_threshold: Severity | None = None
     #: Probability at or above which to alert, 0.0 to 1.0. None gates nothing.
     epss_threshold: float | None = None
     ignores: tuple[IgnoreEntry, ...] = ()
@@ -84,6 +87,7 @@ class ParsedPolicy:
         return (
             self.direct_threshold is None
             and self.transitive_threshold is None
+            and self.dev_threshold is None
             and self.epss_threshold is None
             and not self.ignores
         )
@@ -131,7 +135,7 @@ def parse_policy(content: str | bytes | None) -> ParsedPolicy:
         if key not in known:
             warnings.append(f"Ignoring unknown setting {key!r}.")
 
-    direct, transitive, severity_warnings = _read_severity(document.get("severity"))
+    direct, transitive, dev, severity_warnings = _read_severity(document.get("severity"))
     warnings.extend(severity_warnings)
 
     ignores, ignore_warnings = _read_ignores(document.get("ignore"))
@@ -143,6 +147,7 @@ def parse_policy(content: str | bytes | None) -> ParsedPolicy:
     return ParsedPolicy(
         direct_threshold=direct,
         transitive_threshold=transitive,
+        dev_threshold=dev,
         epss_threshold=epss,
         ignores=tuple(ignores),
         warnings=tuple(warnings),
@@ -179,16 +184,24 @@ def _read_epss(block: object) -> tuple[float | None, list[str]]:
     return value, warnings
 
 
-def _read_severity(block: object) -> tuple[Severity | None, Severity | None, list[str]]:
+#: The severity floors a policy file may set, and the reachability each one
+#: governs. `dev` is the odd one: leaving it unset does not mean "default", it
+#: means the coarse on/off switch decides — see `MatchPolicy.dev_threshold`.
+_SEVERITY_KEYS = ("direct", "transitive", "dev")
+
+
+def _read_severity(
+    block: object,
+) -> tuple[Severity | None, Severity | None, Severity | None, list[str]]:
     if block is None:
-        return None, None, []
+        return None, None, None, []
     if not isinstance(block, dict):
-        return None, None, ["`severity` should be a mapping; ignoring it."]
+        return None, None, None, ["`severity` should be a mapping; ignoring it."]
 
     warnings: list[str] = []
-    out: dict[str, Severity | None] = {"direct": None, "transitive": None}
+    out: dict[str, Severity | None] = dict.fromkeys(_SEVERITY_KEYS)
 
-    for key in ("direct", "transitive"):
+    for key in _SEVERITY_KEYS:
         raw = block.get(key)
         if raw is None:
             continue
@@ -199,10 +212,10 @@ def _read_severity(block: object) -> tuple[Severity | None, Severity | None, lis
         out[key] = _THRESHOLDS[raw.strip().lower()]
 
     for key in block:
-        if key not in ("direct", "transitive"):
+        if key not in _SEVERITY_KEYS:
             warnings.append(f"Ignoring unknown severity setting {key!r}.")
 
-    return out["direct"], out["transitive"], warnings
+    return out["direct"], out["transitive"], out["dev"], warnings
 
 
 def _read_ignores(block: object) -> tuple[list[IgnoreEntry], list[str]]:

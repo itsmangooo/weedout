@@ -452,6 +452,12 @@ class TrackedTarget(TimestampMixin, Base):
     transitive_threshold: Mapped[Severity | None] = mapped_column(
         enum_column(Severity, "severity"), nullable=True
     )
+    #: The same for one that never ships — a linter, a test runner, a build
+    #: plugin. Null means the coarse on/off behaviour applies instead, which is
+    #: what every project starts with. See `MatchPolicy.dev_threshold`.
+    dev_threshold: Mapped[Severity | None] = mapped_column(
+        enum_column(Severity, "severity"), nullable=True
+    )
 
     #: Alert when EPSS is at or above this, or null to never gate on it.
     #:

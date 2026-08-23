@@ -68,7 +68,25 @@ class MatchPolicy:
     transitive_threshold: Severity = Severity.CRITICAL
 
     #: Whether non-KEV findings in dev-only dependencies can alert at all.
+    #:
+    #: The coarse switch. `dev_threshold` is the precise one and wins when set;
+    #: this remains the answer when nobody has expressed a preference.
     alert_on_dev_dependencies: bool = False
+
+    #: Severity floor for a dependency that never reaches production — a
+    #: linter, a test runner, a build plugin.
+    #:
+    #: None means "use `alert_on_dev_dependencies`", which is what every
+    #: project starts with. Setting it is the more honest instrument: a
+    #: critical in a linter is not a critical in a web framework, but it is
+    #: not nothing either, and switching dev findings off entirely hides a
+    #: genuinely compromised build tool.
+    #:
+    #: Only reachable on Pro, and only meaningful where the manifest says
+    #: which dependencies are dev-only — npm's devDependencies, Maven's
+    #: `test` and `provided` scopes, Gradle's test classpaths. Cargo.lock does
+    #: not record it, so nothing there is ever classified dev-only.
+    dev_threshold: Severity | None = None
 
     #: How far down the dependency tree to look. `None` means all the way.
     #:
@@ -111,6 +129,8 @@ class MatchPolicy:
     def threshold_for(self, reachability: Reachability) -> Severity:
         if reachability is Reachability.RUNTIME_DIRECT:
             return self.direct_threshold
+        if reachability is Reachability.DEV_ONLY and self.dev_threshold is not None:
+            return self.dev_threshold
         return self.transitive_threshold
 
 
@@ -236,8 +256,18 @@ def triage(
 
     reachability = dependency.reachability
 
-    if not reachability.ships_to_production and not policy.alert_on_dev_dependencies:
-        return replace(base, suppression_reason=SuppressionReason.DEV_ONLY_DEPENDENCY)
+    if not reachability.ships_to_production:
+        # A floor of its own, where the project set one: judged like anything
+        # else, just held to a higher bar. Without one, the coarse switch
+        # decides — and off means every dev finding is filed rather than
+        # raised.
+        if policy.dev_threshold is None and not policy.alert_on_dev_dependencies:
+            return replace(base, suppression_reason=SuppressionReason.DEV_ONLY_DEPENDENCY)
+        if policy.dev_threshold is not None and vulnerability.severity < policy.dev_threshold:
+            # Below the dev floor specifically, which is a different sentence
+            # from "below the production floor" and a different one again from
+            # "we do not report dev dependencies".
+            return replace(base, suppression_reason=SuppressionReason.DEV_ONLY_DEPENDENCY)
 
     threshold = policy.threshold_for(reachability)
     if vulnerability.severity >= threshold:
