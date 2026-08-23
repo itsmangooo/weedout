@@ -6,6 +6,7 @@ import { AccountKeys } from "../features/settings/components/AccountKeys";
 import { PasswordSection } from "../features/settings/components/PasswordSection";
 import { RuleProfiles } from "../features/settings/components/RuleProfiles";
 import { SessionList } from "../features/settings/components/SessionList";
+import { SignedInMachines } from "../features/settings/components/SignedInMachines";
 import { TwoFactorSection } from "../features/settings/components/TwoFactorSection";
 import { useProfiles } from "../features/settings/hooks/useProfiles";
 import { useSettings, useSettingsMutation } from "../features/settings/hooks/useSettings";
@@ -50,6 +51,7 @@ export function SettingsPage() {
       <TwoFactorSection account={page.data} />
       <PasswordSection />
       <SessionList sessions={page.sessions} />
+      <SignedInMachines />
       <AccountKeys keys={page.api_keys} projects={page.projects} />
     </div>
   );

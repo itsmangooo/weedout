@@ -1,5 +1,6 @@
 import { Download, PackageX } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router";
 
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { InlineNotice } from "../components/ui/InlineNotice";
@@ -204,16 +205,33 @@ function Install() {
       <pre className="command-block">
         <code>{installer.command}</code>
       </pre>
-      <pre className="command-block">
-        <code>weedout scan --ci</code>
-      </pre>
 
+      <h3 className="cli-subhead">On your machine</h3>
+      <pre className="command-block">
+        <code>
+          weedout auth{"\n"}
+          weedout create{"\n"}
+          weedout scan
+        </code>
+      </pre>
       <p className="cli-note">
-        The key decides which project the scan belongs to, so there is nothing else to configure.
-        Put it in <code>WEEDOUT_API_KEY</code>, or run <code>weedout init</code> to write a{" "}
-        <code>.weedout</code> — which holds the key, so keep it out of the repository.
-        <code>.weedout.yml</code> is the other file: your scan rules, and that one belongs
-        in version control.
+        <code>weedout auth</code> prints an eight-character code and opens your browser. Check
+        the page shows the same code, approve, and you are signed in — nothing is copied,
+        pasted, or printed. <code>weedout create</code> then makes a project for this directory
+        and saves its key where only your account can read it.
+      </p>
+
+      <h3 className="cli-subhead">In CI</h3>
+      <pre className="command-block">
+        <code>
+          export WEEDOUT_API_KEY=wo_...{"\n"}
+          weedout scan --ci
+        </code>
+      </pre>
+      <p className="cli-note">
+        A pipeline has no browser, so it gets a project key instead. Use a scan-scoped one: it
+        is the narrowest thing that works, and it is the one that ends up in a build log.{" "}
+        <Link to="/docs/the-cli">Both credentials, and what each can do</Link>.
       </p>
     </section>
   );

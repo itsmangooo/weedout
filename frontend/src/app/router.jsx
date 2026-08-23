@@ -178,6 +178,18 @@ export const appRoutes = [
                 },
               },
               {
+                // Approving a machine that ran `weedout auth`. Inside the
+                // signed-in boundary because the whole point is that a person
+                // with the account grants this deliberately; a stranger
+                // reaching it gets sent to sign in first, which is correct.
+                path: "cli-auth",
+                handle: { title: "Sign in a machine" },
+                lazy: async () => {
+                  const { CliAuthPage } = await import("../pages/CliAuthPage");
+                  return { Component: CliAuthPage };
+                },
+              },
+              {
                 path: "settings",
                 handle: { title: "Settings" },
                 lazy: async () => {

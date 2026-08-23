@@ -14,6 +14,55 @@ Entries note breaking changes and anything a deployment has to do by hand.
 
 ### 2026-08-24
 
+**`weedout auth`: a credential reaches a laptop without passing through one.**
+What it replaces is worse than it looks — "create a key in Settings, copy it,
+paste it into your terminal" puts a live credential through a clipboard, a
+scrollback, a shell history, and often a chat window where somebody asked a
+colleague for help. Every one of those outlives the moment.
+
+The CLI prints a short code and a URL and waits. A signed-in browser shows the
+same code; you approve; the token arrives over the poll's own TLS connection
+and goes straight to a 0600 file. It is never printed, not even with
+`--verbose`.
+
+- Two secrets doing different jobs. The code a person reads is short and
+  therefore guessable, so it can only *confirm* a request that already exists.
+  The 256-bit device code is what collects the token, and only the waiting
+  process has ever held it.
+- Approval is session-authenticated and CSRF-protected. Without CSRF, a page
+  somebody visits while signed in could hand an attacker a credential.
+- Single use in both directions, rate limited at both ends, ten-minute window.
+- The approval page shows the machine's label and address next to a plain
+  statement that neither was verified. A page that just says "Approve?" trains
+  people to click yes.
+- Signed-in machines are listed in account settings and can be revoked. A login
+  you can grant and cannot see is a login you cannot take back.
+
+**A second credential type, kept apart from the first.** A project key pushes
+scans and reads findings for one project, and is what sits in CI. A machine
+credential creates projects and mints keys, and cannot read a single finding.
+Separate tables, separate namespace, separate dependency — neither can be
+widened into the other by getting a boolean wrong, and the route guardrail now
+asserts that in both directions.
+
+- `weedout create`, `weedout link`, `weedout key regenerate`: a project key is
+  issued to the process that asked for it. Nobody copies one out of a browser.
+- Rotation mints before it revokes, so a failure part-way leaves a working
+  credential rather than none.
+
+**A global config, so a developer with eight checkouts needs no setup.**
+`~/.config/weedout/config.json` and its per-OS equivalents, 0600, written
+atomically. Holds the machine credential and a map from repository path to
+project key. Resolution order: `--api-key`, then `WEEDOUT_API_KEY`, then a
+repository `.weedout`, then the global map. The environment still beats every
+file, because a stray `.weedout` in a checkout must never override what a
+pipeline was configured with.
+
+- The `.weedout` dotfile is unchanged and still the right answer for CI and
+  shared machines. The two are for different jobs and the docs say which.
+- **Deployment note:** the migration is additive and inert until somebody runs
+  `weedout auth`.
+
 **Fixed: `.weedout.yml` was documented, parsed, gated as Pro — and never
 uploaded by anything.** `/api/v1/scan` has accepted a `policy` multipart field
 the whole time and no client sent one, so every rule anybody wrote in a

@@ -171,3 +171,86 @@
     border-radius: var(--wo-radius);
   }
 }
+
+/* Approving a machine that ran `weedout auth`
+   -------------------------------------------------------------------------
+   The code is the security control on this page: somebody compares what is
+   here against what their terminal shows. It gets the treatment that makes
+   that comparison easy and the treatment that makes it feel deliberate —
+   large, monospaced, generously tracked, on its own. */
+
+.cli-auth {
+  display: grid;
+  gap: var(--wo-space-4);
+}
+
+.cli-auth__code {
+  margin: 0;
+  padding: var(--wo-space-5) var(--wo-space-4);
+  border: 1px solid var(--wo-border-strong);
+  border-radius: var(--wo-radius-sm);
+  background: var(--wo-level-1);
+  color: var(--wo-text);
+  font-family: var(--wo-font-mono);
+  font-size: clamp(1.6rem, 7vw, 2.4rem);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  /* The trailing letter-space would push the string visibly off centre. */
+  text-indent: 0.22em;
+  text-align: center;
+}
+
+.cli-auth__code-input {
+  font-family: var(--wo-font-mono);
+  font-size: 1.1rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.cli-auth__facts {
+  display: grid;
+  gap: var(--wo-space-3);
+  margin: 0;
+}
+
+.cli-auth__facts div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--wo-space-2);
+  padding-bottom: var(--wo-space-2);
+  border-bottom: 1px solid var(--wo-border);
+}
+
+.cli-auth__facts dt {
+  display: flex;
+  align-items: center;
+  gap: var(--wo-space-2);
+  color: var(--wo-text-muted);
+  font-size: 0.88rem;
+}
+
+.cli-auth__facts dd {
+  margin: 0;
+  font-family: var(--wo-font-mono);
+  font-size: 0.88rem;
+  /* A device label is attacker-controlled text. It must wrap rather than push
+     the layout sideways, and it must not be able to run past its cell. */
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+/* Side by side where there is room. The refusal is not hidden behind a
+   less-prominent treatment: somebody who does not recognise the request needs
+   that button to be as easy to find as the other one. */
+.cli-auth__actions {
+  grid-auto-flow: row;
+}
+
+@media (min-width: 30rem) {
+  .cli-auth__actions {
+    grid-auto-flow: column;
+    justify-content: start;
+  }
+}

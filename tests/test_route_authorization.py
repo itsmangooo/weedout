@@ -50,6 +50,23 @@ PUBLIC_ROUTES: dict[str, str] = {
     "/api/internal/auth/logout": "ends a session; harmless without one",
     "/api/internal/auth/forgot-password": "reset request; identical response either way",
     "/api/internal/auth/reset-password": "reset completion; the token is the credential",
+    # `weedout auth`. Unauthenticated because the caller has no credential
+    # yet -- that is the entire problem the flow exists to solve -- and outside
+    # /api/v1 so the bearer-key assertion protecting that namespace stays
+    # absolute. What stands in for authentication is asserted in
+    # TestCliAuthFlow: `start` writes one short-lived row and is IP rate
+    # limited; `poll` requires a 256-bit device code only the process that
+    # started the request has ever held. Neither can grant anything without a
+    # signed-in person approving it through the CSRF-protected internal
+    # endpoint.
+    "/api/cli-auth/start": (
+        "begins a login; the caller has no credential by definition, and this "
+        "grants nothing on its own"
+    ),
+    "/api/cli-auth/poll": (
+        "collects the result of a login somebody approved in a browser; "
+        "authenticated by a 256-bit device code, not by a session"
+    ),
     "/api/internal/pricing": "the plan table; the same thing the pricing page shows a stranger",
     "/api/internal/cli": "the CLI version and dependency list; both already public",
     "/api/internal/docs": "the published documentation index",
@@ -88,6 +105,11 @@ PUBLIC_ROUTES: dict[str, str] = {
         "where Dodo returns somebody after checkout. Served to anyone, "
         "because the shell holds nothing — what it shows comes from the API, "
         "which is session-guarded."
+    ),
+    "/cli-auth": (
+        "the static React shell, reached by opening a URL printed in a terminal. "
+        "Nothing about the account is in it, and the endpoints behind it that "
+        "read and approve a pending request are both session-guarded."
     ),
     "/settings": (
         "the static React shell. Nothing about the account is in it; the "
@@ -161,6 +183,21 @@ API_KEY_SCOPES = {
 
 API_KEY_ROUTES = set(API_KEY_SCOPES)
 
+#: Account-level operations, behind the credential `weedout auth` puts on a
+#: machine. A third namespace because it is a third credential.
+#:
+#: The split is the point. A project key can push a scan and read findings for
+#: one project, and is what sits in CI where anyone reading a build log can
+#: take it. A machine credential can create projects and mint keys for them,
+#: and cannot read a single finding. Neither can do the other's job, and
+#: `TestAccountApiSurface` asserts that rather than trusting it.
+ACCOUNT_ROUTES = {
+    "/api/account/projects",
+    "/api/account/keys",
+    "/api/account/keys/regenerate",
+    "/api/account/whoami",
+}
+
 # Browser-internal endpoints are a separate contract. They use the opaque
 # session cookie (optionally for the bootstrap endpoint) and must never be
 # swept into the bearer-key assertions above.
@@ -204,6 +241,16 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/projects/{target_id}/delete": "internal_user",
     "/api/internal/projects/{target_id}/keys": "internal_user",
     "/api/internal/projects/{target_id}/keys/{key_id}/revoke": "internal_user",
+    # Approving a machine login. The browser half of `weedout auth`, and the
+    # half that carries the authorisation: the terminal proves it started the
+    # request, this proves who is granting it. CSRF matters more here than
+    # almost anywhere -- without it a page somebody visits while signed in
+    # could hand an attacker a credential for the account.
+    "/api/internal/cli-auth/{code}": "internal_user",
+    "/api/internal/cli-auth/approve": "internal_user",
+    "/api/internal/cli-auth/deny": "internal_user",
+    "/api/internal/cli-tokens": "internal_user",
+    "/api/internal/cli-tokens/{token_id}/revoke": "internal_user",
     "/api/internal/projects/{target_id}/profile": "internal_user",
     "/api/internal/projects/{target_id}/rules": "internal_user",
     "/api/internal/projects/{target_id}/rules/{rule_id}/delete": "internal_user",
@@ -328,6 +375,12 @@ def classify(route: APIRoute) -> str:
         return "admin"
     if "require_api_key" in names:
         return "api_key"
+    # A third credential type, and the assertions below depend on it being
+    # distinguishable from the other two: a project key must not reach an
+    # account operation, and a machine credential must not reach a project's
+    # findings.
+    if "require_cli_token" in names:
+        return "cli_token"
     # Checked before `internal_user`, because the admin guard is built on top
     # of it — an admin route reports both names, and the stricter one is the
     # one that describes it.
@@ -452,6 +505,54 @@ class TestApiSurface:
                 assert "get_current_user" not in names
 
 
+class TestAccountApiSurface:
+    """The third credential, and the walls around it.
+
+    `weedout auth` puts a machine credential on a laptop. It exists to do the
+    things that have no project yet -- create one, list them, mint a key for
+    one -- and it must never become a way to read an account's findings, which
+    is what a project key is for.
+    """
+
+    def test_the_surface_is_exactly_what_is_expected(self, routes):
+        served = {r.path for r in routes if r.path.startswith("/api/account/")}
+        assert served == ACCOUNT_ROUTES
+
+    def test_every_account_route_requires_a_machine_credential(self, routes):
+        wrong = [
+            (sorted(r.methods), r.path, classify(r))
+            for r in routes
+            if r.path.startswith("/api/account/") and classify(r) != "cli_token"
+        ]
+        assert wrong == [], f"account routes not behind require_cli_token: {wrong}"
+
+    def test_they_never_accept_a_project_key(self, routes):
+        """A key leaked from a CI runner must not be able to enumerate the
+        account or mint more keys."""
+        for route in routes:
+            if route.path.startswith("/api/account/"):
+                assert "require_api_key" not in dependency_names(route)
+
+    def test_they_never_accept_a_session(self, routes):
+        """Mixing the two would reintroduce the ambient-credential problem:
+        a logged-in browser being usable to make these calls."""
+        for route in routes:
+            if route.path.startswith("/api/account/"):
+                names = dependency_names(route)
+                assert "require_user" not in names
+                assert "require_internal_user" not in names
+                assert "get_current_user" not in names
+
+    def test_the_machine_credential_reaches_nothing_else(self, routes):
+        """The other direction. A token stolen from a laptop must not read
+        findings, which means no route outside this namespace may accept
+        one."""
+        stray = [
+            r.path for r in routes if classify(r) == "cli_token" and r.path not in ACCOUNT_ROUTES
+        ]
+        assert stray == [], f"machine credential accepted outside /api/account: {stray}"
+
+
 class TestInternalApiSurface:
     def test_the_internal_surface_is_explicit(self, routes):
         served = {r.path for r in routes if r.path.startswith("/api/internal/")}
@@ -480,7 +581,11 @@ class TestCsrfCoverage:
         for route in routes:
             if "POST" not in route.methods:
                 continue
-            if route.path in API_KEY_ROUTES or route.path in PUBLIC_ROUTES:
+            if (
+                route.path in API_KEY_ROUTES
+                or route.path in ACCOUNT_ROUTES
+                or route.path in PUBLIC_ROUTES
+            ):
                 continue
             if "verify_csrf" not in dependency_names(route):
                 missing.append((sorted(route.methods), route.path))

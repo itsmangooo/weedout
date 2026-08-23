@@ -182,6 +182,9 @@ class User(TimestampMixin, Base):
     rule_profiles: Mapped[list[RuleProfile]] = relationship(
         back_populates="owner", cascade="all, delete-orphan", passive_deletes=True
     )
+    cli_tokens: Mapped[list[CliToken]] = relationship(
+        back_populates="owner", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     @property
     def can_sign_in(self) -> bool:
@@ -1331,6 +1334,143 @@ class AdminAuditLog(Base):
 
     def __repr__(self) -> str:
         return f"<AdminAuditLog {self.action} by={self.actor_email} target={self.target_email}>"
+
+
+class CliToken(Base):
+    """An account-level credential a developer holds on their own machine.
+
+    Deliberately *not* an `ApiKey`. Every API key is scoped to one project,
+    because a key leaked from a CI runner should reach the one project that
+    runner builds. This is the opposite kind of credential: it belongs to a
+    person at a keyboard, it is obtained by confirming in a browser, and it
+    exists to do the things that have no project yet -- create one, list them,
+    mint a key for one.
+
+    So the two are kept apart at the type level rather than by a flag, and the
+    split is enforced by which dependency a route uses. A `CliToken` cannot
+    push a scan or read findings; an `ApiKey` cannot create a project. Neither
+    can be widened into the other by getting a boolean wrong.
+
+    Stored as a hash, like every other credential here. The plaintext exists
+    once, in the response to the poll that completes the browser confirmation.
+    """
+
+    __tablename__ = "cli_tokens"
+    __table_args__ = (Index("ix_cli_tokens_user_active", "user_id", "revoked_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    #: Display-only fragment, so a list can name a token without holding it.
+    prefix: Mapped[str] = mapped_column(String(24), nullable=False)
+
+    #: Whatever the machine calls itself, for the revoke list. Supplied by the
+    #: client and never trusted for anything -- it is a label a person reads to
+    #: decide which row is their old laptop, not an identity.
+    device_label: Mapped[str] = mapped_column(
+        String(120), nullable=False, default="", server_default=""
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, server_default=func.now(), default=utcnow
+    )
+    #: Throttled like `ApiKey.last_used_at`; an exact timestamp is not worth a
+    #: write on every command.
+    last_used_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+
+    #: When it stops working regardless. A developer machine credential that
+    #: never expires is one that outlives the laptop it was issued to.
+    expires_at: Mapped[datetime] = mapped_column(TZDateTime, nullable=False)
+
+    owner: Mapped[User] = relationship(back_populates="cli_tokens")
+
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None and self.expires_at > utcnow()
+
+    def __repr__(self) -> str:
+        return f"<CliToken {self.prefix} user={self.user_id}>"
+
+
+class CliAuthRequest(Base):
+    """One in-progress `weedout auth`, waiting for somebody to approve it.
+
+    The device-authorisation shape, and for the same reason it exists: the
+    thing asking for a credential has no way to receive a browser redirect, so
+    it asks for one out of band and polls. The alternative -- printing a token
+    for the user to paste -- is the thing this replaces, because a credential
+    that travels through a clipboard travels through everything that watches
+    one.
+
+    Two secrets, doing different jobs, and conflating them is the mistake this
+    guards against:
+
+    - `user_code` is short, because a person reads it off a terminal and
+      compares it to a browser. Short means guessable, so it is rate limited,
+      single use, and only ever *confirms* a request that already exists.
+    - `device_code_hash` is 256 bits, held only by the CLI, and is what the
+      poll authenticates with. Knowing the user code is not enough to collect
+      the token; you also have to be the process that started the request.
+    """
+
+    __tablename__ = "cli_auth_requests"
+    __table_args__ = (Index("ix_cli_auth_pending", "user_code", "expires_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    #: What the person compares. Upper-case, unambiguous alphabet, grouped for
+    #: reading aloud: "HXKR-2FQP".
+    user_code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True, index=True)
+
+    #: SHA-256 of the secret the CLI keeps. Never displayed, never logged.
+    device_code_hash: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, index=True
+    )
+
+    #: Set when somebody signed in approves it. Null while pending.
+    approved_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    #: Set when somebody signed in refuses it, which is a different outcome
+    #: from expiry and worth telling the waiting CLI about: a refused request
+    #: means "that was not me", and the person should see it stop immediately.
+    denied_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+
+    #: Set once the token has been collected, so a device code cannot be
+    #: replayed to mint a second credential.
+    collected_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+
+    #: What the CLI said about itself, shown on the approval page. Untrusted
+    #: display text: it is there so somebody can tell "my laptop" from a
+    #: request they did not make, not as a claim about anything.
+    device_label: Mapped[str] = mapped_column(
+        String(120), nullable=False, default="", server_default=""
+    )
+    #: Where the request came from, also for the approval page. The strongest
+    #: signal a person has that a pending request is not theirs.
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, server_default=func.now(), default=utcnow
+    )
+    expires_at: Mapped[datetime] = mapped_column(TZDateTime, nullable=False, index=True)
+
+    @property
+    def is_pending(self) -> bool:
+        return (
+            self.approved_at is None
+            and self.denied_at is None
+            and self.collected_at is None
+            and self.expires_at > utcnow()
+        )
+
+    def __repr__(self) -> str:
+        return f"<CliAuthRequest {self.user_code} pending={self.is_pending}>"
 
 
 class RuleProfile(TimestampMixin, Base):

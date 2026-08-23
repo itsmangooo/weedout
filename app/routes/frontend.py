@@ -62,6 +62,7 @@ SHELL_ROUTES = (
     "/targets/new",
     "/targets/{target_id}",
     "/alerts",
+    "/cli-auth",
     "/settings",
     "/billing",
     "/billing/success",
@@ -203,6 +204,17 @@ async def billing_success_entry() -> FileResponse:
     parameter, because it is baked into every checkout link already issued —
     including any open in a browser tab right now. Changing it would turn a
     payment that has just succeeded into a 404.
+    """
+    return _shell()
+
+
+@router.get("/cli-auth", include_in_schema=False)
+async def cli_auth_entry() -> FileResponse:
+    """Where `weedout auth` sends somebody to approve a machine.
+
+    A plain page load, not a link from anywhere in the product: the URL is
+    printed in a terminal and opened by hand, so it has to work as a first
+    request into the application.
     """
     return _shell()
 

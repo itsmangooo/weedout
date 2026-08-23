@@ -25,7 +25,9 @@ from app.deps import RedirectToLogin
 from app.logging_config import configure_logging, get_logger
 from app.routes import (
     api,
+    api_account,
     billing,
+    cli_auth,
     events,
     frontend,
     health,
@@ -34,6 +36,7 @@ from app.routes import (
     internal_auth,
     internal_auth_actions,
     internal_billing,
+    internal_cli_auth,
     internal_dashboard,
     internal_findings,
     internal_marketing,
@@ -170,6 +173,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(internal_dashboard.router)
     app.include_router(internal_findings.router)
     app.include_router(internal_marketing.router)
+    app.include_router(cli_auth.router)
+    app.include_router(internal_cli_auth.router)
     app.include_router(internal_profiles.router)
     app.include_router(internal_projects.router)
     app.include_router(internal_public.router)
@@ -178,6 +183,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(targets.router)
     app.include_router(billing.router)
     app.include_router(api.router)
+    app.include_router(api_account.router)
     app.include_router(events.router)
 
     _register_middleware(app)

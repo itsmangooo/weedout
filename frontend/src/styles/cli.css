@@ -161,6 +161,22 @@
   line-height: 1.68;
 }
 
+/* Separates the two ways in — a laptop and a pipeline — inside one step.
+   Quieter than the section heading above it, because these are branches of
+   the same instruction rather than two more things to do. */
+.cli-subhead {
+  margin: var(--wo-space-6) 0 var(--wo-space-3);
+  color: var(--wo-text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cli-subhead:first-of-type {
+  margin-top: var(--wo-space-5);
+}
+
 .cli-note {
   max-width: 62ch;
   margin-top: var(--wo-space-4);

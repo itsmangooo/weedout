@@ -837,22 +837,43 @@ nothing lands in your project's dependency tree.
 The key is the configuration. It identifies the project, so there is nothing
 else to set up.
 
+### On your own machine
+
+```bash
+weedout auth
+```
+
+It prints an eight-character code and opens your browser. Check that the page
+shows the same code, approve, and you are done \u2014 nothing is copied, pasted or
+printed. The credential goes straight to a file only your account can read.
+
+Then, in a project directory:
+
+```bash
+weedout create              # a new project, with a key saved for this directory
+weedout link                # or connect to one you already have
+weedout scan                # from now on this just works here
+```
+
+### In CI
+
+A pipeline has no browser, so it gets a project key in an environment variable:
+
 ```bash
 export WEEDOUT_API_KEY=wo_...
 ```
 
-Or write it to a file next to your code:
+Create that key on the project's settings page, or with `weedout key regenerate`
+from a linked directory. Use a **scan**-scoped key: it is the narrowest thing
+that works, and it is the one that will end up in a build log.
 
-```bash
-weedout init
-```
-
-That creates `.weedout`, which holds the key. **Do not commit it** \u2014 use the
-environment variable in CI and keep the file for local work.
+`weedout init` writes the same key to a `.weedout` file, which is the local
+equivalent for a machine where an environment variable is awkward. **Do not
+commit it.**
 
 `.weedout` is not `.weedout.yml`. The first holds a credential and stays out of
 the repository; the second holds your scan rules and belongs in it. See
-[Scan rules](/docs/scan-rules).
+[Scan rules](/docs/scan-rules) and [Two credentials](#two-credentials) below.
 
 ## Scanning
 
@@ -881,6 +902,69 @@ never have to open a browser after setup.
 
 Every one of them takes `--json`, so they compose with `jq` and with whatever
 your team already runs.
+
+## Two credentials
+
+There are two kinds, they do different things, and neither can do the other's
+job. That is deliberate: it means losing one is a smaller problem than losing a
+single credential that did everything.
+
+| | Machine credential | Project key |
+|---|---|---|
+| From | `weedout auth` | `weedout create`, `weedout link`, or the project's settings page |
+| Belongs to | your account | one project |
+| Lives | in your OS config directory, on your machine | in `WEEDOUT_API_KEY`, or a `.weedout` file |
+| Can | create projects, list them, issue keys | scan, read findings, edit rules \u2014 depending on scope |
+| Cannot | read a single finding | create a project or reach another one |
+
+A key taken from a CI runner reaches the one project that runner builds. A
+credential taken from a laptop can make projects and keys, and cannot read what
+you are vulnerable to. Both are worth revoking quickly; neither is everything.
+
+### Which machines are signed in
+
+Account settings lists them, with what each one called itself and when it was
+last used. Sign one out there and it stops working immediately \u2014 `weedout
+logout` on the machine itself only forgets the local copy.
+
+Machine credentials expire after 180 days. A developer credential that never
+expires is one that outlives the laptop it was issued to.
+
+### One machine, many checkouts
+
+`weedout link` records the project against the directory's absolute path, in
+one file rather than a dotfile per repository. Eight checkouts need one
+`weedout auth` and eight `weedout link`s, and then `weedout scan` works in all
+of them with nothing else set up.
+
+```bash
+weedout whoami        # which account, and what this directory is linked to
+weedout unlink        # forget this directory
+weedout logout        # forget the account credential (--all drops project keys)
+```
+
+Where a key comes from, strongest first:
+
+1. `--api-key` on the command line
+2. `WEEDOUT_API_KEY` in the environment
+3. `api_key` in a `.weedout` file, searched from here upward
+4. the key `weedout link` stored for this directory
+
+The environment beating both files is the one that matters. CI injects secrets
+as environment variables, and a `.weedout` accidentally committed to a
+repository must never quietly override the key a pipeline was configured with
+\u2014 a build that authenticates as the wrong account is worse than one that
+fails to authenticate at all.
+
+### Rotating a key
+
+```bash
+weedout key regenerate
+```
+
+Issues a new key for the linked project and saves it. The old one keeps working
+until you revoke it in the project's settings, so a rotation that fails
+part-way leaves you with something that works rather than nothing.
 
 ## Changing what gets reported
 
