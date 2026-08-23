@@ -192,6 +192,36 @@ async def pro_user(db: AsyncSession) -> User:
     return record
 
 
+@pytest.fixture
+async def second_pro_user(db: AsyncSession) -> User:
+    """A second Pro account, for the tests that matter most: the ones checking
+    that one account cannot reach another's configuration."""
+    record = User(
+        email="other-pro@example.com",
+        password_hash=hash_password("correct-horse-battery"),
+        tier=Tier.PRO,
+    )
+    db.add(record)
+    await db.flush()
+    return record
+
+
+async def api_key_for(db: AsyncSession, target, *, scope: str = "scan") -> str:
+    """A bearer token for one project, at the narrowest scope that works.
+
+    Returns the token rather than the row: the token is what a caller sends,
+    and it exists exactly once, at issue time.
+    """
+    from app.core.types import KeyScope
+    from app.models import User as UserModel
+    from app.services.api_key_service import issue_api_key
+
+    owner = await db.get(UserModel, target.user_id)
+    issued = await issue_api_key(db, owner, target, name="test", scope=KeyScope(scope))
+    await db.flush()
+    return issued.token
+
+
 def set_csrf(client: httpx.AsyncClient, token: str = "test-csrf-token") -> str:  # noqa: S107
     """Seed the CSRF cookie and return the token to submit alongside it.
 

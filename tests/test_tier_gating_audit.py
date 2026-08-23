@@ -208,6 +208,24 @@ class TestCustomRules:
 
         assert not effective.policy.ignored_ids
 
+    async def test_a_rule_profile_does_not_apply_on_free(self, db, user):
+        """Profiles reuse the `custom_rules` field rather than adding one, so
+        the completeness check below would not have noticed them arriving
+        without a gate. Walked here explicitly for that reason."""
+        from app.services.profile_service import create_profile
+
+        profile = await create_profile(
+            db, user, name="Strict", document="severity:\n  direct: low\n"
+        )
+        target = await a_project(db, user)
+        target.profile_id = profile.id
+        await db.flush()
+
+        effective = await build_policy(db, target, user)
+
+        assert effective.policy.direct_threshold is not Severity.LOW
+        assert effective.profile_name is None
+
     async def test_a_lapsed_subscription_keeps_the_configuration(self, db, pro_user):
         """Downgrading stops the rules applying. It must not delete them —
         somebody re-subscribing should find their settings intact."""

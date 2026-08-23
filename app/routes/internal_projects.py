@@ -44,6 +44,8 @@ from app.schemas import (
     ProjectIgnoreRuleView,
     ProjectPageResponse,
     ProjectPolicyFileView,
+    ProjectProfileOptionView,
+    ProjectProfilesView,
     ProjectRunView,
     ProjectSignalView,
     ProjectThresholdsView,
@@ -219,6 +221,7 @@ async def project_page(
             transitive=target.transitive_threshold,
             epss=target.epss_threshold,
         ),
+        profiles=await _profile_choices(db, user, target),
         policy_file=_policy_view(target),
         api_keys=[
             ProjectApiKeyView(
@@ -593,6 +596,39 @@ class ThresholdsBody(BaseModel):
     epss: float | None = None
 
 
+async def _profile_choices(db, user, target) -> ProjectProfilesView:
+    """Which profile applies here, and what else could.
+
+    Both halves matter. A page that showed only the chosen profile would leave
+    "we have not chosen, so what are we running?" unanswered, which is the
+    state most projects are in.
+    """
+    from app.services.profile_service import list_profiles
+
+    rows = await list_profiles(db, user.id)
+    default = next((profile for profile in rows if profile.is_default), None)
+    chosen = next((profile for profile in rows if profile.id == target.profile_id), None)
+    applies = chosen or default
+
+    return ProjectProfilesView(
+        chosen=chosen.slug if chosen else None,
+        applies=applies.slug if applies else None,
+        applies_name=applies.name if applies else None,
+        # Named so the page can say "following the account default" rather than
+        # showing a profile name with no explanation of where it came from.
+        following_default=chosen is None and default is not None,
+        available=[
+            ProjectProfileOptionView(
+                slug=profile.slug,
+                name=profile.name,
+                description=profile.description,
+                is_default=profile.is_default,
+            )
+            for profile in rows
+        ],
+    )
+
+
 def _ignore_kind(raw: object) -> IgnoreKind:
     """Default to `advisory` rather than refusing an absent kind.
 
@@ -682,6 +718,44 @@ async def remove_project_rule(
             return {"data": {"deleted": True}}
 
     raise _fail(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "That rule doesn't exist.")
+
+
+class ProfileChoiceBody(BaseModel):
+    #: The profile's slug, or null to follow the account default.
+    profile: str | None = None
+
+
+@router.post("/projects/{target_id}/profile", dependencies=[CsrfProtected])
+async def set_project_profile(
+    db: DbSession, user: CurrentInternalUser, target_id: int, body: ProfileChoiceBody
+) -> dict:
+    """Choose which rule profile this project uses.
+
+    Null means "follow the account default", which is not the same as "no
+    rules": a project that has never chosen should track the standard as it
+    changes rather than being pinned to whatever it was on the day it was made.
+    """
+    from app.services.profile_service import get_profile
+
+    target = await _owned(db, user, target_id)
+    _require_rules(user)
+
+    if body.profile is None or not body.profile.strip():
+        target.profile_id = None
+        await db.commit()
+        return {"data": {"profile": None}}
+
+    profile = await get_profile(db, user.id, body.profile)
+    if profile is None:
+        raise _fail(
+            status.HTTP_404_NOT_FOUND,
+            "NOT_FOUND",
+            f"There is no rule profile called {body.profile.strip()!r} on this account.",
+        )
+
+    target.profile_id = profile.id
+    await db.commit()
+    return {"data": {"profile": profile.slug}}
 
 
 @router.post("/projects/{target_id}/thresholds", dependencies=[CsrfProtected])

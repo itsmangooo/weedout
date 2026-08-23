@@ -756,3 +756,75 @@
   font-weight: 620;
   text-transform: capitalize;
 }
+
+/* Rule profiles
+   -------------------------------------------------------------------------
+   A profile is a policy document under a name, so the row has to carry three
+   different facts without any of them reading as the others: what it is
+   called, what a pipeline types, and whether it is the one that applies when
+   nobody chose. */
+
+.profile-list {
+  display: grid;
+  gap: var(--wo-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-row {
+  display: grid;
+  gap: var(--wo-space-3);
+  padding: var(--wo-space-4);
+  border-radius: var(--wo-radius-xs);
+  background: var(--wo-level-1);
+}
+
+.profile-row__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--wo-space-3);
+}
+
+.profile-row__name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--wo-space-2);
+  margin: 0;
+  font-weight: 640;
+}
+
+/* Not a status chip. It says which profile applies where nobody chose, which
+   is a fact about the account rather than a state this row is in. */
+.profile-row__flag {
+  color: var(--wo-text-dim);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.profile-row__meta {
+  margin: var(--wo-space-1) 0 0;
+  color: var(--wo-text-muted);
+  font-size: 0.85rem;
+}
+
+.profile-row__actions {
+  flex-shrink: 0;
+}
+
+/* A YAML document, so it needs the opposite of the one-time-code treatment:
+   left-aligned, tight tracking, and room to see the shape of the nesting. */
+.auth-field__input--document {
+  font-family: var(--wo-font-mono);
+  font-size: 0.84rem;
+  line-height: 1.55;
+  tab-size: 2;
+  resize: vertical;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}

@@ -24,7 +24,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 from pydantic import ValidationError
 from sqlalchemy import func, select
 
@@ -36,6 +36,7 @@ from app.logging_config import get_logger
 from app.models import SEVERITY_RANK, CVEMatch, ScanRun, User, VulnerabilityRecord, utcnow
 from app.schemas import first_error as _first_error
 from app.services.alert_service import mark_delivered_in_app
+from app.services.profile_service import NoSuchProfile
 from app.services.scan_service import scan_target
 from app.services.target_service import UnsupportedManifest, replace_manifest
 
@@ -104,12 +105,19 @@ async def scan(
     key: ScanKey,
     manifest: Annotated[UploadFile | None, File()] = None,
     policy: Annotated[UploadFile | None, File()] = None,
+    profile: Annotated[str | None, Form()] = None,
 ):
     """Scan a lockfile against the project this key belongs to.
 
     Returns the tier counts and a dashboard link — small on purpose. The full
     findings live behind the link, and a CI log is the wrong place to print
     them; what a pipeline needs is a number to gate on.
+
+    `profile` names one of the account's rule profiles. It is resolved
+    server-side against that account's own profiles: a name that does not exist
+    is a refusal, never a quiet fall back to the defaults. A pipeline that
+    believes it is running under stricter rules than it is would be the worse
+    failure by a wide margin.
     """
     settings = get_settings()
     target = key.target
@@ -172,7 +180,13 @@ async def scan(
     except UnsupportedManifest as exc:
         raise _fail(HTTP_UNPROCESSABLE_CONTENT, "unsupported_manifest", str(exc)) from exc
 
-    outcome = await scan_target(db, target)
+    try:
+        outcome = await scan_target(db, target, requested_profile=profile)
+    except NoSuchProfile as exc:
+        # 400 rather than 404: the project and the key are both fine, and what
+        # is wrong is the request. Raised before anything was scanned, so
+        # nothing has been recorded under the wrong rules.
+        raise _fail(status.HTTP_400_BAD_REQUEST, "no_such_profile", str(exc)) from None
 
     # The results are being returned in this response, so they are not new to
     # the caller. Emailing them again after a CI run the developer just watched
@@ -429,6 +443,51 @@ async def list_scan_rules(db: DbSession, key: ManageKey):
             "ignores": list(policy.ignored_ids),
             "ignored_packages": list(policy.ignored_packages),
         },
+    }
+
+
+@router.get("/profiles")
+async def list_rule_profiles(db: DbSession, key: ReadKey):
+    """The account's rule profiles, and which one this project uses.
+
+    Read scope rather than manage: knowing which rule sets exist is part of
+    understanding what a scan reported, and a CI key that can see the name it
+    is meant to pass is a CI key that fails with a useful message rather than a
+    puzzle.
+
+    The documents are included. They are rules, not credentials, and a pipeline
+    that can see them can explain its own results without a second call.
+    """
+    from app.services.profile_service import list_profiles
+
+    target = key.target
+    rows = await list_profiles(db, key.user_id)
+
+    return {
+        "profiles": [
+            {
+                "name": profile.name,
+                # What --profile matches. Given explicitly so nobody has to
+                # reproduce the normalisation by guesswork.
+                "slug": profile.slug,
+                "description": profile.description,
+                "is_default": profile.is_default,
+                "in_use_here": profile.id == target.profile_id,
+                "document": profile.document,
+            }
+            for profile in rows
+        ],
+        # What this project would use if a scan ran with no --profile. Answers
+        # the question the listing is usually opened for.
+        "applies_here": next(
+            (
+                profile.slug
+                for profile in rows
+                if profile.id == target.profile_id
+                or (target.profile_id is None and profile.is_default)
+            ),
+            None,
+        ),
     }
 
 

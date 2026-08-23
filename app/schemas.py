@@ -759,6 +759,57 @@ class ProjectIgnoreRuleView(BaseModel):
     overridden_at: datetime | None
 
 
+class ProjectProfileOptionView(BaseModel):
+    """One profile a project could be switched to."""
+
+    model_config = ConfigDict(frozen=True)
+
+    slug: str
+    name: str
+    description: str
+    is_default: bool
+
+
+class ProjectProfilesView(BaseModel):
+    """Which rule profile a project runs under, and what else it could."""
+
+    model_config = ConfigDict(frozen=True)
+
+    #: The profile this project chose, or None if it has not chosen.
+    chosen: str | None
+    #: The one that actually applies, which is the chosen profile or the
+    #: account default. None where the account has neither.
+    applies: str | None
+    applies_name: str | None
+    #: True when `applies` comes from the account default rather than a choice
+    #: made here. The page has to be able to say which, or a profile name
+    #: appears with no explanation of where it came from.
+    following_default: bool
+    available: list[ProjectProfileOptionView]
+
+
+class RuleProfileView(BaseModel):
+    """One named rule set, as the interface shows it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    name: str
+    #: What `--profile` and `profile:` match. Shown alongside the name so
+    #: somebody writing a pipeline knows what to type without guessing at the
+    #: normalisation.
+    slug: str
+    description: str
+    #: The policy document itself, in `.weedout.yml` syntax.
+    document: str
+    is_default: bool
+    #: How many projects have chosen this profile explicitly. Does not count
+    #: the ones following it by default -- those are a different relationship,
+    #: and conflating them would make deleting a profile look safer than it is.
+    used_by: int
+    updated_at: datetime | None
+
+
 class ProjectApiKeyView(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -842,6 +893,7 @@ class ProjectPageResponse(BaseModel):
     supply_chain: list[ProjectSignalView]
     rules: list[ProjectIgnoreRuleView]
     thresholds: ProjectThresholdsView
+    profiles: ProjectProfilesView
     policy_file: ProjectPolicyFileView
     api_keys: list[ProjectApiKeyView]
     webhook: ProjectWebhookView

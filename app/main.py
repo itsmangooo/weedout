@@ -37,6 +37,7 @@ from app.routes import (
     internal_dashboard,
     internal_findings,
     internal_marketing,
+    internal_profiles,
     internal_projects,
     internal_public,
     internal_settings,
@@ -169,6 +170,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(internal_dashboard.router)
     app.include_router(internal_findings.router)
     app.include_router(internal_marketing.router)
+    app.include_router(internal_profiles.router)
     app.include_router(internal_projects.router)
     app.include_router(internal_public.router)
     app.include_router(internal_settings.router)

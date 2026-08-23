@@ -150,6 +150,11 @@ API_KEY_SCOPES = {
     "/api/v1/findings": "read",
     "/api/v1/history": "read",
     "/api/v1/supply-chain": "read",
+    # Read rather than manage. Knowing which rule sets exist is part of
+    # understanding what a scan reported, and a CI key that can see the name it
+    # is meant to pass fails with a useful message rather than a puzzle. The
+    # documents are rules, not credentials.
+    "/api/v1/profiles": "read",
     "/api/v1/rules": "manage",
     "/api/v1/rules/{identifier}": "manage",
 }
@@ -188,10 +193,18 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/projects/{target_id}": "internal_user",
     "/api/internal/projects/{target_id}/rename": "internal_user",
     "/api/internal/projects/{target_id}/manifest": "internal_user",
+    # Rule profiles are account-scoped, not project-scoped, which is why they
+    # sit outside the /projects prefix. Assigning one to a project is the one
+    # operation that belongs on the project.
+    "/api/internal/profiles": "internal_user",
+    "/api/internal/profiles/{profile_id}": "internal_user",
+    "/api/internal/profiles/{profile_id}/default": "internal_user",
+    "/api/internal/profiles/{profile_id}/delete": "internal_user",
     "/api/internal/projects/{target_id}/scan": "internal_user",
     "/api/internal/projects/{target_id}/delete": "internal_user",
     "/api/internal/projects/{target_id}/keys": "internal_user",
     "/api/internal/projects/{target_id}/keys/{key_id}/revoke": "internal_user",
+    "/api/internal/projects/{target_id}/profile": "internal_user",
     "/api/internal/projects/{target_id}/rules": "internal_user",
     "/api/internal/projects/{target_id}/rules/{rule_id}/delete": "internal_user",
     "/api/internal/projects/{target_id}/thresholds": "internal_user",

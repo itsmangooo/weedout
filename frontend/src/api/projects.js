@@ -145,6 +145,20 @@ export async function removeIgnoreRule(id, ruleId) {
   });
 }
 
+/**
+ * Choose which rule profile this project uses.
+ *
+ * Null means "follow the account default", which is not the same as "no rules":
+ * a project that has never chosen should track the standard as it changes.
+ */
+export async function setProjectProfile(id, profile) {
+  const payload = await api(`${projectPath(id)}/profile`, {
+    method: "POST",
+    body: { profile: profile || null },
+  });
+  return payload?.data;
+}
+
 export async function setThresholds(id, { direct, transitive, epss }) {
   const payload = await api(`${projectPath(id)}/thresholds`, {
     method: "POST",

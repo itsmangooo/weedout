@@ -14,6 +14,45 @@ Entries note breaking changes and anything a deployment has to do by hand.
 
 ### 2026-08-24
 
+**Fixed: `.weedout.yml` was documented, parsed, gated as Pro — and never
+uploaded by anything.** `/api/v1/scan` has accepted a `policy` multipart field
+the whole time and no client sent one, so every rule anybody wrote in a
+repository was dead text. The CLI now finds it from the manifest's directory
+upward and sends it, which is also what makes `profile:` work.
+
+- `.weedout.yaml` is accepted too. Insisting on one spelling of a YAML
+  extension is a way to have people write a config that silently does nothing.
+- A read failure is not fatal: the scan runs on the defaults, which can only
+  produce more alerts than intended.
+- `--verbose` names the file that applied, or says none was found.
+- `weedout rules` told people to run `weedout init` to create one. `init`
+  writes `.weedout`, which holds a credential.
+
+**Rule profiles.** A named set of scan rules on the account, so a team with
+eight services sets its standard once instead of configuring eight projects
+identically and watching them drift. A profile is a `.weedout.yml` document
+under a name — one syntax, one parser, and a working file can be lifted into a
+profile by copying it.
+
+- Precedence is now four layers: the repository file, the project's own
+  settings, the profile, the built-in defaults. The profile sits *underneath*
+  the project, because a shared standard is a baseline to override, not a
+  ceiling — a profile that beat per-project settings would make those controls
+  decorative.
+- One account default, enforced by a partial unique index rather than
+  application care, so "which rules apply when nobody said" has exactly one
+  answer even under concurrent writes.
+- `--profile production`, `profile:` in the repository file, or a choice on the
+  project. **Resolved server-side**: a name that does not exist fails the scan
+  with exit 2. A pipeline that believes it is enforcing a stricter standard
+  than it is would find out at the worst possible moment.
+- An unparseable profile is refused at save time, unlike the repository file —
+  we can refuse this one, because somebody is standing there.
+- A profile cannot name another profile.
+- `weedout profiles` lists them and says which applies here. Read scope.
+- **Deployment note:** the migration is additive and inert until a profile
+  exists.
+
 **An ignore rule can name a package, not only an advisory.** `@acme/*` covers
 every advisory written about anything in that scope, including the ones
 published after the rule. The case ignoring-by-id could not serve: a private

@@ -4,13 +4,19 @@ import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { InlineNotice } from "../components/ui/InlineNotice";
 import { AccountKeys } from "../features/settings/components/AccountKeys";
 import { PasswordSection } from "../features/settings/components/PasswordSection";
+import { RuleProfiles } from "../features/settings/components/RuleProfiles";
 import { SessionList } from "../features/settings/components/SessionList";
 import { TwoFactorSection } from "../features/settings/components/TwoFactorSection";
+import { useProfiles } from "../features/settings/hooks/useProfiles";
 import { useSettings, useSettingsMutation } from "../features/settings/hooks/useSettings";
 import { setEmailAlerts } from "../api/settings";
 
 export function SettingsPage() {
   const query = useSettings();
+  // Its own request rather than part of the settings envelope: profiles change
+  // independently of the account, and a mutation on one should not re-read the
+  // other.
+  const profiles = useProfiles();
 
   if (query.isPending) {
     return (
@@ -38,6 +44,9 @@ export function SettingsPage() {
       </header>
 
       <AlertsSection enabled={page.data.email_alerts} />
+      {profiles.isSuccess ? (
+        <RuleProfiles meta={profiles.data.meta} profiles={profiles.data.data} />
+      ) : null}
       <TwoFactorSection account={page.data} />
       <PasswordSection />
       <SessionList sessions={page.sessions} />

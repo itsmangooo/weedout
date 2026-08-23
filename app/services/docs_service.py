@@ -940,13 +940,17 @@ Rules are part of the **Pro** plan. They are enforced when a scan runs, not when
 they are saved, so a subscription that lapses stops applying them without
 deleting anything you configured.
 
-## Three places a rule can live
+## Four places a rule can live
 
 | Where | Good for |
 |---|---|
 | `.weedout.yml` in your repository | Anything a reviewer should see. This is the default answer. |
 | The project's settings page | One-off decisions, and anything you would rather not publish. |
 | `weedout rules` from the CLI | The same as the settings page, from a terminal. |
+| A **rule profile** on your account | One standard shared by every project. See below. |
+
+They stack in that order, strongest first: the file beats the project's
+settings, which beat the profile, which beats the built-in defaults.
 
 **The file wins.** A rule about a codebase belongs beside the codebase: it goes
 through review, it moves with a branch, and `git log` answers "who silenced this
@@ -954,10 +958,16 @@ and when" without a separate audit trail. A settings page that could quietly
 override the file would make a CI run depend on something invisible from the
 checkout.
 
+**The profile sits underneath the project**, because that is what a shared
+standard is: a baseline every project starts from, which any one project may
+override where it needs something different. A profile that beat the project's
+own settings would make the per-project controls decorative.
+
 Precedence is per setting, not all-or-nothing. A file that only sets thresholds
 does not wipe out ignores you added in the interface \u2014 it says nothing about
-them, and silence is not an instruction. Ignores from both sources are unioned
-for the same reason.
+them, and silence is not an instruction. Ignores from every layer are unioned
+for the same reason: no layer un-ignores what another ignored, and the only way
+to stop ignoring something is to remove the rule that says so.
 
 ## `.weedout.yml`
 
@@ -1035,6 +1045,83 @@ An entry without one is skipped, and the scan says so. Not because we can check
 the reason, but because writing one is the difference between a decision and a
 reflex, and because six months later it is the only thing that makes the entry
 reviewable.
+
+## Rule profiles
+
+A team with eight services usually wants the same floors on all of them, a
+looser set on the internal tools, and something stricter on the one facing the
+internet. Configuring that project by project means eight copies that drift, and
+changing the standard means eight edits.
+
+A profile is a policy document \u2014 the same YAML as above \u2014 stored on your
+account under a name. Create them in **Settings**.
+
+```
+Production           account default
+  Everything customer-facing.
+
+Internal tools
+  Dashboards and the admin console.
+```
+
+### Which one applies
+
+Most specific first:
+
+1. `--profile production` on the scan command.
+2. `profile: production` in the repository's `.weedout.yml`.
+3. The profile chosen on the project's settings page.
+4. Your account default.
+5. None, and the built-in rules apply.
+
+The first two are the exception to "the file wins", and deliberately. The file
+wins on **rules**; *which profile to use* is chosen at the moment a scan is
+asked for, and a flag typed there is the more local statement.
+
+### Names
+
+`--profile` matches a normalised form, so you do not have to reproduce
+capitalisation or spacing. "Production APIs", `production-apis` and
+`PRODUCTION_APIS` all reach the same profile. The exact string is shown beside
+the name in Settings, and `weedout profiles` prints it.
+
+Renaming a profile changes what `--profile` matches, so a pipeline naming the
+old one starts failing. That is a refusal, not a silent fall back \u2014 see
+below.
+
+### A name that does not exist fails the scan
+
+```
+$ weedout scan --profile prodcution
+There is no rule profile called 'prodcution' on this account.
+$ echo $?
+2
+```
+
+Exit 2, meaning the scan did not run, rather than a scan on the built-in rules
+reporting success. A pipeline that believes it is enforcing a stricter standard
+than it is would find out at the worst possible moment.
+
+The name is resolved on the server against your account's own profiles. Nothing
+a pipeline sends decides which rules apply \u2014 it only asks.
+
+### From the terminal
+
+```bash
+weedout profiles                       # what exists, and what applies here
+weedout scan --profile production      # scan under a named one
+```
+
+`weedout profiles` needs a key with **read** access. Knowing which rule sets
+exist is part of understanding a result; a CI key that can see the name it is
+meant to pass fails with a useful message rather than a puzzle.
+
+### Deleting one
+
+Any project using it moves to the account default. Nothing is refused: a profile
+you cannot delete until you have visited every project using it is a profile
+people work around by emptying its document instead, which leaves a rule set
+that looks configured and does nothing.
 
 ## What a rule cannot silence
 

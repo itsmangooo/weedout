@@ -89,12 +89,20 @@ async def scan_target(
     db: AsyncSession,
     target: TrackedTarget,
     policy: MatchPolicy = DEFAULT_POLICY,
+    *,
+    requested_profile: str | None = None,
 ) -> ScanOutcome:
     """Scan one target and reconcile the results into stored findings.
 
     Never raises for expected failures — an unparseable manifest or an empty
     mirror is recorded on the `ScanRun` and on the target, and the scheduler
     moves on to the next one.
+
+    `requested_profile` is the one exception, and deliberately so. A name that
+    does not resolve raises `NoSuchProfile` before anything is scanned, because
+    the alternative is a pipeline running under rules nobody chose while its
+    log says the scan succeeded. The caller turns that into a refusal the
+    person who typed the name can read.
     """
     outcome = ScanOutcome(target_id=target.id)
     run = ScanRun(target_id=target.id, status="running")
@@ -110,7 +118,9 @@ async def scan_target(
     # project's settings and any .weedout.yml the pipeline pushed. Derived here
     # rather than stored, so a lapsed subscription stops honouring Pro rules on
     # the next scan without anybody editing a row.
-    effective = await build_policy(db, target, owner, base=policy)
+    effective = await build_policy(
+        db, target, owner, base=policy, requested_profile=requested_profile
+    )
     policy = effective.policy
 
     # Queried rather than read off the relationship. `target` reaches this

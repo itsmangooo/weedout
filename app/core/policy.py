@@ -98,6 +98,10 @@ class ParsedPolicy:
     #: Probability at or above which to alert, 0.0 to 1.0. None gates nothing.
     epss_threshold: float | None = None
     ignores: tuple[IgnoreEntry, ...] = ()
+    #: A named rule profile this repository asks for. Resolved server-side
+    #: against the account's own profiles, so this is a request rather than a
+    #: rule -- see `profile_service.profile_for_scan`.
+    profile: str | None = None
     warnings: tuple[str, ...] = field(default_factory=tuple)
     #: Set when the document could not be used at all. The scan continues on
     #: defaults and says so.
@@ -110,6 +114,7 @@ class ParsedPolicy:
             and self.transitive_threshold is None
             and self.dev_threshold is None
             and self.epss_threshold is None
+            and self.profile is None
             and not self.ignores
         )
 
@@ -157,7 +162,7 @@ def parse_policy(content: str | bytes | None) -> ParsedPolicy:
         return ParsedPolicy(error="The policy file should be a mapping of settings.")
 
     warnings: list[str] = []
-    known = {"version", "severity", "ignore", "epss"}
+    known = {"version", "severity", "ignore", "epss", "profile"}
     for key in document:
         if key not in known:
             warnings.append(f"Ignoring unknown setting {key!r}.")
@@ -171,14 +176,33 @@ def parse_policy(content: str | bytes | None) -> ParsedPolicy:
     epss, epss_warnings = _read_epss(document.get("epss"))
     warnings.extend(epss_warnings)
 
+    profile, profile_warnings = _read_profile(document.get("profile"))
+    warnings.extend(profile_warnings)
+
     return ParsedPolicy(
         direct_threshold=direct,
         transitive_threshold=transitive,
         dev_threshold=dev,
         epss_threshold=epss,
         ignores=tuple(ignores),
+        profile=profile,
         warnings=tuple(warnings),
     )
+
+
+def _read_profile(value: object) -> tuple[str | None, list[str]]:
+    """`profile: production` -- which of the account's rule profiles to use.
+
+    A name, not a rule. Nothing here checks that it exists, because this parser
+    knows nothing about accounts; resolution happens server-side, where a name
+    that does not resolve is an error rather than a silent fall back to the
+    defaults.
+    """
+    if value is None:
+        return None, []
+    if not isinstance(value, str) or not value.strip():
+        return None, ["`profile` should be the name of a rule profile; ignoring it."]
+    return value.strip()[:80], []
 
 
 def _read_epss(block: object) -> tuple[float | None, list[str]]:

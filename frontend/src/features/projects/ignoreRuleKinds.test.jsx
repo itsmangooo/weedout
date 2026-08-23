@@ -21,6 +21,13 @@ function page(overrides = {}) {
     data: { id: 7, name: "checkout-api" },
     rules: [],
     thresholds: { direct: "high", transitive: "critical", epss: null },
+    profiles: {
+      chosen: null,
+      applies: null,
+      applies_name: null,
+      following_default: false,
+      available: [],
+    },
     policy_file: { present: false, updated_at: null, error: null, ignores: [] },
     api_keys: [],
     webhook: { url: null, kind: null, last_sent_at: null, last_error: null },

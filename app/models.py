@@ -38,6 +38,7 @@ from sqlalchemy import (
     UniqueConstraint,
     case,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -177,6 +178,9 @@ class User(TimestampMixin, Base):
     )
     sessions: Mapped[list[Session]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+    rule_profiles: Mapped[list[RuleProfile]] = relationship(
+        back_populates="owner", cascade="all, delete-orphan", passive_deletes=True
     )
 
     @property
@@ -466,6 +470,17 @@ class TrackedTarget(TimestampMixin, Base):
     #: and a finding drifting over a threshold overnight would interrupt
     #: somebody because a model moved rather than because a vulnerability did.
     epss_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    #: The rule profile this project uses, or None for the account default.
+    #:
+    #: Null rather than a foreign key to a "default" row: a project that has
+    #: never been given a profile should follow the account standard as it
+    #: changes, not be pinned to whatever it was on the day the project was
+    #: created.
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("rule_profiles.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    profile: Mapped[RuleProfile | None] = relationship(back_populates="targets")
 
     #: The `.weedout.yml` most recently pushed with a scan.
     #:
@@ -1316,6 +1331,72 @@ class AdminAuditLog(Base):
 
     def __repr__(self) -> str:
         return f"<AdminAuditLog {self.action} by={self.actor_email} target={self.target_email}>"
+
+
+class RuleProfile(TimestampMixin, Base):
+    """A named set of scan rules, belonging to an account rather than a project.
+
+    The problem it solves: a team with eight services wants the same floors on
+    all of them, a looser set on the internal tools, and something stricter on
+    the one that faces the internet. Configuring that per project means eight
+    copies that drift, and changing the standard means eight edits.
+
+    **A profile is a policy document, not a row of columns.** The same YAML that
+    goes in `.weedout.yml`, stored on the account under a name. One syntax, one
+    parser, one thing to learn -- and a working file can be lifted into a
+    profile by copying it. The alternative, a column per setting, would be a
+    second model of the same thing that has to be kept in step with the first.
+
+    Unlike the repository file, an unparseable profile is refused at save time.
+    We can refuse it: somebody is standing there, and telling them now is better
+    than discarding the whole document at scan time.
+    """
+
+    __tablename__ = "rule_profiles"
+    __table_args__ = (
+        UniqueConstraint("user_id", "slug", name="uq_rule_profile_slug"),
+        # At most one default per account. A partial index rather than a
+        # boolean column with application-level care, because "which profile
+        # applies when nobody said" must have exactly one answer even if two
+        # requests try to set it at once.
+        Index(
+            "uq_rule_profile_default",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_default"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    #: What the author called it: "Production", "Internal tools".
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+
+    #: The same name, normalised. This is what `--profile` matches, so a
+    #: pipeline is not asked to reproduce capitalisation or spacing exactly.
+    slug: Mapped[str] = mapped_column(String(80), nullable=False)
+
+    #: One line on what this is for, shown wherever the profile is chosen.
+    description: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+
+    #: The policy document, in `.weedout.yml` syntax.
+    document: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    #: Applied to any project that has not been given a profile of its own.
+    #:
+    #: The account-level answer to "what are our rules", which is the setting
+    #: that makes the other two layers worth having: a standard you set once
+    #: and override where a project needs something different.
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    owner: Mapped[User] = relationship(back_populates="rule_profiles")
+    targets: Mapped[list[TrackedTarget]] = relationship(back_populates="profile")
+
+    def __repr__(self) -> str:
+        return f"<RuleProfile {self.slug} user={self.user_id}>"
 
 
 class IgnoreRule(Base):

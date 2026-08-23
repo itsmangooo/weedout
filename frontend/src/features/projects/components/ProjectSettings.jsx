@@ -9,6 +9,7 @@ import {
   removeIgnoreRule,
   renameProject,
   revokeProjectKey,
+  setProjectProfile,
   setThresholds,
 } from "../../../api/projects";
 import { Button } from "../../../components/ui/Button";
@@ -222,6 +223,68 @@ const RULE_KINDS = [
   },
 ];
 
+/**
+ * Which shared rule set this project runs under.
+ *
+ * Both halves of the sentence matter. A control showing only the chosen
+ * profile leaves "we have not chosen, so what are we running?" unanswered —
+ * which is the state most projects are in, and the one people misread as
+ * having no rules at all.
+ */
+function ProfilePicker({ page, projectId }) {
+  const profiles = page.profiles;
+  const choose = useProjectMutation(projectId, (slug) => setProjectProfile(projectId, slug));
+
+  if (profiles.available.length === 0) {
+    return (
+      <>
+        <h3>Rule profile</h3>
+        <p className="auth-field__hint">
+          No profiles on this account yet. Create one in{" "}
+          <Link to="/settings">your account settings</Link> to share one set of rules
+          across projects.
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h3>Rule profile</h3>
+      {choose.isError ? (
+        <InlineNotice tone="danger">{choose.error.message}</InlineNotice>
+      ) : null}
+      <div className="auth-field">
+        <label className="auth-field__label" htmlFor="project-profile">
+          This project uses
+        </label>
+        <select
+          className="auth-field__input"
+          disabled={choose.isPending}
+          id="project-profile"
+          onChange={(event) => choose.mutate(event.target.value)}
+          value={profiles.chosen ?? ""}
+        >
+          <option value="">The account default</option>
+          {profiles.available.map((option) => (
+            <option key={option.slug} value={option.slug}>
+              {option.name}
+              {option.is_default ? " (account default)" : ""}
+            </option>
+          ))}
+        </select>
+        <p className="auth-field__hint">
+          {profiles.applies === null
+            ? "No account default either, so scans here run on the built-in rules."
+            : profiles.following_default
+              ? `Following the account default, ${profiles.applies_name}. Anything set below overrides it.`
+              : `Scans here run under ${profiles.applies_name}. Anything set below overrides it.`}
+        </p>
+      </div>
+    </>
+  );
+}
+
 function RulesSection({ page, projectId }) {
   const [identifier, setIdentifier] = useState("");
   const [reason, setReason] = useState("");
@@ -262,7 +325,9 @@ function RulesSection({ page, projectId }) {
     <section aria-labelledby="rules-title">
       <h2 id="rules-title">Scan rules</h2>
 
-      <h3>Alert when</h3>
+      <ProfilePicker page={page} projectId={projectId} />
+
+      <h3 className="u-mt-6">Alert when</h3>
       {save.isError ? <InlineNotice tone="danger">{save.error.message}</InlineNotice> : null}
       <form
         className="stack-form"
