@@ -17,6 +17,7 @@ from app.services.finding_service import (
     DEFAULT_FINDING_LIMIT,
     FindingShow,
     capped_finding_limit,
+    history_window,
     list_findings,
 )
 
@@ -39,6 +40,7 @@ async def findings(
     matches = await list_findings(
         db,
         user.id,
+        tier=user.tier,
         show=show,
         limit=effective_limit,
     )
@@ -69,5 +71,9 @@ async def findings(
             show=show,
             limit=effective_limit,
             count=len(data),
+            # Reported whether or not it trimmed anything, so the interface can
+            # say how far back this tab reaches rather than leaving an archive
+            # that stops 30 days ago looking like lost data.
+            history_days=history_window(user.tier, show),
         ),
     )

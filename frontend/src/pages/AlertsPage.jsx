@@ -25,12 +25,27 @@ const EMPTY = {
   resolved: "Nothing has been resolved yet.",
 };
 
+/**
+ * How far back an archive tab reaches, said out loud.
+ *
+ * Without it, a tab that ends 30 days ago looks like findings went missing.
+ * The sentence names the window and, on the plan where it is short, what
+ * changes it — once, above the list, not as a badge on every row.
+ */
+function historyNote(days) {
+  if (days === null) return null;
+  if (days >= 365) return "Showing the past year.";
+  return `Showing the past ${days} days. Pro keeps a year.`;
+}
+
 export function AlertsPage() {
   const [params, setParams] = useSearchParams();
   const requested = params.get("show");
   const show = TABS.some((tab) => tab.id === requested) ? requested : "open";
 
   const query = useFindings({ show });
+  const findings = query.data?.findings ?? [];
+  const note = query.isSuccess ? historyNote(query.data.historyDays) : null;
 
   function setShow(value) {
     const next = new URLSearchParams(params);
@@ -65,12 +80,14 @@ export function AlertsPage() {
         <AsyncError error={query.error} onRetry={() => query.refetch()} />
       ) : null}
 
+      {note ? <p className="filter-note">{note}</p> : null}
+
       {query.isSuccess ? (
-        query.data.length === 0 ? (
+        findings.length === 0 ? (
           <p className="empty-state">{EMPTY[show]}</p>
         ) : (
           <ul className="finding-list">
-            {query.data.map((finding) => (
+            {findings.map((finding) => (
               <FindingRow finding={finding} key={finding.id} />
             ))}
           </ul>

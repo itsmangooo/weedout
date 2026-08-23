@@ -36,7 +36,8 @@ function isMeta(value, show) {
     Number.isInteger(value.limit) &&
     value.limit > 0 &&
     Number.isInteger(value.count) &&
-    value.count >= 0
+    value.count >= 0 &&
+    (value.history_days === null || Number.isInteger(value.history_days))
   );
 }
 

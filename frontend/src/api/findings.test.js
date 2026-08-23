@@ -26,7 +26,7 @@ function payload() {
         detected_at: "2026-08-20T18:30:00Z",
       },
     ],
-    meta: { show: "open", limit: 25, count: 1 },
+    meta: { show: "open", limit: 25, count: 1, history_days: null },
   };
 }
 
@@ -43,7 +43,10 @@ describe("findings API", () => {
 
   it("rejects a response that does not match the explicit finding contract", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      response({ data: [{ id: 9, owner_id: 44 }], meta: { show: "open", limit: 25, count: 1 } }),
+      response({
+        data: [{ id: 9, owner_id: 44 }],
+        meta: { show: "open", limit: 25, count: 1, history_days: null },
+      }),
     );
 
     const error = await getFindings().catch((caught) => caught);

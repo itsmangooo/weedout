@@ -150,6 +150,9 @@ class FindingListMeta(BaseModel):
     show: Literal["open", "filtered", "dismissed", "resolved"]
     limit: int
     count: int
+    #: How many days back an archive tab reaches on this plan. None on the
+    #: tabs that describe the present, which are never trimmed by plan.
+    history_days: int | None = None
 
 
 class FindingListResponse(BaseModel):

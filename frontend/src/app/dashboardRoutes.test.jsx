@@ -86,7 +86,7 @@ function finding(overrides = {}) {
 function findingsResponse(findings = []) {
   return {
     data: findings,
-    meta: { show: "open", limit: 25, count: findings.length },
+    meta: { show: "open", limit: 25, count: findings.length, history_days: null },
   };
 }
 

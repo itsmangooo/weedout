@@ -90,7 +90,7 @@ PLANS: dict[Tier, PlanLimits] = {
             "Custom scan rules and .weedout.yml",
             "Email alerts",
             "Discord and custom webhooks",
-            "Full alert history",
+            "A year of alert history",
         ),
     ),
 }

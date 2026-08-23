@@ -12,6 +12,33 @@ Entries note breaking changes and anything a deployment has to do by hand.
 
 ## Unreleased
 
+### 2026-08-24
+
+**Tier gating audited end to end.** One sweep, `tests/test_tier_gating_audit.py`,
+walks every Pro capability and asserts the server refuses it for Free — at the
+endpoint, not only in the service. Two things keep it honest: it reads the plan
+table rather than a hand-maintained list, so a new field cannot be added without
+either a gate test or a written reason it needs none; and every Pro-only bullet
+on the pricing page has to name a field that enforces it.
+
+- **Fixed: `history_days` was advertised and enforced nowhere.** Pro sold a
+  longer archive while every Free account already had an unlimited one. The
+  Resolved and Dismissed tabs now stop at the plan's window — 30 days on Free, a
+  year on Pro. Open and Filtered are never trimmed: a live vulnerability behind
+  a paywall is not a plan limit.
+- The Pro bullet said "Full alert history" where the table said 365 days. The
+  table was right, so the bullet now says a year.
+- The window travels in the response and the tab says how far back it reaches.
+  An archive that silently ends 30 days ago reads as lost data.
+- `list_findings` takes `tier` keyword-only with no default, so a new caller
+  cannot quietly skip the window.
+- A static check enforces what `app/tiers.py` has always claimed in its
+  docstring: nothing outside the plan table branches on `user.tier is Tier.PRO`.
+  Queries over the users table and the billing pages are exempt and say why.
+- Every gate helper was mutation-tested — broken one at a time, each one caught.
+- The CLI makes no tier decision locally at all, which is the cleanest form of
+  "never trust a local flag".
+
 ### 2026-08-23
 
 **Rust and JVM support.** Four new manifest formats across two new ecosystems:

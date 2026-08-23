@@ -247,6 +247,14 @@
   text-align: center;
 }
 
+/* Says how far back an archive tab reaches. Quiet on purpose: it is context
+   for the list below, not a notice competing with it. */
+.filter-note {
+  margin: var(--wo-space-3) 0 0;
+  color: var(--wo-text-dim);
+  font-size: 0.82rem;
+}
+
 .section-footnote {
   margin: var(--wo-space-3) 0 0;
   color: var(--wo-text-dim);

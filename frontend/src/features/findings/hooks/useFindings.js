@@ -11,16 +11,17 @@ export function findingsQueryKey(show, limit = FINDINGS_LIMIT) {
 /**
  * Findings across every project, for one tab.
  *
- * Returns the array rather than the envelope: the meta block exists so the
- * response can be validated, and a caller that had to reach through it would
- * be carrying the transport's shape into the view.
+ * Returns the findings alongside `historyDays` — how far back this tab reaches
+ * on the current plan, or null where nothing is trimmed. The rest of the
+ * envelope stays here: it exists so the response can be validated, and a
+ * caller reaching through it would carry the transport's shape into the view.
  */
 export function useFindings({ show = "open", limit = FINDINGS_LIMIT } = {}) {
   return useQuery({
     queryKey: findingsQueryKey(show, limit),
     queryFn: async ({ signal }) => {
       const payload = await getFindings({ show, limit, signal });
-      return payload.data;
+      return { findings: payload.data, historyDays: payload.meta.history_days ?? null };
     },
     staleTime: 30_000,
   });

@@ -126,7 +126,7 @@ class TestInternalFindingReads:
         assert response.headers["vary"] == "Cookie"
         assert response.json() == {
             "data": [],
-            "meta": {"show": "open", "limit": 25, "count": 0},
+            "meta": {"show": "open", "limit": 25, "count": 0, "history_days": None},
         }
 
     async def test_authenticated_results_are_scoped_to_the_owner(
@@ -184,7 +184,7 @@ class TestInternalFindingReads:
         body = (await auth_client.get("/api/internal/findings?show=open")).json()
 
         assert [finding["id"] for finding in body["data"]] == [open_match.id]
-        assert body["meta"] == {"show": "open", "limit": 25, "count": 1}
+        assert body["meta"] == {"show": "open", "limit": 25, "count": 1, "history_days": None}
 
     async def test_supported_filtered_view_reuses_the_same_read_contract(
         self, auth_client, db, user
@@ -220,12 +220,13 @@ class TestInternalFindingReads:
         capped = (await auth_client.get("/api/internal/findings?limit=9999")).json()
         invalid = await auth_client.get("/api/internal/findings?limit=0")
 
-        assert limited["meta"] == {"show": "open", "limit": 2, "count": 2}
+        assert limited["meta"] == {"show": "open", "limit": 2, "count": 2, "history_days": None}
         assert len(limited["data"]) == 2
         assert capped["meta"] == {
             "show": "open",
             "limit": MAX_FINDING_LIMIT,
             "count": 3,
+            "history_days": None,
         }
         assert invalid.status_code == 422
         assert invalid.headers["cache-control"] == "private, no-store"
@@ -295,3 +296,140 @@ class TestInternalFindingReads:
             "secret policy content",
         ):
             assert forbidden not in serialized
+
+
+class TestTheRetentionWindow:
+    """`history_days` was on the plan table and enforced nowhere.
+
+    The pricing page sold a longer archive as part of Pro while every Free
+    account already had one, which is the direction of pricing error that costs
+    money rather than trust. These pin the fix.
+    """
+
+    async def _archive(self, db, owner, *, age_days: int, status: AlertStatus):
+        from app.models import utcnow
+
+        target = project_for(owner, f"archive-{age_days}-{status}")
+        db.add(target)
+        await db.flush()
+
+        match = await add_finding(
+            db,
+            target,
+            f"CVE-2026-{age_days:04d}",
+            status=status,
+            verdict=Verdict.ACTIONABLE,
+        )
+        stamped = utcnow() - timedelta(days=age_days)
+        if status is AlertStatus.RESOLVED:
+            match.resolved_at = stamped
+        else:
+            match.dismissed_at = stamped
+        await db.flush()
+        return match
+
+    async def _ids(self, client, show: str) -> list[int]:
+        response = await client.get(f"/api/internal/findings?show={show}")
+        assert response.status_code == 200
+        return [finding["id"] for finding in response.json()["data"]]
+
+    async def test_a_free_account_sees_the_last_thirty_days_only(self, auth_client, db, user):
+        recent = await self._archive(db, user, age_days=3, status=AlertStatus.RESOLVED)
+        await self._archive(db, user, age_days=90, status=AlertStatus.RESOLVED)
+        await db.commit()
+
+        assert await self._ids(auth_client, "resolved") == [recent.id]
+
+    async def test_a_pro_account_sees_the_same_finding(self, pro_client, db, pro_user):
+        """The negative above is only a plan limit if Pro reaches further."""
+        recent = await self._archive(db, pro_user, age_days=3, status=AlertStatus.RESOLVED)
+        older = await self._archive(db, pro_user, age_days=90, status=AlertStatus.RESOLVED)
+        await db.commit()
+
+        assert sorted(await self._ids(pro_client, "resolved")) == sorted([recent.id, older.id])
+
+    async def test_pro_still_ends_at_a_year(self, pro_client, db, pro_user):
+        """365 is what the plan table says, so 365 is what is enforced. The
+        bullet used to say 'full', which was the table and the pricing page
+        disagreeing."""
+        await self._archive(db, pro_user, age_days=400, status=AlertStatus.RESOLVED)
+        await db.commit()
+
+        assert await self._ids(pro_client, "resolved") == []
+
+    async def test_dismissed_findings_age_out_the_same_way(self, auth_client, db, user):
+        recent = await self._archive(db, user, age_days=3, status=AlertStatus.DISMISSED)
+        await self._archive(db, user, age_days=90, status=AlertStatus.DISMISSED)
+        await db.commit()
+
+        assert await self._ids(auth_client, "dismissed") == [recent.id]
+
+    async def test_open_findings_are_never_trimmed_by_plan(self, auth_client, db, user):
+        """The line that matters most here. An open finding is a live
+        vulnerability, and putting one behind a paywall because it was found a
+        year ago would be indefensible for a security product.
+        """
+        target = project_for(user, "long-standing")
+        db.add(target)
+        await db.flush()
+        ancient = await add_finding(
+            db,
+            target,
+            "CVE-2024-0001",
+            detected_at=datetime(2024, 1, 1, tzinfo=UTC),
+        )
+        await db.commit()
+
+        assert await self._ids(auth_client, "open") == [ancient.id]
+
+    async def test_filtered_findings_are_never_trimmed_either(self, auth_client, db, user):
+        """'What am I not being told about?' has to keep having an answer."""
+        target = project_for(user, "suppressed-long-ago")
+        db.add(target)
+        await db.flush()
+        old = await add_finding(
+            db,
+            target,
+            "CVE-2024-0002",
+            verdict=Verdict.SUPPRESSED,
+            detected_at=datetime(2024, 1, 1, tzinfo=UTC),
+        )
+        await db.commit()
+
+        assert await self._ids(auth_client, "filtered") == [old.id]
+
+    async def test_free_reports_its_window(self, auth_client):
+        """An archive that stops 30 days back reads as lost data unless the
+        page says otherwise, so the number travels with the response.
+
+        Split from the Pro case below rather than asserted together: both
+        clients are built on the same session, so signing in as one replaces
+        the other.
+        """
+        body = (await auth_client.get("/api/internal/findings?show=resolved")).json()
+
+        assert body["meta"]["history_days"] == 30
+
+    async def test_pro_reports_its_own(self, pro_client):
+        body = (await pro_client.get("/api/internal/findings?show=resolved")).json()
+
+        assert body["meta"]["history_days"] == 365
+
+    async def test_the_present_tense_tabs_report_no_window(self, auth_client):
+        for show in ("open", "filtered"):
+            body = (await auth_client.get(f"/api/internal/findings?show={show}")).json()
+            assert body["meta"]["history_days"] is None, show
+
+    async def test_an_undated_archived_finding_is_kept(self, auth_client, db, user):
+        """Both timestamps are written alongside the status today, so this
+        should not arise. If it ever does, the filter must fail towards showing
+        history rather than deleting it.
+        """
+        target = project_for(user, "undated")
+        db.add(target)
+        await db.flush()
+        match = await add_finding(db, target, "CVE-2026-9999", status=AlertStatus.RESOLVED)
+        match.resolved_at = None
+        await db.commit()
+
+        assert await self._ids(auth_client, "resolved") == [match.id]
