@@ -13,7 +13,50 @@
   height: 100vh;
   flex-direction: column;
   padding: 1.15rem;
+  border-right: 1px solid var(--wo-border);
   background: var(--wo-surface-low);
+}
+
+.app-sidebar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wo-space-3);
+}
+
+/* The whole navigation, so the narrow layout can show and hide it as one
+   thing rather than reasoning about each piece. */
+.app-sidebar__panel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* Only ever visible once the sidebar has collapsed into a bar. */
+.app-shell__menu {
+  display: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--wo-radius-sm);
+  background: transparent;
+  color: var(--wo-text);
+  cursor: pointer;
+}
+
+.app-shell__menu:hover {
+  background: var(--wo-accent-quiet);
+}
+
+.app-shell__foot {
+  display: grid;
+  gap: var(--wo-space-2);
+  margin-top: auto;
+  padding-top: var(--wo-space-4);
+  border-top: 1px solid var(--wo-border);
 }
 
 .app-shell__brand {
@@ -46,6 +89,12 @@
 
 .app-shell__nav-link {
   display: flex;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
   min-height: 2.55rem;
   align-items: center;
   gap: 0.7rem;
@@ -74,8 +123,7 @@
   min-width: 0;
   align-items: center;
   gap: var(--wo-space-3);
-  margin-top: auto;
-  padding: 0.65rem 0.55rem;
+  padding: 0.5rem 0.68rem;
 }
 
 .app-shell__account-copy {
@@ -452,12 +500,12 @@
 .finding-signal--high,
 .finding-signal--exploited {
   background: var(--wo-critical-quiet);
-  color: #ff9994;
+  color: var(--wo-critical);
 }
 
 .finding-signal--medium {
   background: var(--wo-warning-quiet);
-  color: #e5b171;
+  color: var(--wo-warning);
 }
 
 .finding-row__state {
@@ -827,36 +875,50 @@
   }
 }
 
+/* Below this the sidebar becomes a bar with a disclosure. The nav is not
+   compressed into icons or dropped — it moves into a panel that opens over
+   the page, so every destination is still one tap away. */
 @media (max-width: 64rem) {
   .app-shell {
     display: block;
   }
 
   .app-sidebar {
+    position: sticky;
+    top: 0;
     z-index: 30;
-    display: grid;
+    display: block;
     width: 100%;
     height: auto;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--wo-space-5);
     padding: 0.7rem 1rem;
-    background: rgb(23 25 24 / 0.94);
+    border-right: 0;
+    border-bottom: 1px solid var(--wo-border);
+    background: var(--wo-veil);
     backdrop-filter: blur(16px);
   }
 
-  .app-shell__nav {
-    display: flex;
-    justify-content: center;
-    margin-top: 0;
+  .app-shell__menu {
+    display: inline-flex;
   }
 
-  .app-shell__account {
-    margin-top: 0;
-  }
-
-  .app-shell__account-copy {
+  .app-sidebar__panel {
     display: none;
+  }
+
+  .is-nav-open .app-sidebar__panel {
+    display: grid;
+    gap: var(--wo-space-4);
+    padding-top: var(--wo-space-4);
+    margin-top: var(--wo-space-3);
+    border-top: 1px solid var(--wo-border);
+  }
+
+  .app-shell__nav {
+    margin-top: 0;
+  }
+
+  .app-shell__foot {
+    margin-top: 0;
   }
 
   .app-shell__main {
@@ -905,25 +967,8 @@
 }
 
 @media (max-width: 40rem) {
-  .app-sidebar {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--wo-space-3);
-  }
-
-  .app-shell__brand > span:last-child {
-    display: none;
-  }
-
-  .app-shell__nav {
-    justify-content: flex-start;
-  }
-
   .app-shell__nav-link {
     padding-inline: 0.55rem;
-  }
-
-  .app-shell__account {
-    display: none;
   }
 
   .dashboard-page {

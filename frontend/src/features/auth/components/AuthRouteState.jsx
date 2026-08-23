@@ -49,7 +49,7 @@ export function AuthRouteState({ loginHref, onRetry, state }) {
 
   return (
     <PageTransition>
-      <div className="auth-route-shell" data-theme="public">
+      <div className="auth-route-shell">
         <div className="auth-route-state">
           <div className="auth-route-state__copy">
             <p className="eyebrow">{content.eyebrow}</p>

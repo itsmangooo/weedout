@@ -1,6 +1,6 @@
 import { KeyRound } from "lucide-react";
 import { useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import { ApiError } from "../api/client";
 import { resetPassword } from "../api/authActions";
@@ -59,7 +59,7 @@ export function ResetPasswordPage() {
         eyebrow="Account recovery"
         footer={
           <span>
-            <a href="/forgot-password">Ask for a new link</a>
+            <Link to="/forgot-password">Ask for a new link</Link>
           </span>
         }
         title="That link is incomplete"
@@ -83,9 +83,9 @@ export function ResetPasswordPage() {
           password no longer works.
         </p>
         <div className="auth-actions" style={{ marginTop: "var(--wo-space-5)" }}>
-          <a className="button button--primary" href="/login">
+          <Link className="button button--primary" to="/login">
             Sign in
-          </a>
+          </Link>
         </div>
       </AuthCard>
     );

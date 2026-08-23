@@ -22,14 +22,9 @@
   --wo-font-display: "Segoe UI Variable Display", "Aptos Display", "Segoe UI", sans-serif;
   --wo-font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
 
-  --wo-critical: #e86f6b;
-  --wo-critical-quiet: rgb(232 111 107 / 0.12);
-  --wo-warning: #cf924d;
-  --wo-warning-quiet: rgb(207 146 77 / 0.12);
-  --wo-success: #519874;
-  --wo-success-quiet: rgb(81 152 116 / 0.12);
-  --wo-failure: #cf7077;
-  --wo-failure-quiet: rgb(207 112 119 / 0.12);
+  /* Status colours live in themes.css: they are palette-dependent.
+     The dark values fail contrast badly on the light ground — 2.7:1 for
+     critical — so a single set cannot serve both. */
 
   --wo-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --wo-ease-standard: cubic-bezier(0.2, 0.75, 0.25, 1);

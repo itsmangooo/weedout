@@ -74,6 +74,40 @@ class TestProductionFrontendServing:
         assert "/dashboard/legacy" not in entry
         assert "<script>" not in entry
 
+    def test_the_theme_is_applied_before_the_first_paint(self):
+        """The boot script has to be synchronous, in <head>, and from our own
+        origin.
+
+        Deferring it — or moving the work into React — flashes the default
+        palette on every load for anybody who chose the other one, which is
+        most visible for exactly the person who cared enough to choose. It is a
+        separate file rather than an inline block because `script-src 'self'`
+        leaves no room for one.
+        """
+        entry = (Path(__file__).parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
+
+        assert '<script src="/static/js/theme-boot.js"></script>' in entry
+        assert "defer" not in entry.split("</head>")[0]
+
+        head, _, body = entry.partition("</head>")
+        assert "theme-boot.js" in head, "the boot script must run before anything renders"
+        assert "theme-boot.js" not in body
+
+        boot = (Path(__file__).parents[1] / "app" / "static" / "js" / "theme-boot.js").read_text(
+            encoding="utf-8"
+        )
+        # It runs before every page. A throw here is a blank site, so the one
+        # thing that can fail — storage — has to be guarded.
+        assert "try {" in boot
+        assert "localStorage" in boot
+
+    async def test_the_boot_script_is_served(self, production_client):
+        """index.html asks for it by absolute path, so it has to exist there."""
+        response = await production_client.get("/static/js/theme-boot.js")
+
+        assert response.status_code == 200
+        assert "data-theme" in response.text
+
     async def test_dashboard_direct_navigation_serves_only_the_react_entry(self, production_client):
         response = await production_client.get("/dashboard")
 

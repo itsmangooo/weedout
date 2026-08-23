@@ -6,6 +6,7 @@ import { requestPasswordReset } from "../api/authActions";
 import { InlineNotice } from "../components/ui/InlineNotice";
 import { Button } from "../components/ui/Button";
 import { AuthCard, AuthField } from "../features/auth/components/AuthCard";
+import { Link } from "react-router";
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -41,7 +42,7 @@ export function ForgotPasswordPage() {
         eyebrow="Check your inbox"
         footer={
           <span>
-            Remembered it? <a href="/login">Sign in</a>
+            Remembered it? <Link to="/login">Sign in</Link>
           </span>
         }
         title="On its way"
@@ -63,7 +64,7 @@ export function ForgotPasswordPage() {
       eyebrow="Account recovery"
       footer={
         <span>
-          Remembered it? <a href="/login">Sign in</a>
+          Remembered it? <Link to="/login">Sign in</Link>
         </span>
       }
       lede="Give us the address on the account and we will send a link to set a new password."

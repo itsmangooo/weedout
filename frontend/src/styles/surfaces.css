@@ -63,12 +63,21 @@
   background: color-mix(in srgb, var(--wo-critical) 18%, transparent);
 }
 
+/* A recessive surface rather than 50% opacity. Fading a solid green button
+   over cream leaves near-white text on near-white ground — unreadable, where
+   the point of a disabled control is that you can still read what it would
+   do. */
 .button:disabled {
-  opacity: 0.5;
+  background: var(--wo-surface-low);
+  /* Muted rather than dim: it is recessive against the enabled button either
+     way, and dim lands at 3:1 on cream, which is not readable. */
+  color: var(--wo-text-muted);
+  box-shadow: inset 0 0 0 1px var(--wo-border);
   cursor: not-allowed;
 }
 
 .button:disabled:hover {
+  background: var(--wo-surface-low);
   transform: none;
 }
 
@@ -162,4 +171,46 @@
 
 .not-found > p:not(.eyebrow) {
   margin-top: var(--wo-space-5);
+}
+
+/* --- Theme control -------------------------------------------------------- */
+
+.theme-control {
+  display: inline-flex;
+  padding: 0.15rem;
+  border-radius: var(--wo-radius-sm);
+  background: var(--wo-accent-quiet);
+}
+
+.theme-control__option {
+  display: grid;
+  width: 1.85rem;
+  height: 1.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: calc(var(--wo-radius-sm) - 0.15rem);
+  background: transparent;
+  color: var(--wo-text-dim);
+  cursor: pointer;
+}
+
+.theme-control__option:hover {
+  color: var(--wo-text-muted);
+}
+
+.theme-control__option[aria-checked="true"] {
+  background: var(--wo-surface-high);
+  color: var(--wo-text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+.theme-control__option:focus-visible {
+  outline: 2px solid var(--wo-focus);
+  outline-offset: 1px;
+}
+
+.button--sm {
+  min-height: 2.1rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
 }

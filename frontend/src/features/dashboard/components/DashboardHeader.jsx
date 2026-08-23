@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import { Link } from "react-router";
 
 const LIVE_STATUS = {
   connecting: { label: "Connecting live updates", title: "Opening the live update stream" },
@@ -32,9 +33,9 @@ export function DashboardHeader({ dependencies, liveStatus, projects }) {
         </dl>
       </div>
       <div className="dashboard-header__actions">
-        <a className="button button--primary" href="/targets/new">
+        <Link className="button button--primary" to="/targets/new">
           <Plus aria-hidden="true" size={16} /> Add project
-        </a>
+        </Link>
       </div>
     </header>
   );

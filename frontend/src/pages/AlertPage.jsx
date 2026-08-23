@@ -1,6 +1,6 @@
 import { ArrowLeft, Flame, RotateCcw, ShieldOff, Terminal } from "lucide-react";
 import { useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { Button } from "../components/ui/Button";
@@ -40,14 +40,14 @@ export function AlertPage() {
 
   return (
     <article className="page-narrow alert-detail">
-      <a className="back-link" href="/alerts?show=open">
+      <Link className="back-link" to="/alerts?show=open">
         <ArrowLeft aria-hidden="true" size={15} /> All findings
-      </a>
+      </Link>
 
       <header className="page-head">
         <p className="section-label">
           {finding.project ? (
-            <a href={`/targets/${finding.project.id}`}>{finding.project.name}</a>
+            <Link to={`/targets/${finding.project.id}`}>{finding.project.name}</Link>
           ) : null}
         </p>
         <h1>{finding.identifier}</h1>

@@ -1,48 +1,161 @@
-:root,
-[data-theme="public"] {
+/* Two palettes, one switch.
+ *
+ * Light is the default because it is the ground the product was designed on —
+ * the marketing pages, the dashboard and the admin panel are one surface now,
+ * and a reader who moves between them should not cross a seam.
+ *
+ * Light is what you get unless you ask for otherwise — including on a machine
+ * set to dark, because the cream ground is the design rather than a fallback.
+ * "Match system" is available as a third choice, resolved to a concrete
+ * `data-theme` by `theme-boot.js` before the first paint.
+ *
+ * Every token is defined in both palettes; `themeTokens.test.js` fails if one
+ * gains a token the other does not, which is how a theme ends up with an
+ * inherited colour that belongs to the other one.
+ *
+ * `data-theme` is written on <html> and nowhere else. Individual surfaces used
+ * to carry their own (`data-theme="app"` on the dashboard, `"public"` on the
+ * marketing shell), which is why the dashboard rendered as a dark island on a
+ * cream page: the attribute was on an inner div, so the body kept the other
+ * palette and showed around the edges.
+ */
+
+:root {
+  /* --- Light ------------------------------------------------------------ */
+  --wo-light-bg: #f3f0e8;
+  --wo-light-surface-low: #eeebe2;
+  --wo-light-surface: #faf8f2;
+  --wo-light-surface-high: #fffdf8;
+  --wo-light-text: #252723;
+  --wo-light-text-muted: #60645d;
+  --wo-light-text-dim: #858a82;
+  --wo-light-separator: rgb(39 42 37 / 0.1);
+  --wo-light-separator-strong: rgb(39 42 37 / 0.2);
+  --wo-light-accent: #426b5c;
+  --wo-light-accent-strong: #2f5548;
+  --wo-light-accent-solid: #2e5045;
+  --wo-light-accent-quiet: rgb(66 107 92 / 0.1);
+  --wo-light-on-accent: #fbfaf5;
+  --wo-light-focus: #426b5c;
+  --wo-light-shadow: 0 24px 70px -42px rgb(52 53 46 / 0.34);
+  --wo-light-shadow-high: 0 30px 80px -42px rgb(52 53 46 / 0.44);
+  /* Translucent, for a bar that content scrolls under. */
+  --wo-light-veil: rgb(243 240 232 / 0.86);
+  /* Deeper than the dark theme's. The dark set reads at 2.7:1 on cream,
+     which is not a colour you can put a word in. These clear 5:1 against
+     both the page and the raised surface. */
+  --wo-light-critical: #b3322e;
+  --wo-light-critical-quiet: rgb(179 50 46 / 0.1);
+  --wo-light-warning: #8a5a12;
+  --wo-light-warning-quiet: rgb(138 90 18 / 0.1);
+  --wo-light-success: #2f6a4c;
+  --wo-light-success-quiet: rgb(47 106 76 / 0.1);
+  --wo-light-failure: #a83a42;
+  --wo-light-failure-quiet: rgb(168 58 66 / 0.1);
+
+  /* --- Dark ------------------------------------------------------------- */
+  --wo-dark-bg: #111312;
+  --wo-dark-surface-low: #171918;
+  --wo-dark-surface: #1d201e;
+  --wo-dark-surface-high: #252825;
+  --wo-dark-text: #edeee8;
+  --wo-dark-text-muted: #a7aba3;
+  --wo-dark-text-dim: #777c75;
+  --wo-dark-separator: rgb(237 238 232 / 0.075);
+  --wo-dark-separator-strong: rgb(237 238 232 / 0.14);
+  --wo-dark-accent: #c8d1ca;
+  --wo-dark-accent-strong: #edf0e9;
+  --wo-dark-accent-solid: #e4e7df;
+  --wo-dark-accent-quiet: rgb(228 231 223 / 0.07);
+  --wo-dark-on-accent: #151715;
+  --wo-dark-focus: #9db8a9;
+  --wo-dark-shadow: 0 24px 72px -44px rgb(0 0 0 / 0.78);
+  --wo-dark-shadow-high: 0 30px 90px -42px rgb(0 0 0 / 0.92);
+  --wo-dark-veil: rgb(23 25 24 / 0.9);
+  --wo-dark-critical: #e86f6b;
+  --wo-dark-critical-quiet: rgb(232 111 107 / 0.12);
+  --wo-dark-warning: #cf924d;
+  --wo-dark-warning-quiet: rgb(207 146 77 / 0.12);
+  --wo-dark-success: #519874;
+  --wo-dark-success-quiet: rgb(81 152 116 / 0.12);
+  --wo-dark-failure: #cf7077;
+  --wo-dark-failure-quiet: rgb(207 112 119 / 0.12);
+}
+
+/* --- Mapping: light, the default ---------------------------------------- */
+
+:root {
   color-scheme: light;
-  --wo-bg: #f3f0e8;
-  --wo-surface-low: #eeebe2;
-  --wo-surface: #faf8f2;
-  --wo-surface-high: #fffdf8;
-  --wo-text: #252723;
-  --wo-text-muted: #60645d;
-  --wo-text-dim: #858a82;
-  --wo-separator: rgb(39 42 37 / 0.1);
-  --wo-separator-strong: rgb(39 42 37 / 0.2);
-  --wo-accent: #426b5c;
-  --wo-accent-strong: #2f5548;
-  --wo-accent-solid: #2e5045;
-  --wo-accent-quiet: rgb(66 107 92 / 0.1);
-  --wo-on-accent: #fbfaf5;
-  --wo-focus: #426b5c;
-  --wo-shadow: 0 24px 70px -42px rgb(52 53 46 / 0.34);
-  --wo-shadow-high: 0 30px 80px -42px rgb(52 53 46 / 0.44);
+
+  --wo-bg: var(--wo-light-bg);
+  --wo-surface-low: var(--wo-light-surface-low);
+  --wo-surface: var(--wo-light-surface);
+  --wo-surface-high: var(--wo-light-surface-high);
+  --wo-text: var(--wo-light-text);
+  --wo-text-muted: var(--wo-light-text-muted);
+  --wo-text-dim: var(--wo-light-text-dim);
+  --wo-separator: var(--wo-light-separator);
+  --wo-separator-strong: var(--wo-light-separator-strong);
+  --wo-accent: var(--wo-light-accent);
+  --wo-accent-strong: var(--wo-light-accent-strong);
+  --wo-accent-solid: var(--wo-light-accent-solid);
+  --wo-accent-quiet: var(--wo-light-accent-quiet);
+  --wo-on-accent: var(--wo-light-on-accent);
+  --wo-focus: var(--wo-light-focus);
+  --wo-shadow: var(--wo-light-shadow);
+  --wo-shadow-high: var(--wo-light-shadow-high);
+  --wo-veil: var(--wo-light-veil);
+  --wo-critical: var(--wo-light-critical);
+  --wo-critical-quiet: var(--wo-light-critical-quiet);
+  --wo-warning: var(--wo-light-warning);
+  --wo-warning-quiet: var(--wo-light-warning-quiet);
+  --wo-success: var(--wo-light-success);
+  --wo-success-quiet: var(--wo-light-success-quiet);
+  --wo-failure: var(--wo-light-failure);
+  --wo-failure-quiet: var(--wo-light-failure-quiet);
 }
 
-[data-theme="app"] {
+/* --- Mapping: dark ------------------------------------------------------- */
+
+/* Written by `theme-boot.js` before the first paint. There is deliberately no
+   system-preference media rule here: light is the product's default rather
+   than a fallback, and "match system" is one of three choices the reader can
+   make, resolved to a concrete value by the boot script. Doing it in CSS as
+   well would let the machine overrule somebody who asked for light. */
+:root[data-theme="dark"] {
   color-scheme: dark;
-  --wo-bg: #111312;
-  --wo-surface-low: #171918;
-  --wo-surface: #1d201e;
-  --wo-surface-high: #252825;
-  --wo-text: #edeee8;
-  --wo-text-muted: #a7aba3;
-  --wo-text-dim: #777c75;
-  --wo-separator: rgb(237 238 232 / 0.075);
-  --wo-separator-strong: rgb(237 238 232 / 0.14);
-  --wo-accent: #c8d1ca;
-  --wo-accent-strong: #edf0e9;
-  --wo-accent-solid: #e4e7df;
-  --wo-accent-quiet: rgb(228 231 223 / 0.07);
-  --wo-on-accent: #151715;
-  --wo-focus: #9db8a9;
-  --wo-shadow: 0 24px 72px -44px rgb(0 0 0 / 0.78);
-  --wo-shadow-high: 0 30px 90px -42px rgb(0 0 0 / 0.92);
+
+  --wo-bg: var(--wo-dark-bg);
+  --wo-surface-low: var(--wo-dark-surface-low);
+  --wo-surface: var(--wo-dark-surface);
+  --wo-surface-high: var(--wo-dark-surface-high);
+  --wo-text: var(--wo-dark-text);
+  --wo-text-muted: var(--wo-dark-text-muted);
+  --wo-text-dim: var(--wo-dark-text-dim);
+  --wo-separator: var(--wo-dark-separator);
+  --wo-separator-strong: var(--wo-dark-separator-strong);
+  --wo-accent: var(--wo-dark-accent);
+  --wo-accent-strong: var(--wo-dark-accent-strong);
+  --wo-accent-solid: var(--wo-dark-accent-solid);
+  --wo-accent-quiet: var(--wo-dark-accent-quiet);
+  --wo-on-accent: var(--wo-dark-on-accent);
+  --wo-focus: var(--wo-dark-focus);
+  --wo-shadow: var(--wo-dark-shadow);
+  --wo-shadow-high: var(--wo-dark-shadow-high);
+  --wo-veil: var(--wo-dark-veil);
+  --wo-critical: var(--wo-dark-critical);
+  --wo-critical-quiet: var(--wo-dark-critical-quiet);
+  --wo-warning: var(--wo-dark-warning);
+  --wo-warning-quiet: var(--wo-dark-warning-quiet);
+  --wo-success: var(--wo-dark-success);
+  --wo-success-quiet: var(--wo-dark-success-quiet);
+  --wo-failure: var(--wo-dark-failure);
+  --wo-failure-quiet: var(--wo-dark-failure-quiet);
 }
 
-:root,
-[data-theme] {
+/* --- Aliases, palette-independent ---------------------------------------- */
+
+:root {
   --wo-level-0: var(--wo-bg);
   --wo-level-1: var(--wo-surface-low);
   --wo-level-2: var(--wo-surface);

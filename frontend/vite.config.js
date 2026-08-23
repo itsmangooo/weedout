@@ -10,36 +10,17 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      "/api": {
-        target: backend,
-      },
-      "/healthz": {
-        target: backend,
-      },
-      "/events": {
-        target: backend,
-      },
-      // Authentication UI remains server-rendered. Proxying the existing
-      // login route lets the Phase 2 guard hand off without CORS or a second
-      // backend origin, and its redirect returns to the React proof route.
-      "/login": {
-        target: backend,
-      },
-      // The canonical `/dashboard` stays with Vite during local development.
-      // Only its temporary rollback URL and the other legacy flows proxy to
-      // Python, matching the production route-ownership boundary.
-      "/dashboard/legacy": {
-        target: backend,
-      },
-      "/alerts": {
-        target: backend,
-      },
-      "/targets": {
-        target: backend,
-      },
-      "/settings": {
-        target: backend,
-      },
+      // Only what Python owns. Every page route is React now, so proxying one
+      // here would serve the built shell from the container instead of the
+      // module Vite is watching.
+      "/api": { target: backend },
+      "/healthz": { target: backend },
+      "/events": { target: backend },
+      "/webhooks": { target: backend },
+      "/install.sh": { target: backend },
+      // The pre-paint theme script and the favicon live with the backend's
+      // static files, and index.html asks for them by absolute path.
+      "/static": { target: backend },
     },
   },
   test: {

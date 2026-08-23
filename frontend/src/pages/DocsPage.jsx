@@ -1,7 +1,8 @@
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { useDocsIndex, useDocsPage } from "../features/marketing/hooks/useMarketing";
+import { usePageTitle } from "../app/usePageTitle";
 import { relativeTime } from "../lib/time";
 
 export function DocsIndexPage() {
@@ -26,10 +27,10 @@ export function DocsIndexPage() {
           <ul className="docs-index">
             {query.data.pages.map((page) => (
               <li key={page.slug}>
-                <a href={`/docs/${page.slug}`}>
+                <Link to={`/docs/${page.slug}`}>
                   <strong>{page.title}</strong>
                   {page.summary ? <span>{page.summary}</span> : null}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
@@ -42,6 +43,10 @@ export function DocsIndexPage() {
 export function DocsArticlePage() {
   const { slug } = useParams();
   const query = useDocsPage(slug);
+
+  // The route table cannot know this one, and "Docs" on every article makes a
+  // row of open tabs useless.
+  usePageTitle(query.data?.data?.title);
 
   if (query.isPending) {
     return (
@@ -62,7 +67,7 @@ export function DocsArticlePage() {
           <p className="page-head__lede">
             {missing ? (
               <>
-                Nothing is published at that address. <a href="/docs">All pages</a>.
+                Nothing is published at that address. <Link to="/docs">All pages</Link>.
               </>
             ) : (
               query.error.message
@@ -78,15 +83,18 @@ export function DocsArticlePage() {
   return (
     <div className="docs-layout">
       <nav aria-label="Documentation" className="docs-nav">
-        <a className="docs-nav__home" href="/docs">
+        <Link className="docs-nav__home" to="/docs">
           All pages
-        </a>
+        </Link>
         <ul>
           {pages.map((entry) => (
             <li key={entry.slug}>
-              <a aria-current={entry.slug === page.slug ? "page" : undefined} href={`/docs/${entry.slug}`}>
+              <Link
+                aria-current={entry.slug === page.slug ? "page" : undefined}
+                to={`/docs/${entry.slug}`}
+              >
                 {entry.title}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>

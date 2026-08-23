@@ -119,6 +119,37 @@ copied onto `Alert` rows (those carry `discord:{target_id}`).
 
 ### Recently (this stretch of work)
 
+- **One theme for the whole product, chosen by the reader.** Light by default
+  — the cream ground is the design, not a fallback — with light / match-system
+  / dark in the header and the app sidebar.
+
+  Three things are worth knowing before touching it:
+
+  - `data-theme` lives on `<html>` and nowhere else. Each shell used to pin its
+    own on a wrapper div, which is why the dashboard rendered as a dark island
+    on a cream page: the body kept the other palette and showed around the
+    edges.
+  - `app/static/js/theme-boot.js` runs synchronously from `<head>`, ahead of
+    the stylesheet, and resolves "match system" itself. Deferring it flashes
+    the wrong palette at exactly the person who cared enough to choose one. It
+    is a separate file because the CSP is `script-src 'self'`.
+  - The status colours are per-palette. The dark set reads at **2.7:1** on
+    cream — not a colour you can put a word in — so light has its own, at 5:1
+    or better. `themeTokens.test.js` fails if one palette gains a token the
+    other lacks.
+
+- **The navigation is responsive for real.** The public header used to drop
+  every link but the last below 40rem with a `display: none`, which is not a
+  responsive layout — it is `/cli` and `/docs` becoming unreachable on a phone.
+  Both shells now move their navigation into a disclosure panel instead, and
+  `navigation.test.jsx` asserts the narrow panel contains the *same*
+  destinations as the wide bar rather than fewer.
+
+  Found while doing it, and fixed: the React app had **no way to sign out** —
+  `signOut()` existed in the API layer and nothing called it — and nineteen
+  internal links were still `<a href>`, tearing down and re-booting the whole
+  application to move one screen. Both are covered by tests now.
+
 - **The React migration, finished.** Read this before touching anything in
   `app/routes/` or `app/templates/`.
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { ApiError } from "../api/client";
 import { signUp } from "../api/authActions";
@@ -45,7 +45,7 @@ export function SignupPage() {
       eyebrow="Get started"
       footer={
         <span>
-          Already have an account? <a href="/login">Sign in</a>
+          Already have an account? <Link to="/login">Sign in</Link>
         </span>
       }
       lede="Watch one project free, and only hear from us when something is actually reachable."

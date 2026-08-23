@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MotionConfig } from "motion/react";
 import { RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -29,6 +29,13 @@ function currentUser({ isAdmin = false } = {}) {
       },
     },
   };
+}
+
+/** The auth boundary's own panel, as opposed to the page chrome around it. */
+function boundaryPanel() {
+  const panel = document.querySelector(".auth-route-state");
+  if (!panel) throw new Error("the auth boundary panel did not render");
+  return panel;
 }
 
 function renderRoute(path) {
@@ -69,7 +76,9 @@ describe("authenticated routes", () => {
     expect(
       await screen.findByRole("heading", { name: "Sign in to continue" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+    // Scoped to the boundary panel: the page header carries its own "Sign in"
+    // for anonymous visitors, and an unscoped query matches both.
+    expect(within(boundaryPanel()).getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/login?next=%2Fauth-boundary",
     );
@@ -104,7 +113,9 @@ describe("authenticated routes", () => {
     expect(
       await screen.findByRole("heading", { name: "Your session expired" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+    // Scoped to the boundary panel: the page header carries its own "Sign in"
+    // for anonymous visitors, and an unscoped query matches both.
+    expect(within(boundaryPanel()).getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/login?next=%2Fauth-boundary",
     );

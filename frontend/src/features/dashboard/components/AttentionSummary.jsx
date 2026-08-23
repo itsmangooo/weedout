@@ -1,5 +1,6 @@
 import { ArrowRight, CircleCheck, Siren, TriangleAlert } from "lucide-react";
 import { motion } from "motion/react";
+import { Link } from "react-router";
 
 function attentionState(summary) {
   if (summary.exploited_findings > 0) {
@@ -75,9 +76,9 @@ export function AttentionSummary({ summary }) {
           ) : null}
         </div>
         {summary.open_findings > 0 ? (
-          <a className="button button--primary" href="/alerts?show=open">
+          <Link className="button button--primary" to="/alerts?show=open">
             Review findings <ArrowRight aria-hidden="true" size={16} />
-          </a>
+          </Link>
         ) : null}
       </div>
     </motion.section>

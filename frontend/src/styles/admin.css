@@ -47,6 +47,12 @@
   gap: var(--wo-space-2);
 }
 
+.admin-head__end {
+  display: flex;
+  align-items: center;
+  gap: var(--wo-space-4);
+}
+
 .admin-head__exit {
   color: var(--wo-text-muted);
   font-size: 0.84rem;

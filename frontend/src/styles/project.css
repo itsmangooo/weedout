@@ -598,7 +598,7 @@
      light plate or a scanner cannot read it. */
   padding: var(--wo-space-2);
   border-radius: var(--wo-radius-xs);
-  background: #fff;
+  background: var(--wo-surface-high);
 }
 
 .tfa-setup__manual p {

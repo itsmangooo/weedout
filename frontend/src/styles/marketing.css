@@ -40,6 +40,50 @@
   display: flex;
   align-items: center;
   gap: var(--wo-space-5);
+  /* Pushed off-centre deliberately: the brand anchors the left, the account
+     controls the right, and the sections sit between them rather than being
+     crowded against one edge. */
+  margin-inline: auto;
+}
+
+.foundation-header__end {
+  display: flex;
+  align-items: center;
+  gap: var(--wo-space-4);
+}
+
+.foundation-header__signin {
+  color: var(--wo-text-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.foundation-header__signin:hover {
+  color: var(--wo-text);
+}
+
+/* Only shown once the row cannot hold everything. */
+.foundation-header__menu {
+  display: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--wo-radius-sm);
+  background: transparent;
+  color: var(--wo-text);
+  cursor: pointer;
+}
+
+.foundation-header__menu:hover {
+  background: var(--wo-accent-quiet);
+}
+
+.foundation-menu {
+  display: none;
 }
 
 .foundation-header__nav a {
@@ -66,6 +110,14 @@
 .foundation-header__nav a:hover::after {
   scale: 1 1;
   transform-origin: left;
+}
+
+.foundation-header__nav a.is-active {
+  color: var(--wo-text);
+}
+
+.foundation-header__nav a.is-active::after {
+  scale: 1 1;
 }
 
 .auth-route-shell {
@@ -165,13 +217,60 @@
   }
 }
 
+/* Below this the row cannot hold brand, sections and account controls, so the
+   sections and controls move into a panel. They are not removed: hiding all
+   but the last link is how /cli and /docs became unreachable on a phone. */
+@media (max-width: 52rem) {
+  .foundation-header__nav,
+  .foundation-header__end {
+    display: none;
+  }
+
+  .foundation-header__menu {
+    display: inline-flex;
+  }
+
+  .foundation-menu {
+    display: grid;
+    gap: var(--wo-space-5);
+    width: min(100% - 2rem, var(--wo-page-max));
+    margin-inline: auto;
+    padding: var(--wo-space-5) 0 var(--wo-space-6);
+    border-top: 1px solid var(--wo-border);
+  }
+
+  .foundation-menu__nav {
+    display: grid;
+    gap: var(--wo-space-1);
+  }
+
+  .foundation-menu__nav a {
+    padding: var(--wo-space-3) 0;
+    color: var(--wo-text-muted);
+    font-size: 1.05rem;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .foundation-menu__nav a.is-active {
+    color: var(--wo-text);
+  }
+
+  .foundation-menu__end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--wo-space-3);
+  }
+
+  .foundation-menu__end .button {
+    flex: 1 1 8rem;
+  }
+}
+
 @media (max-width: 40rem) {
   .foundation-header__inner {
     width: min(100% - 2rem, var(--wo-page-max));
-  }
-
-  .foundation-header__nav a:not(:last-child) {
-    display: none;
   }
 
   .auth-route-state {

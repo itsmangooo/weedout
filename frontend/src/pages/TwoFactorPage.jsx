@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { ApiError } from "../api/client";
 import { safeNext, submitSecondFactor } from "../api/authActions";
@@ -53,7 +53,7 @@ export function TwoFactorPage() {
       footer={
         <span>
           Lost your device? Use one of your backup codes above, or{" "}
-          <a href="/login">start again</a>.
+          <Link to="/login">start again</Link>.
         </span>
       }
       lede="Enter the six-digit code from your authenticator app. A backup code works here too."

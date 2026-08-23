@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router";
 
 import { useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
 import { useUnreadCount } from "../../features/admin/hooks/useAdmin";
+import { ThemeControl } from "../../features/theme/ThemeControl";
 
 /**
  * Chrome for the admin panel.
@@ -27,7 +28,7 @@ export function AdminShell() {
   const unread = useUnreadCount();
 
   return (
-    <div className="admin-shell" data-theme="app">
+    <div className="admin-shell">
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -39,9 +40,12 @@ export function AdminShell() {
             Signed in as {data?.user?.email}
           </p>
         </div>
-        <NavLink className="admin-head__exit" to="/dashboard">
-          Back to the app
-        </NavLink>
+        <div className="admin-head__end">
+          <ThemeControl />
+          <NavLink className="admin-head__exit" to="/dashboard">
+            Back to the app
+          </NavLink>
+        </div>
       </div>
 
       <nav aria-label="Admin sections" className="tabs">

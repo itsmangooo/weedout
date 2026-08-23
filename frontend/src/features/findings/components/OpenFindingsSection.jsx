@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowUpRight, LoaderCircle, ServerOff } from "lucide-rea
 import { Button } from "../../../components/ui/Button";
 import { InlineNotice } from "../../../components/ui/InlineNotice";
 import { FindingRow } from "./FindingRow";
+import { Link } from "react-router";
 
 export function OpenFindingsSection({ query }) {
   return (
@@ -12,9 +13,9 @@ export function OpenFindingsSection({ query }) {
           <p className="section-label">Attention queue</p>
           <h2 id="open-findings-title">Open findings</h2>
         </div>
-        <a href="/alerts?show=open">
+        <Link to="/alerts?show=open">
           Review all <ArrowUpRight aria-hidden="true" size={14} />
-        </a>
+        </Link>
       </div>
 
       {query.isPending ? (

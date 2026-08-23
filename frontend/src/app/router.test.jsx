@@ -19,19 +19,26 @@ function response(body, status = 200) {
 }
 
 /**
- * Answer the landing page's own request, and hand everything else on.
+ * Answer the requests the page makes on its own behalf, and hand the rest on.
  *
- * The landing page fetches its live figures as well as the health check, and a
- * mock that returns one Response object for every call breaks as soon as there
- * are two callers: the first `.text()` consumes the body and the second reads
- * an empty stream. Routing by URL keeps each test asserting on the call it
- * cares about.
+ * The landing page fetches its live figures, and the header asks who the
+ * visitor is so it can offer "Sign in" or "Dashboard". A mock that returns one
+ * Response for every call breaks as soon as there are two callers — the first
+ * `.text()` consumes the body and the second reads an empty stream — and a
+ * mock that shifts from a queue hands the wrong reply to whichever caller
+ * happens to be second. Routing by URL keeps each test asserting on the call
+ * it actually cares about.
  */
-function withLandingData(handler) {
+function withPageChrome(handler) {
   return (url, options) => {
     const path = typeof url === "string" ? url : String(url);
     if (path.includes("/api/internal/landing")) {
       return Promise.resolve(response({ data: null }));
+    }
+    if (path.includes("/api/internal/auth/me")) {
+      return Promise.resolve(
+        response({ data: { authenticated: false, session_state: "anonymous", user: null } }),
+      );
     }
     return handler(url, options);
   };
@@ -56,7 +63,7 @@ describe("frontend routes", () => {
     const pending = new Promise((resolve) => {
       resolveRequest = resolve;
     });
-    vi.spyOn(globalThis, "fetch").mockImplementation(withLandingData(() => pending));
+    vi.spyOn(globalThis, "fetch").mockImplementation(withPageChrome(() => pending));
 
     renderRoute();
     expect(await screen.findByText("Checking connection")).toBeInTheDocument();
@@ -70,7 +77,7 @@ describe("frontend routes", () => {
     const health = [response("Service unavailable", 503), response({ status: "ok", version: "0.1.0" })];
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
-      .mockImplementation(withLandingData(() => Promise.resolve(health.shift())));
+      .mockImplementation(withPageChrome(() => Promise.resolve(health.shift())));
     const user = userEvent.setup();
 
     renderRoute();
@@ -83,8 +90,8 @@ describe("frontend routes", () => {
     // The health endpoint exactly twice: once on load, once on the retry.
     // Counting every request instead would make this fail whenever the page
     // gains an unrelated one, which is what it just did.
-    const healthCalls = fetchMock.mock.calls.filter(
-      ([url]) => !String(url).includes("/api/internal/landing"),
+    const healthCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes("/healthz"),
     );
     expect(healthCalls).toHaveLength(2);
   });

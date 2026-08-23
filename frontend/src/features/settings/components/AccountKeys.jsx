@@ -6,6 +6,7 @@ import { Button } from "../../../components/ui/Button";
 import { InlineNotice } from "../../../components/ui/InlineNotice";
 import { relativeTime } from "../../../lib/time";
 import { useSettingsMutation } from "../hooks/useSettings";
+import { Link } from "react-router";
 
 const SCOPES = [
   { value: "scan", label: "Push scans — for CI" },
@@ -47,7 +48,7 @@ export function AccountKeys({ keys, projects }) {
 
       {projects.length === 0 ? (
         <p className="empty-state">
-          A key belongs to one project. <a href="/targets/new">Add a project</a> first.
+          A key belongs to one project. <Link to="/targets/new">Add a project</Link> first.
         </p>
       ) : (
         <form

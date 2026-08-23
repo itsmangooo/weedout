@@ -1,4 +1,5 @@
-import { Download, PackageX, Terminal } from "lucide-react";
+import { Download, PackageX } from "lucide-react";
+import { useState } from "react";
 
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { InlineNotice } from "../components/ui/InlineNotice";
@@ -7,37 +8,94 @@ import { useCliFacts } from "../features/marketing/hooks/useMarketing";
 /**
  * The CLI's page.
  *
- * Everything factual on it — the version, the downloads, the dependency list —
- * is fetched rather than written here. A hardcoded claim on a page about
- * dependency honesty is the worst possible thing to let go stale, so when a
- * lookup fails this says "unavailable" rather than showing a remembered
- * answer.
+ * The signature is the transcript: a command-line tool's characteristic
+ * artifact is what it prints and what it exits with, so that is the hero
+ * rather than a feature grid. Every line in it is the real format from
+ * `internal/cli/cli.go` — the counts line, the separator, the markers, the
+ * arrow for a fix — because a screenshot of output the binary does not produce
+ * is the kind of lie that gets found on day one.
+ *
+ * Everything factual is fetched rather than written here. A hardcoded version
+ * number on a page about dependency honesty is the worst possible thing to let
+ * go stale, so when a lookup fails this says "unavailable" instead of showing
+ * a remembered answer.
  */
+
+const INSTALLERS = [
+  {
+    id: "unix",
+    label: "macOS · Linux",
+    command: "curl -sSL https://weedout.dev/install.sh | sh",
+  },
+  {
+    id: "windows",
+    label: "Windows",
+    command: "irm https://weedout.dev/install.ps1 | iex",
+  },
+  {
+    id: "go",
+    label: "Go",
+    command: "go install github.com/itsmangooo/weedout-cli@latest",
+  },
+];
+
+const EXIT_CODES = [
+  {
+    code: "0",
+    title: "Ran, nothing blocking",
+    detail: "The scan completed and found nothing at or above your threshold.",
+    tone: "calm",
+  },
+  {
+    code: "1",
+    title: "Ran, found something blocking",
+    detail: "Only ever with --ci. Without it the CLI reports and exits 0.",
+    tone: "alert",
+  },
+  {
+    code: "2",
+    title: "Did not run",
+    detail:
+      "A rejected key, an unreachable service, or no manifest. Never confused with a clean result — a scan that could not run is not a scan that found nothing.",
+    tone: "warn",
+  },
+];
+
+const READ_COMMANDS = [
+  ["weedout status", "Counts, last check, next check."],
+  ["weedout findings", "What is open, with fixes and how it got in."],
+  ["weedout history", "Recent scans and how the count has moved."],
+  ["weedout supply-chain", "Signals about the packages themselves."],
+];
+
+const MANAGE_COMMANDS = [
+  ["weedout rules", "The rules in force."],
+  ["weedout rules ignore ID --reason R", "Stop reporting one advisory."],
+  ["weedout rules unignore ID", "Report it again."],
+];
+
 export function CliPage() {
   const query = useCliFacts();
 
   return (
-    <div className="page-narrow">
-      <header className="page-head">
-        <p className="section-label">Command line</p>
-        <h1>The same answer, in your pipeline.</h1>
-        <p className="page-head__lede">
-          One binary, no runtime to install. It fails the build on findings that are
-          reachable and exploited, and stays quiet about the rest.
-        </p>
-      </header>
+    <div className="cli-page">
+      <section className="cli-hero">
+        <div className="cli-hero__copy">
+          <p className="eyebrow">Command line</p>
+          <h1>The same answer, in your pipeline.</h1>
+          <p className="cli-hero__lede">
+            One binary, no runtime to install, and nothing in its own dependency tree. It fails the
+            build on findings that are reachable or exploited, and stays quiet about the rest.
+          </p>
+        </div>
 
-      <section className="cli-section">
-        <h2>Install</h2>
-        <pre className="command-block">
-          <Terminal aria-hidden="true" size={14} />
-          <code>curl -sSL https://weedout.dev/install.sh | sh</code>
-        </pre>
-        <pre className="command-block">
-          <Terminal aria-hidden="true" size={14} />
-          <code>weedout scan --ci</code>
-        </pre>
+        <Transcript />
       </section>
+
+      <Install />
+      <ExitCodes />
+      <Action />
+      <WithoutTheDashboard />
 
       {query.isPending ? <AsyncLoading>Checking the latest release…</AsyncLoading> : null}
       {query.isError ? (
@@ -54,26 +112,238 @@ export function CliPage() {
   );
 }
 
+/**
+ * One `weedout scan --ci` run, in the format the binary really prints.
+ *
+ * Marked `aria-hidden` and paired with a written summary: read aloud, a
+ * terminal transcript is a stream of package names and numbers that means
+ * nothing, and the sentence beneath it is the point of the whole panel.
+ */
+function Transcript() {
+  return (
+    <figure className="transcript">
+      <div aria-hidden="true" className="transcript__frame">
+        <div className="transcript__bar">
+          <span className="transcript__dot" />
+          <span className="transcript__dot" />
+          <span className="transcript__dot" />
+          <span className="transcript__path">acme-storefront</span>
+        </div>
+
+        <pre className="transcript__body">
+          <span className="transcript__prompt">$</span> weedout scan --ci{"\n"}
+          {"\n"}
+          <b>acme-storefront</b> <span className="dim">package-lock.json</span>
+          {"\n"}
+          <span className="dim">1,284 dependencies scanned · 44 filtered out as noise</span>
+          {"\n\n"}
+          <span className="transcript__bad">1 exploited</span>
+          <span className="dim"> · </span>
+          <span className="transcript__bad">2 critical</span>
+          <span className="dim"> · </span>
+          <span className="transcript__warn">3 high</span>
+          {"\n\n"}
+          <span className="transcript__bad">▲</span> minimist@1.2.5{"  "}
+          <span className="dim">CVE-2026-5001</span>
+          {"  "}
+          <span className="transcript__good">→ 1.2.6</span>
+          {"\n"}
+          <span className="transcript__warn">•</span> express@4.18.1{"  "}
+          <span className="dim">CVE-2026-4912</span>
+          {"  "}
+          <span className="dim">no fix yet</span>
+          {"\n"}
+          <span className="transcript__warn">•</span> axios@1.3.2{"    "}
+          <span className="dim">CVE-2026-9821</span>
+          {"  "}
+          <span className="transcript__good">→ 1.6.8</span>
+          {"\n\n"}
+          <span className="transcript__bad">
+            Failing: 3 finding(s) at critical severity or confirmed exploitation.
+          </span>
+          {"\n\n"}
+          <span className="transcript__prompt">$</span> echo $?{"\n"}
+          <span className="transcript__bad">1</span>
+        </pre>
+      </div>
+
+      <figcaption className="transcript__caption">
+        A scan of 1,284 dependencies reports six findings and filters out 44. Three of them are at
+        or above the threshold, so the run exits 1 and the build stops.
+      </figcaption>
+    </figure>
+  );
+}
+
+function Install() {
+  const [active, setActive] = useState(INSTALLERS[0].id);
+  const installer = INSTALLERS.find((option) => option.id === active);
+
+  return (
+    <section aria-labelledby="install-heading" className="cli-section">
+      <div className="cli-section__head">
+        <p className="eyebrow">01</p>
+        <h2 id="install-heading">Install it</h2>
+      </div>
+
+      <div className="cli-tabs" role="tablist">
+        {INSTALLERS.map((option) => (
+          <button
+            aria-selected={option.id === active}
+            className="cli-tab"
+            key={option.id}
+            onClick={() => setActive(option.id)}
+            role="tab"
+            type="button"
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      <pre className="command-block">
+        <code>{installer.command}</code>
+      </pre>
+      <pre className="command-block">
+        <code>weedout scan --ci</code>
+      </pre>
+
+      <p className="cli-note">
+        The key decides which project the scan belongs to, so there is nothing else to configure.
+        Put it in <code>WEEDOUT_API_KEY</code>, or run <code>weedout init</code> to write a{" "}
+        <code>.weedout.yml</code>.
+      </p>
+    </section>
+  );
+}
+
+function ExitCodes() {
+  return (
+    <section aria-labelledby="exit-heading" className="cli-section">
+      <div className="cli-section__head">
+        <p className="eyebrow">02</p>
+        <h2 id="exit-heading">Three exit codes, and they mean different things</h2>
+      </div>
+
+      <p className="cli-section__lede">
+        The distinction that matters in a pipeline is between a clean scan and a scan that never
+        happened. Most tools collapse the two into zero.
+      </p>
+
+      <dl className="exit-list">
+        {EXIT_CODES.map((entry) => (
+          <div className={`exit-row exit-row--${entry.tone}`} key={entry.code}>
+            <dt>
+              <span className="exit-row__code">{entry.code}</span>
+            </dt>
+            <dd>
+              <strong>{entry.title}</strong>
+              <p>{entry.detail}</p>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function Action() {
+  return (
+    <section aria-labelledby="action-heading" className="cli-section">
+      <div className="cli-section__head">
+        <p className="eyebrow">03</p>
+        <h2 id="action-heading">Or one line of workflow</h2>
+      </div>
+
+      <pre className="command-block command-block--wide">
+        <code>{`- uses: itsmangooo/weedout-cli@v1
+  with:
+    api-key: \${{ secrets.WEEDOUT_API_KEY }}
+    fail-on: critical`}</code>
+      </pre>
+
+      <p className="cli-note">
+        The action is the same binary. It downloads the release for the runner, scans, and fails the
+        job on the same rule as <code>--ci</code>.
+      </p>
+    </section>
+  );
+}
+
+function WithoutTheDashboard() {
+  return (
+    <section aria-labelledby="read-heading" className="cli-section">
+      <div className="cli-section__head">
+        <p className="eyebrow">04</p>
+        <h2 id="read-heading">Everything the dashboard shows, without opening it</h2>
+      </div>
+
+      <p className="cli-section__lede">
+        A key carries a scope. <code>read</code> gets you the numbers; <code>manage</code> also lets
+        you change what gets reported. A CI key needs neither — <code>scan</code> is the default,
+        and a key that can silence an advisory has no business living in a build log.
+      </p>
+
+      <div className="command-grid">
+        <div>
+          <p className="command-grid__label">
+            Read <span className="dim">— needs a key with read access</span>
+          </p>
+          <dl className="command-list">
+            {READ_COMMANDS.map(([command, detail]) => (
+              <div key={command}>
+                <dt>{command}</dt>
+                <dd>{detail}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div>
+          <p className="command-grid__label">
+            Change <span className="dim">— needs a key with manage access</span>
+          </p>
+          <dl className="command-list">
+            {MANAGE_COMMANDS.map(([command, detail]) => (
+              <div key={command}>
+                <dt>{command}</dt>
+                <dd>{detail}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Downloads({ release }) {
   if (!release?.available) {
     return (
       <section className="cli-section">
-        <h2>Downloads</h2>
+        <div className="cli-section__head">
+          <p className="eyebrow">Downloads</p>
+          <h2>Builds</h2>
+        </div>
         {/* Deliberately not a remembered version number. Being briefly unable
             to say is better than confidently saying something out of date. */}
         <InlineNotice tone="neutral">
-          The release list is unavailable right now. The install command above always
-          fetches the newest build.
+          The release list is unavailable right now. The install command above always fetches the
+          newest build.
         </InlineNotice>
       </section>
     );
   }
 
   return (
-    <section className="cli-section">
-      <h2>
-        Downloads <span className="dim">{release.version}</span>
-      </h2>
+    <section aria-labelledby="downloads-heading" className="cli-section">
+      <div className="cli-section__head">
+        <p className="eyebrow">Downloads</p>
+        <h2 id="downloads-heading">
+          Builds <span className="cli-version">{release.version}</span>
+        </h2>
+      </div>
+
       <ul className="download-list">
         {release.assets.map((asset) => (
           <li key={asset.name}>
@@ -85,8 +355,9 @@ function Downloads({ release }) {
           </li>
         ))}
       </ul>
+
       {release.notes_url ? (
-        <p className="auth-field__hint">
+        <p className="cli-note">
           <a href={release.notes_url}>Release notes</a>
         </p>
       ) : null}
@@ -98,19 +369,24 @@ function Dependencies({ module, repo }) {
   if (!module?.available) {
     return (
       <section className="cli-section">
-        <h2>Dependencies</h2>
+        <div className="cli-section__head">
+          <p className="eyebrow">Dependencies</p>
+          <h2>What it brings with it</h2>
+        </div>
         <InlineNotice tone="neutral">
-          The dependency list is unavailable right now. It is read from{" "}
-          <code>go.mod</code> in the open repository rather than kept here, so it
-          cannot quietly go out of date.
+          The dependency list is unavailable right now. It is read from <code>go.mod</code> in the
+          open repository rather than kept here, so it cannot quietly go out of date.
         </InlineNotice>
       </section>
     );
   }
 
   return (
-    <section className="cli-section">
-      <h2>Dependencies</h2>
+    <section aria-labelledby="deps-heading" className="cli-section">
+      <div className="cli-section__head">
+        <p className="eyebrow">Dependencies</p>
+        <h2 id="deps-heading">What it brings with it</h2>
+      </div>
 
       {module.dependencies.length === 0 ? (
         <div className="zero-deps">
@@ -120,9 +396,8 @@ function Dependencies({ module, repo }) {
             <p>
               Read live from <code>go.mod</code> in{" "}
               <a href={`https://github.com/${repo}`}>{repo}</a>, not asserted here. Go{" "}
-              {module.go_version}. Every dependency in a security tool is another thing
-              you have to trust, and a CI runner is the last place that benefits from a
-              dependency tree.
+              {module.go_version}. Every dependency in a security tool is another thing you have to
+              trust, and a CI runner is the last place that benefits from a dependency tree.
             </p>
           </div>
         </div>

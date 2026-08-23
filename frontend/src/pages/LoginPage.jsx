@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { ApiError } from "../api/client";
 import { safeNext, signIn } from "../api/authActions";
@@ -55,9 +55,9 @@ export function LoginPage() {
       footer={
         <div className="auth-meta__row">
           <span>
-            No account? <a href="/signup">Create one</a>
+            No account? <Link to="/signup">Create one</Link>
           </span>
-          <a href="/forgot-password">Forgot your password?</a>
+          <Link to="/forgot-password">Forgot your password?</Link>
         </div>
       }
       lede="Sign in to see what actually needs your attention."

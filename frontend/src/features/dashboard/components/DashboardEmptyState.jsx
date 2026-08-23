@@ -1,4 +1,5 @@
 import { FilePlus2 } from "lucide-react";
+import { Link } from "react-router";
 
 export function DashboardEmptyState() {
   return (
@@ -12,9 +13,9 @@ export function DashboardEmptyState() {
           Python exactly as it does today.
         </p>
       </div>
-      <a className="button button--primary" href="/targets/new">
+      <Link className="button button--primary" to="/targets/new">
         Add project
-      </a>
+      </Link>
     </section>
   );
 }

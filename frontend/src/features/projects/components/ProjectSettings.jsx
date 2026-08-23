@@ -1,6 +1,6 @@
 import { KeyRound, ShieldAlert, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import {
   addIgnoreRule,
@@ -225,7 +225,7 @@ function RulesSection({ page, projectId }) {
         <h2 id="rules-title">Scan rules</h2>
         <InlineNotice tone="neutral">
           Custom thresholds and ignore rules are part of the Pro plan.{" "}
-          <a href="/billing">See the plans</a>.
+          <Link to="/billing">See the plans</Link>.
         </InlineNotice>
       </section>
     );

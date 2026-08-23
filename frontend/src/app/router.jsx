@@ -27,6 +27,7 @@ export const appRoutes = [
         children: [
           {
             index: true,
+            handle: { title: "Weed out the noise in your CVE alerts" },
             lazy: async () => {
               const { FoundationPage } = await import("../pages/FoundationPage");
               return { Component: FoundationPage };
@@ -34,6 +35,7 @@ export const appRoutes = [
           },
           {
             path: "pricing",
+            handle: { title: "Pricing" },
             lazy: async () => {
               const { PricingPage } = await import("../pages/PricingPage");
               return { Component: PricingPage };
@@ -41,6 +43,7 @@ export const appRoutes = [
           },
           {
             path: "cli",
+            handle: { title: "Command line" },
             lazy: async () => {
               const { CliPage } = await import("../pages/CliPage");
               return { Component: CliPage };
@@ -48,6 +51,7 @@ export const appRoutes = [
           },
           {
             path: "contact",
+            handle: { title: "Contact" },
             lazy: async () => {
               const { ContactPage } = await import("../pages/ContactPage");
               return { Component: ContactPage };
@@ -55,6 +59,7 @@ export const appRoutes = [
           },
           {
             path: "docs",
+            handle: { title: "Docs" },
             lazy: async () => {
               const { DocsIndexPage } = await import("../pages/DocsPage");
               return { Component: DocsIndexPage };
@@ -62,6 +67,8 @@ export const appRoutes = [
           },
           {
             path: "docs/:slug",
+            // No title here: the article sets its own from the page it loaded,
+            // and "Docs" on every one of them makes a row of tabs useless.
             lazy: async () => {
               const { DocsArticlePage } = await import("../pages/DocsPage");
               return { Component: DocsArticlePage };
@@ -69,6 +76,7 @@ export const appRoutes = [
           },
           {
             path: "login",
+            handle: { title: "Sign in" },
             lazy: async () => {
               const { LoginPage } = await import("../pages/LoginPage");
               return { Component: LoginPage };
@@ -76,6 +84,7 @@ export const appRoutes = [
           },
           {
             path: "login/2fa",
+            handle: { title: "Two-factor" },
             lazy: async () => {
               const { TwoFactorPage } = await import("../pages/TwoFactorPage");
               return { Component: TwoFactorPage };
@@ -83,6 +92,7 @@ export const appRoutes = [
           },
           {
             path: "signup",
+            handle: { title: "Create an account" },
             lazy: async () => {
               const { SignupPage } = await import("../pages/SignupPage");
               return { Component: SignupPage };
@@ -90,6 +100,7 @@ export const appRoutes = [
           },
           {
             path: "forgot-password",
+            handle: { title: "Reset your password" },
             lazy: async () => {
               const { ForgotPasswordPage } = await import("../pages/ForgotPasswordPage");
               return { Component: ForgotPasswordPage };
@@ -97,6 +108,7 @@ export const appRoutes = [
           },
           {
             path: "reset-password",
+            handle: { title: "Choose a new password" },
             lazy: async () => {
               const { ResetPasswordPage } = await import("../pages/ResetPasswordPage");
               return { Component: ResetPasswordPage };
@@ -122,6 +134,7 @@ export const appRoutes = [
           },
           {
             path: "*",
+            handle: { title: "Not found" },
             element: <NotFoundPage />,
           },
         ],
@@ -134,6 +147,7 @@ export const appRoutes = [
             children: [
               {
                 path: "dashboard",
+                handle: { title: "Dashboard" },
                 lazy: async () => {
                   const { DashboardPage } = await import("../pages/DashboardPage");
                   return { Component: DashboardPage };
@@ -141,6 +155,7 @@ export const appRoutes = [
               },
               {
                 path: "targets/new",
+                handle: { title: "Add a project" },
                 lazy: async () => {
                   const { NewProjectPage } = await import("../pages/NewProjectPage");
                   return { Component: NewProjectPage };
@@ -148,6 +163,7 @@ export const appRoutes = [
               },
               {
                 path: "billing",
+                handle: { title: "Billing" },
                 lazy: async () => {
                   const { BillingPage } = await import("../pages/BillingPage");
                   return { Component: BillingPage };
@@ -155,6 +171,7 @@ export const appRoutes = [
               },
               {
                 path: "billing/success",
+                handle: { title: "Billing" },
                 lazy: async () => {
                   const { BillingPage } = await import("../pages/BillingPage");
                   return { Component: BillingPage };
@@ -162,6 +179,7 @@ export const appRoutes = [
               },
               {
                 path: "settings",
+                handle: { title: "Settings" },
                 lazy: async () => {
                   const { SettingsPage } = await import("../pages/SettingsPage");
                   return { Component: SettingsPage };
@@ -169,6 +187,7 @@ export const appRoutes = [
               },
               {
                 path: "alerts",
+                handle: { title: "Findings" },
                 lazy: async () => {
                   const { AlertsPage } = await import("../pages/AlertsPage");
                   return { Component: AlertsPage };
@@ -176,6 +195,7 @@ export const appRoutes = [
               },
               {
                 path: "alerts/:alertId",
+                handle: { title: "Finding" },
                 lazy: async () => {
                   const { AlertPage } = await import("../pages/AlertPage");
                   return { Component: AlertPage };
@@ -183,6 +203,7 @@ export const appRoutes = [
               },
               {
                 path: "targets/:projectId",
+                handle: { title: "Project" },
                 lazy: async () => {
                   const { ProjectPage } = await import("../pages/ProjectPage");
                   return { Component: ProjectPage };
@@ -202,6 +223,7 @@ export const appRoutes = [
                 children: [
                   {
                     path: "admin",
+                    handle: { title: "Admin" },
                     lazy: async () => {
                       const { AdminOverviewPage } = await import(
                         "../pages/admin/AdminOverviewPage"
@@ -211,6 +233,7 @@ export const appRoutes = [
                   },
                   {
                     path: "admin/users",
+                    handle: { title: "Users" },
                     lazy: async () => {
                       const { AdminUsersPage } = await import("../pages/admin/AdminUsersPage");
                       return { Component: AdminUsersPage };
@@ -218,6 +241,7 @@ export const appRoutes = [
                   },
                   {
                     path: "admin/users/:userId",
+                    handle: { title: "User" },
                     lazy: async () => {
                       const { AdminUserPage } = await import("../pages/admin/AdminUserPage");
                       return { Component: AdminUserPage };
@@ -225,6 +249,7 @@ export const appRoutes = [
                   },
                   {
                     path: "admin/billing",
+                    handle: { title: "Revenue" },
                     lazy: async () => {
                       const { AdminBillingPage } = await import(
                         "../pages/admin/AdminBillingPage"
@@ -234,6 +259,7 @@ export const appRoutes = [
                   },
                   {
                     path: "admin/inbox",
+                    handle: { title: "Inbox" },
                     lazy: async () => {
                       const { AdminInboxPage } = await import("../pages/admin/AdminInboxPage");
                       return { Component: AdminInboxPage };
@@ -241,6 +267,7 @@ export const appRoutes = [
                   },
                   {
                     path: "admin/inbox/:messageId",
+                    handle: { title: "Message" },
                     lazy: async () => {
                       const { AdminMessagePage } = await import(
                         "../pages/admin/AdminMessagePage"
@@ -250,6 +277,7 @@ export const appRoutes = [
                   },
                   {
                     path: "admin/email",
+                    handle: { title: "Compose" },
                     lazy: async () => {
                       const { AdminComposePage } = await import(
                         "../pages/admin/AdminComposePage"
@@ -259,6 +287,7 @@ export const appRoutes = [
                   },
                   {
                     path: "admin/docs",
+                    handle: { title: "Docs" },
                     lazy: async () => {
                       const { AdminDocsPage } = await import("../pages/admin/AdminDocsPage");
                       return { Component: AdminDocsPage };
@@ -268,6 +297,7 @@ export const appRoutes = [
                     // Before ":pageId", so "new" is the create form rather
                     // than a lookup for a page whose id is the word "new".
                     path: "admin/docs/new",
+                    handle: { title: "New page" },
                     lazy: async () => {
                       const { AdminDocEditPage } = await import(
                         "../pages/admin/AdminDocEditPage"
@@ -277,6 +307,7 @@ export const appRoutes = [
                   },
                   {
                     path: "admin/docs/:pageId",
+                    handle: { title: "Edit page" },
                     lazy: async () => {
                       const { AdminDocEditPage } = await import(
                         "../pages/admin/AdminDocEditPage"
@@ -286,6 +317,7 @@ export const appRoutes = [
                   },
                   {
                     path: "admin/audit",
+                    handle: { title: "Audit log" },
                     lazy: async () => {
                       const { AdminAuditPage } = await import("../pages/admin/AdminAuditPage");
                       return { Component: AdminAuditPage };

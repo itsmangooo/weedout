@@ -46,7 +46,7 @@
   min-height: 37rem;
   margin-top: clamp(3rem, 6vw, 5rem);
   border-block: 1px solid var(--wo-separator);
-  background: #e9ece7;
+  background: var(--wo-surface-low);
   transform-style: preserve-3d;
 }
 
@@ -388,7 +388,7 @@
   position: relative;
   width: 100%;
   height: 360vh;
-  background: #eceeea;
+  background: var(--wo-surface-low);
 }
 
 .filter-story__sticky {

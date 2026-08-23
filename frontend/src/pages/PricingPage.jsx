@@ -2,6 +2,7 @@ import { Check } from "lucide-react";
 
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { usePricing } from "../features/marketing/hooks/useMarketing";
+import { Link } from "react-router";
 
 /**
  * The plan table.
@@ -44,9 +45,9 @@ export function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <a className="button button--primary" href="/signup">
+              <Link className="button button--primary" to="/signup">
                 Start with {plan.name}
-              </a>
+              </Link>
             </section>
           ))}
         </div>

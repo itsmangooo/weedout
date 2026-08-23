@@ -1,0 +1,344 @@
+/* The CLI page.
+ *
+ * Same vocabulary as the landing: mono eyebrows, a large display heading, a
+ * numbered spine down the sections, hairline rules and a lot of air. The
+ * signature is the transcript — a command-line tool's characteristic artifact
+ * is what it prints, so that gets the weight the landing gives its lockfile
+ * panel.
+ */
+
+.cli-page {
+  width: min(100% - 3rem, var(--wo-page-max));
+  margin-inline: auto;
+  padding-block: clamp(3rem, 7vw, 6rem) clamp(5rem, 10vw, 9rem);
+}
+
+/* --- Hero ----------------------------------------------------------------- */
+
+.cli-hero {
+  display: grid;
+  gap: clamp(2.5rem, 6vw, 4.5rem);
+  align-items: center;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  padding-bottom: clamp(3rem, 7vw, 5.5rem);
+  border-bottom: 1px solid var(--wo-border);
+}
+
+.cli-hero__copy h1 {
+  margin: var(--wo-space-4) 0 0;
+  font-family: var(--wo-font-display);
+  font-size: clamp(2.5rem, 4.4vw, 3.9rem);
+  font-weight: 580;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+.cli-hero__lede {
+  max-width: 42ch;
+  margin-top: var(--wo-space-5);
+  color: var(--wo-text-muted);
+  font-size: 1.02rem;
+  line-height: 1.68;
+}
+
+/* --- Transcript ----------------------------------------------------------- */
+
+.transcript {
+  margin: 0;
+  min-width: 0;
+}
+
+.transcript__frame {
+  overflow: hidden;
+  border-radius: var(--wo-radius-lg);
+  /* Always the dark ground, in both themes. A terminal is a terminal, and a
+     cream one would be a picture of something nobody's machine looks like. */
+  background: var(--wo-dark-surface-low);
+  box-shadow: var(--wo-shadow);
+}
+
+.transcript__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.7rem var(--wo-space-4);
+  border-bottom: 1px solid rgb(237 238 232 / 0.08);
+}
+
+.transcript__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: rgb(237 238 232 / 0.18);
+}
+
+.transcript__path {
+  margin-left: var(--wo-space-3);
+  color: rgb(237 238 232 / 0.45);
+  font-family: var(--wo-font-mono);
+  font-size: 0.72rem;
+}
+
+.transcript__body {
+  /* A transcript is fixed-width by nature; it scrolls inside its own frame
+     rather than taking the page sideways with it. */
+  overflow-x: auto;
+  margin: 0;
+  padding: var(--wo-space-5);
+  color: var(--wo-dark-text);
+  font-family: var(--wo-font-mono);
+  font-size: clamp(0.72rem, 0.95vw, 0.82rem);
+  line-height: 1.75;
+  tab-size: 2;
+}
+
+.transcript__body b {
+  color: #fff;
+  font-weight: 650;
+}
+
+.transcript__body .dim {
+  color: rgb(237 238 232 / 0.42);
+}
+
+.transcript__prompt {
+  color: var(--wo-dark-success);
+  user-select: none;
+}
+
+.transcript__bad {
+  color: var(--wo-dark-critical);
+}
+
+.transcript__warn {
+  color: var(--wo-dark-warning);
+}
+
+.transcript__good {
+  color: var(--wo-dark-success);
+}
+
+.transcript__caption {
+  max-width: 60ch;
+  margin-top: var(--wo-space-4);
+  color: var(--wo-text-dim);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+/* --- Sections ------------------------------------------------------------- */
+
+.cli-page .cli-section {
+  margin-bottom: 0;
+  padding-block: clamp(3rem, 6vw, 4.5rem);
+  border-bottom: 1px solid var(--wo-border);
+}
+
+.cli-page .cli-section:last-child {
+  border-bottom: 0;
+}
+
+.cli-section__head {
+  margin-bottom: var(--wo-space-5);
+}
+
+.cli-page .cli-section h2 {
+  display: block;
+  max-width: 24ch;
+  margin: var(--wo-space-3) 0 0;
+  font-family: var(--wo-font-display);
+  font-size: clamp(1.5rem, 2.4vw, 2.05rem);
+  font-weight: 580;
+  letter-spacing: -0.032em;
+  line-height: 1.1;
+}
+
+.cli-section__lede {
+  max-width: 62ch;
+  margin: var(--wo-space-4) 0 var(--wo-space-5);
+  color: var(--wo-text-muted);
+  line-height: 1.68;
+}
+
+.cli-note {
+  max-width: 62ch;
+  margin-top: var(--wo-space-4);
+  color: var(--wo-text-dim);
+  font-size: 0.85rem;
+  line-height: 1.65;
+}
+
+.cli-version {
+  color: var(--wo-text-dim);
+  font-family: var(--wo-font-mono);
+  font-size: 0.8em;
+  letter-spacing: 0;
+}
+
+/* --- Install tabs --------------------------------------------------------- */
+
+.cli-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wo-space-1);
+  margin-bottom: var(--wo-space-4);
+}
+
+.cli-tab {
+  padding: 0.4rem 0.8rem;
+  border: 0;
+  border-radius: var(--wo-radius-xs);
+  background: transparent;
+  color: var(--wo-text-dim);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 640;
+  cursor: pointer;
+}
+
+.cli-tab:hover {
+  color: var(--wo-text-muted);
+}
+
+.cli-tab[aria-selected="true"] {
+  background: var(--wo-accent-quiet);
+  color: var(--wo-text);
+}
+
+.command-block--wide code {
+  white-space: pre;
+}
+
+/* --- Exit codes ----------------------------------------------------------- */
+
+.exit-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--wo-border);
+}
+
+.exit-row {
+  display: grid;
+  gap: var(--wo-space-4);
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  padding-block: var(--wo-space-5);
+  border-bottom: 1px solid var(--wo-border);
+}
+
+.exit-row dt,
+.exit-row dd {
+  margin: 0;
+}
+
+.exit-row__code {
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  place-items: center;
+  border-radius: var(--wo-radius-sm);
+  background: var(--wo-accent-quiet);
+  color: var(--wo-text);
+  font-family: var(--wo-font-mono);
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+/* The code carries a colour, and the word beside it says the same thing —
+   the tone is a second encoding, never the only one. */
+.exit-row--calm .exit-row__code {
+  background: var(--wo-success-quiet);
+  color: var(--wo-success);
+}
+
+.exit-row--alert .exit-row__code {
+  background: var(--wo-critical-quiet);
+  color: var(--wo-critical);
+}
+
+.exit-row--warn .exit-row__code {
+  background: var(--wo-warning-quiet);
+  color: var(--wo-warning);
+}
+
+.exit-row dd strong {
+  font-size: 1rem;
+  font-weight: 640;
+}
+
+.exit-row dd p {
+  max-width: 62ch;
+  margin: var(--wo-space-2) 0 0;
+  color: var(--wo-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+/* --- Command reference ---------------------------------------------------- */
+
+.command-grid {
+  display: grid;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+}
+
+.command-grid__label {
+  margin-bottom: var(--wo-space-4);
+  color: var(--wo-text);
+  font-size: 0.82rem;
+  font-weight: 680;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.command-grid__label .dim {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.command-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--wo-border);
+}
+
+.command-list > div {
+  padding-block: var(--wo-space-3);
+  border-bottom: 1px solid var(--wo-border);
+}
+
+.command-list dt {
+  color: var(--wo-text);
+  font-family: var(--wo-font-mono);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.command-list dd {
+  margin: var(--wo-space-1) 0 0;
+  color: var(--wo-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+/* --- Narrow --------------------------------------------------------------- */
+
+@media (max-width: 62rem) {
+  .cli-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 40rem) {
+  .cli-page {
+    width: min(100% - 2rem, var(--wo-page-max));
+  }
+
+  .exit-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--wo-space-3);
+  }
+}

@@ -6,6 +6,7 @@ import { MagneticLink } from "../features/landing/components/MagneticLink";
 import { StageShowcase } from "../features/landing/components/StageShowcase";
 import { ScrollFilterStory } from "../features/landing/components/ScrollFilterStory";
 import { SystemStatus } from "../features/system/components/SystemStatus";
+import { Link } from "react-router";
 
 export function FoundationPage() {
   return (
@@ -35,22 +36,26 @@ export function FoundationPage() {
 
       <footer className="landing-footer">
         <div className="landing-footer__main">
-          <a className="foundation-brand" href="/" aria-label="Weedout home">
+          <Link className="foundation-brand" to="/" aria-label="Weedout home">
             <span className="foundation-brand__mark" aria-hidden="true">
               <Sprout size={17} strokeWidth={2} />
             </span>
             <span>Weedout</span>
-          </a>
+          </Link>
           <p>Vulnerability noise, reduced to a reachable signal.</p>
           <nav aria-label="Footer navigation">
-            <a href="/docs">Docs</a>
-            <a href="/cli">CLI</a>
-            <a href="/dashboard">Dashboard</a>
+            <Link to="/cli">CLI</Link>
+            <Link to="/docs">Docs</Link>
+            <Link to="/pricing">Pricing</Link>
+            {/* Reachable from the public footer as well as from inside the
+                app: somebody who cannot sign in is exactly who needs to be
+                able to tell us so. */}
+            <Link to="/contact">Contact</Link>
           </nav>
         </div>
 
         <details className="landing-diagnostics">
-          <summary>Local preview status</summary>
+          <summary>Service status</summary>
           <SystemStatus />
         </details>
       </footer>
