@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.manifests import ManifestParseError, detect_manifest_kind, parse_manifest
+from app.core.manifests import (
+    ManifestParseError,
+    detect_manifest_kind,
+    parse_manifest,
+    supported_names,
+)
 from app.core.types import AlertStatus, Ecosystem, ManifestKind, Severity, Verdict
 from app.logging_config import get_logger
 from app.models import CVEMatch, ProjectManifest, TrackedTarget, User, utcnow
@@ -168,8 +173,7 @@ def _detect_or_refuse(filename: str, content: str) -> ManifestKind:
     kind = detect_manifest_kind(filename, content)
     if kind is None:
         raise UnsupportedManifest(
-            "Could not recognise that file. Supported manifests are package.json, "
-            "package-lock.json, requirements.txt and go.mod."
+            f"Could not recognise that file. Supported manifests are {supported_names()}."
         )
     return kind
 
@@ -346,8 +350,7 @@ async def replace_manifest(
         # what it is. Guessing from the contents alone would pick the wrong
         # parser for files that are all valid JSON.
         raise UnsupportedManifest(
-            "Name the file so its format can be identified — package.json, "
-            "package-lock.json, requirements.txt or go.mod."
+            f"Name the file so its format can be identified — one of {supported_names()}."
         )
 
     parsed = _parse_or_refuse(kind, content)

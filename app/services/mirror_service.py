@@ -53,8 +53,17 @@ __all__ = [
 #: This is the documented bulk-export path — far cheaper than walking the API.
 OSV_EXPORT_URL = "https://osv-vulnerabilities.storage.googleapis.com/{ecosystem}/all.zip"
 
-#: Ecosystems we parse manifests for. Mirroring anything else would be dead weight.
-MIRRORED_ECOSYSTEMS = (Ecosystem.NPM, Ecosystem.PYPI, Ecosystem.GO)
+#: Ecosystems we parse manifests for. Mirroring anything else would be dead
+#: weight — and an ecosystem we parse but do not mirror is worse than either,
+#: because every project in it would scan clean. `test_mirror.py` asserts this
+#: tuple covers every ecosystem a manifest kind maps to.
+MIRRORED_ECOSYSTEMS = (
+    Ecosystem.NPM,
+    Ecosystem.PYPI,
+    Ecosystem.GO,
+    Ecosystem.CRATES_IO,
+    Ecosystem.MAVEN,
+)
 
 #: Rows per upsert statement. Large enough to amortise round trips, small
 #: enough that one statement does not hold locks for long or build a
@@ -420,7 +429,7 @@ async def _feed_row(db: AsyncSession, name: str) -> FeedSync:
 async def sync_all_ecosystems(db: AsyncSession) -> list[SyncReport]:
     """Sync every mirrored ecosystem, isolating failures.
 
-    One ecosystem's export being unavailable must not cost the other two their
+    One ecosystem's export being unavailable must not cost the others their
     refresh, so each is attempted independently and its error recorded on its
     own feed row.
     """

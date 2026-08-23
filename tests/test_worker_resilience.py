@@ -159,11 +159,24 @@ class TestTasksSurviveFailure:
             return_value=httpx.Response(200, content=export("PyPI"))
         )
         respx.get(OSV_EXPORT_URL.format(ecosystem="Go")).mock(return_value=httpx.Response(500))
+        # The remaining ecosystems get a real one-record export. Named
+        # individually this test would break whenever one was added, for a
+        # reason unrelated to the isolation it is checking — and an *empty*
+        # export counts as a failure, which is correct behaviour and would
+        # muddle the assertion below.
+        for ecosystem in MIRRORED_ECOSYSTEMS:
+            if str(ecosystem) in ("npm", "PyPI", "Go"):
+                continue
+            respx.get(OSV_EXPORT_URL.format(ecosystem=str(ecosystem))).mock(
+                return_value=httpx.Response(200, content=export(str(ecosystem)))
+            )
 
         stats = await sync_mirror_task()
 
         assert stats["failed"] == 1
-        assert stats["stored"] == 2
+        assert stats["stored"] == len(MIRRORED_ECOSYSTEMS) - 1, (
+            "every ecosystem but the broken one stored its record"
+        )
         assert stats["ecosystems"] == len(MIRRORED_ECOSYSTEMS)
 
     async def test_a_scan_cycle_with_nothing_due_is_not_an_error(self):

@@ -28,8 +28,20 @@ class TestParseEcosystem:
         assert parse_ecosystem("Alpine:v3.10") is None  # unsupported, but parsed
 
     def test_unsupported_ecosystems_are_skipped_not_guessed(self):
-        for value in ["Maven", "Debian", "crates.io", "NuGet", "", None]:
+        # Maven and crates.io moved to the supported side when their parsers
+        # landed. These are ecosystems with no manifest parser, so an advisory
+        # for one could never be matched against anything.
+        for value in ["Debian", "NuGet", "RubyGems", "Packagist", "", None]:
             assert parse_ecosystem(value) is None
+
+    def test_every_ecosystem_with_a_parser_is_recognised(self):
+        """The pairing that matters: a parser without a matching OSV
+        identifier downloads advisories and stores none of them, so every
+        project in that language scans clean."""
+        from app.core.types import ManifestKind
+
+        for kind in ManifestKind:
+            assert parse_ecosystem(kind.ecosystem.value) is kind.ecosystem
 
 
 class TestParseAffected:
@@ -142,7 +154,7 @@ class TestParseAffected:
         affected = parse_affected(
             [
                 {
-                    "package": {"ecosystem": "Maven", "name": "org.foo:bar"},
+                    "package": {"ecosystem": "Debian", "name": "openssl"},
                     "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}]}],
                 },
                 {

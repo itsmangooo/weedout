@@ -192,6 +192,27 @@ def normalize(ecosystem: Ecosystem, raw: str) -> str:
     return value
 
 
+class _MavenVersion:
+    """A parsed Maven version, ordered by `_maven_compare`."""
+
+    __slots__ = ("raw",)
+
+    def __init__(self, raw: str) -> None:
+        self.raw = raw
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, _MavenVersion) and _maven_compare(self.raw, other.raw) == 0
+
+    def __lt__(self, other: _MavenVersion) -> bool:
+        return _maven_compare(self.raw, other.raw) < 0
+
+    def __hash__(self) -> int:
+        return hash(tuple(_maven_trim(_maven_tokens(self.raw))))
+
+    def __repr__(self) -> str:
+        return f"<MavenVersion {self.raw}>"
+
+
 @lru_cache(maxsize=8192)
 def _parse(ecosystem: Ecosystem, raw: str) -> SemVer | Pep440Version:
     value = normalize(ecosystem, raw)
@@ -202,11 +223,130 @@ def _parse(ecosystem: Ecosystem, raw: str) -> SemVer | Pep440Version:
             return Pep440Version(value)
         except _Pep440InvalidVersion as exc:
             raise InvalidVersion(f"not a PEP 440 version: {raw!r}") from exc
+    if ecosystem is Ecosystem.MAVEN:
+        # Anything with a token in it is a Maven version; the scheme has no
+        # invalid forms, only unusual ones. Returning a sortable stand-in keeps
+        # `affects()`'s "can I reason about this at all" gate honest without
+        # pretending Maven versions are semver.
+        if not _maven_tokens(value):
+            raise InvalidVersion(f"no version tokens in {raw!r}")
+        return _MavenVersion(value)
     return SemVer.parse(value)
+
+
+# ---------------------------------------------------------------------------
+# Maven
+# ---------------------------------------------------------------------------
+
+#: Maven's qualifier ladder, lowest first. A release — no qualifier at all —
+#: sits above every pre-release and below a service pack.
+#:
+#: Taken from Maven's own `ComparableVersion`. The ordering is not alphabetical
+#: and cannot be guessed: `rc` outranks `milestone`, and `sp` outranks the
+#: release it patches.
+_MAVEN_QUALIFIERS: dict[str, int] = {
+    "alpha": 0,
+    "a": 0,
+    "beta": 1,
+    "b": 1,
+    "milestone": 2,
+    "m": 2,
+    "rc": 3,
+    "cr": 3,
+    "snapshot": 4,
+    "": 5,  # the release itself
+    "ga": 5,
+    "final": 5,
+    "release": 5,
+    "sp": 6,
+}
+
+#: Anything not in the table sorts above every known qualifier, which is what
+#: Maven does — an unrecognised qualifier is assumed to be a downstream build
+#: rather than a pre-release. `31.1-jre` is therefore above `31.1`.
+_MAVEN_UNKNOWN_RANK = 7
+
+_MAVEN_TOKEN_RE = re.compile(r"(\d+|[A-Za-z]+)")
+
+
+def _maven_tokens(value: str) -> list[tuple[int, object]]:
+    """Split a Maven version into comparable tokens.
+
+    Separators are `.` and `-`, and a digit/letter boundary also separates —
+    so `1.0rc2` tokenises the same as `1.0-rc-2`. Each token is tagged so that
+    numbers never compare against words: `(0, int)` for numeric, `(1, rank,
+    text)` for qualifiers.
+    """
+    tokens: list[tuple[int, object]] = []
+    for part in re.split(r"[.\-_+]", value.strip().lower()):
+        if not part:
+            continue
+        for piece in _MAVEN_TOKEN_RE.findall(part):
+            if piece.isdigit():
+                tokens.append((0, int(piece)))
+            else:
+                rank = _MAVEN_QUALIFIERS.get(piece, _MAVEN_UNKNOWN_RANK)
+                tokens.append((1, rank, piece))
+    return tokens
+
+
+def _maven_trim(tokens: list) -> list:
+    """Drop trailing nulls so `1.0.0` and `1` are the same version.
+
+    A trailing numeric zero and a trailing release-rank qualifier are both
+    "nothing", which is why `1.0`, `1.0.0` and `1.0.0.RELEASE` compare equal.
+    """
+    while tokens:
+        last = tokens[-1]
+        if last[0] == 0 and last[1] == 0:
+            tokens.pop()
+        elif last[0] == 1 and last[1] == _MAVEN_QUALIFIERS[""]:
+            tokens.pop()
+        else:
+            break
+    return tokens
+
+
+def _maven_compare(left: str, right: str) -> int:
+    a = _maven_trim(_maven_tokens(left))
+    b = _maven_trim(_maven_tokens(right))
+
+    for index in range(max(len(a), len(b))):
+        # A missing token is a null: numeric zero against a number, release
+        # rank against a qualifier. Comparing against the *other* side's kind
+        # is what makes `1.0` < `1.0.1` and `1.0-rc1` < `1.0`.
+        one = a[index] if index < len(a) else ((0, 0) if b[index][0] == 0 else (1, 5, ""))
+        two = b[index] if index < len(b) else ((0, 0) if a[index][0] == 0 else (1, 5, ""))
+
+        if one[0] != two[0]:
+            # A number outranks a qualifier at the same position: `1.1` beats
+            # `1.0-rc`, and more usefully `1.1` beats `1.1-jre`.
+            return 1 if one[0] == 0 else -1
+
+        if one[0] == 0:
+            if one[1] != two[1]:
+                return -1 if one[1] < two[1] else 1
+            continue
+
+        if one[1] != two[1]:
+            return -1 if one[1] < two[1] else 1
+        # Same rank, both unknown: fall back to lexical, as Maven does.
+        if one[2] != two[2]:
+            return -1 if one[2] < two[2] else 1
+
+    return 0
 
 
 def compare(ecosystem: Ecosystem, left: str, right: str) -> int:
     """Return -1, 0 or 1 for ``left`` vs ``right`` under ``ecosystem`` rules."""
+    if ecosystem is Ecosystem.MAVEN:
+        # Maven's ordering is its own: qualifiers rank on a fixed ladder rather
+        # than alphabetically, and `1.0`, `1.0.0` and `1.0.0.RELEASE` are one
+        # version. Semver rejects most of those outright.
+        if not left.strip() or not right.strip():
+            raise InvalidVersion("empty version string")
+        return _maven_compare(left, right)
+
     a = _parse(ecosystem, left)
     b = _parse(ecosystem, right)
     if a == b:

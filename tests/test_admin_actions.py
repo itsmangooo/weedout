@@ -358,12 +358,13 @@ class TestFeedHealth:
     async def test_every_mirrored_ecosystem_is_listed_separately(self, db):
         # One rolled-up "OSV" row could read green while the Go export had been
         # failing for a week, and every Go user would be told they are clean.
+        from app.services.mirror_service import MIRRORED_ECOSYSTEMS, mirror_feed_name
+
         feeds = {f.name: f for f in await feed_health(db)}
-        assert set(feeds) == {
-            "cisa_kev",
-            "osv_mirror_npm",
-            "osv_mirror_pypi",
-            "osv_mirror_go",
+        # Derived, so adding an ecosystem cannot leave its feed unlisted — the
+        # failure this test exists to prevent.
+        assert set(feeds) == {"cisa_kev"} | {
+            mirror_feed_name(ecosystem) for ecosystem in MIRRORED_ECOSYSTEMS
         }
         assert feeds["cisa_kev"].status == "never synced"
         assert feeds["cisa_kev"].is_healthy is False

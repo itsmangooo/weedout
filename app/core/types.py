@@ -22,10 +22,21 @@ class Ecosystem(StrEnum):
     NPM = "npm"
     PYPI = "PyPI"
     GO = "Go"
+    CRATES_IO = "crates.io"
+    #: Every JVM language shares this one. Java, Kotlin and Scala all publish
+    #: to Maven Central and OSV files their advisories under `Maven`, keyed by
+    #: `groupId:artifactId` — so they are one ecosystem here, not three.
+    MAVEN = "Maven"
 
     @property
     def label(self) -> str:
-        return {"npm": "npm", "PyPI": "PyPI", "Go": "Go"}[self.value]
+        return {
+            "npm": "npm",
+            "PyPI": "PyPI",
+            "Go": "Go",
+            "crates.io": "crates.io",
+            "Maven": "Maven",
+        }[self.value]
 
 
 class ManifestKind(StrEnum):
@@ -35,6 +46,14 @@ class ManifestKind(StrEnum):
     PACKAGE_LOCK_JSON = "package-lock.json"
     REQUIREMENTS_TXT = "requirements.txt"
     GO_MOD = "go.mod"
+    CARGO_LOCK = "Cargo.lock"
+    POM_XML = "pom.xml"
+    GRADLE_LOCKFILE = "gradle.lockfile"
+    #: Written by the sbt-dependency-lock plugin. Plain `build.sbt` is a Scala
+    #: program rather than a data file, so there is nothing to read without
+    #: running sbt — this is the only sbt artefact that states resolved
+    #: versions as fact.
+    SBT_LOCK = "build.sbt.lock"
 
     @property
     def ecosystem(self) -> Ecosystem:
@@ -43,7 +62,7 @@ class ManifestKind(StrEnum):
     @property
     def is_lockfile(self) -> bool:
         """Lockfiles pin exact installed versions, so their matches are certain."""
-        return self is ManifestKind.PACKAGE_LOCK_JSON
+        return self in _LOCKFILES
 
 
 _MANIFEST_ECOSYSTEM: dict[ManifestKind, Ecosystem] = {
@@ -51,7 +70,23 @@ _MANIFEST_ECOSYSTEM: dict[ManifestKind, Ecosystem] = {
     ManifestKind.PACKAGE_LOCK_JSON: Ecosystem.NPM,
     ManifestKind.REQUIREMENTS_TXT: Ecosystem.PYPI,
     ManifestKind.GO_MOD: Ecosystem.GO,
+    ManifestKind.CARGO_LOCK: Ecosystem.CRATES_IO,
+    ManifestKind.POM_XML: Ecosystem.MAVEN,
+    ManifestKind.GRADLE_LOCKFILE: Ecosystem.MAVEN,
+    ManifestKind.SBT_LOCK: Ecosystem.MAVEN,
 }
+
+#: The files that state a resolved version as fact. `pom.xml` is deliberately
+#: absent: it declares what was asked for, which may be a range, a property or
+#: something inherited from a parent POM this server never sees.
+_LOCKFILES: frozenset[ManifestKind] = frozenset(
+    {
+        ManifestKind.PACKAGE_LOCK_JSON,
+        ManifestKind.CARGO_LOCK,
+        ManifestKind.GRADLE_LOCKFILE,
+        ManifestKind.SBT_LOCK,
+    }
+)
 
 
 class Reachability(StrEnum):

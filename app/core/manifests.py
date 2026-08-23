@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
+import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass, field
 
 from packaging.requirements import InvalidRequirement, Requirement
@@ -58,6 +60,17 @@ class ParsedManifest:
         return sum(1 for d in self.dependencies if not d.reachability.ships_to_production)
 
 
+def supported_names() -> str:
+    """The files we can read, for an error message.
+
+    Derived from `ManifestKind` rather than written out. Three copies of this
+    sentence lived in `target_service` and all three still named four formats
+    after eight existed — so somebody uploading a Cargo.lock was told it was
+    not supported by the same system that had just parsed one.
+    """
+    return ", ".join(kind.value for kind in ManifestKind)
+
+
 def detect_manifest_kind(filename: str, content: str) -> ManifestKind | None:
     """Identify a manifest from its filename, falling back to content sniffing.
 
@@ -72,10 +85,25 @@ def detect_manifest_kind(filename: str, content: str) -> ManifestKind | None:
         return ManifestKind.PACKAGE_JSON
     if name == "go.mod":
         return ManifestKind.GO_MOD
+    if name == "cargo.lock":
+        return ManifestKind.CARGO_LOCK
+    if name == "pom.xml":
+        return ManifestKind.POM_XML
+    if name == "build.sbt.lock":
+        return ManifestKind.SBT_LOCK
+    # Gradle writes one per project and per configuration set, so the name
+    # varies: `gradle.lockfile`, `settings-gradle.lockfile`, and whatever a
+    # build script chooses.
+    if name.endswith("gradle.lockfile") or name == "dependencies.lock":
+        return ManifestKind.GRADLE_LOCKFILE
     if name.endswith(".txt") and "requirement" in name:
         return ManifestKind.REQUIREMENTS_TXT
 
     stripped = content.lstrip()
+
+    if stripped.startswith("<?xml") or stripped.startswith("<project"):
+        return ManifestKind.POM_XML if "<artifactId" in content else None
+
     if stripped.startswith("{"):
         try:
             data = json.loads(content)
@@ -91,6 +119,10 @@ def detect_manifest_kind(filename: str, content: str) -> ManifestKind | None:
 
     if re.search(r"^module\s+\S+", content, re.MULTILINE):
         return ManifestKind.GO_MOD
+    # Cargo.lock's `[[package]]` array-of-tables is distinctive enough to sniff;
+    # no other manifest here uses it.
+    if re.search(r"^\[\[package\]\]", content, re.MULTILINE):
+        return ManifestKind.CARGO_LOCK
     if name.endswith(".txt"):
         return ManifestKind.REQUIREMENTS_TXT
     return None
@@ -104,6 +136,10 @@ def parse_manifest(kind: ManifestKind, content: str) -> ParsedManifest:
         ManifestKind.PACKAGE_LOCK_JSON: _parse_package_lock,
         ManifestKind.REQUIREMENTS_TXT: _parse_requirements_txt,
         ManifestKind.GO_MOD: _parse_go_mod,
+        ManifestKind.CARGO_LOCK: _parse_cargo_lock,
+        ManifestKind.POM_XML: _parse_pom_xml,
+        ManifestKind.GRADLE_LOCKFILE: _parse_gradle_lockfile,
+        ManifestKind.SBT_LOCK: _parse_sbt_lock,
     }
     parsed = parsers[kind](content)
     parsed.dependencies = _dedupe(parsed.dependencies)
@@ -814,3 +850,345 @@ def _collect_go_exclude(out: set[tuple[str, str]], line: str) -> None:
     match = _GO_REQUIRE_LINE_RE.match(line.strip())
     if match:
         out.add((match.group("path"), match.group("version")))
+
+
+# ---------------------------------------------------------------------------
+# Rust
+# ---------------------------------------------------------------------------
+
+
+def _parse_cargo_lock(content: str) -> ParsedManifest:
+    """Cargo.lock — TOML, exact versions, and a real dependency graph.
+
+    Every crate in the tree gets a `[[package]]` entry, including the project
+    itself. The root is the one nothing else depends on and which has no
+    `source`: crates from a registry carry one, the local package does not.
+    Excluding it matters — reporting your own crate as a vulnerable dependency
+    of itself is nonsense, and it would be the only entry with no upstream to
+    upgrade to.
+
+    Cargo does not record which dependencies are dev-only in the lockfile, so
+    everything resolved is treated as shipping. That is the conservative
+    direction: calling a dev tool production noise is better than calling a
+    production crate dev-only and filtering it out.
+    """
+    result = ParsedManifest(kind=ManifestKind.CARGO_LOCK, ecosystem=Ecosystem.CRATES_IO)
+
+    try:
+        data = tomllib.loads(content)
+    except (tomllib.TOMLDecodeError, ValueError) as exc:
+        raise ManifestParseError(f"Cargo.lock is not valid TOML: {exc}") from exc
+
+    packages = data.get("package")
+    if not isinstance(packages, list):
+        raise ManifestParseError("Cargo.lock has no [[package]] entries.")
+
+    entries: list[dict] = [p for p in packages if isinstance(p, dict)]
+
+    # Local packages — the workspace members — have no `source`. Everything
+    # else came from a registry or a git remote.
+    local = {p.get("name") for p in entries if not p.get("source") and p.get("name")}
+    if len(local) == 1:
+        result.project_name = next(iter(local))
+
+    direct: set[str] = set()
+    for entry in entries:
+        if entry.get("name") in local:
+            for spec in entry.get("dependencies", []) or []:
+                if isinstance(spec, str):
+                    # Entries are "name" or "name version" or "name version source".
+                    direct.add(spec.split(" ", 1)[0])
+
+    for entry in entries:
+        name = entry.get("name")
+        version = entry.get("version")
+        if not isinstance(name, str) or not isinstance(version, str):
+            continue
+        if name in local:
+            continue
+
+        result.dependencies.append(
+            Dependency(
+                ecosystem=Ecosystem.CRATES_IO,
+                name=name,
+                version=normalize(Ecosystem.CRATES_IO, version),
+                version_spec=version,
+                reachability=(
+                    Reachability.RUNTIME_DIRECT
+                    if name in direct
+                    else Reachability.RUNTIME_TRANSITIVE
+                ),
+                version_exact=True,
+                depth=0 if name in direct else 1,
+            )
+        )
+
+    if not result.dependencies:
+        result.warnings.append("Cargo.lock lists no dependencies outside the workspace.")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# JVM — Maven, Gradle, sbt
+# ---------------------------------------------------------------------------
+
+#: A DTD in an uploaded document is only ever an attack or a mistake.
+_DOCTYPE_RE = re.compile(r"<!\s*(DOCTYPE|ENTITY)", re.IGNORECASE)
+
+#: Maven scopes that never reach a running application.
+_MAVEN_DEV_SCOPES = {"test", "provided"}
+
+
+def _maven_name(group: str, artifact: str) -> str:
+    """OSV keys Maven advisories by `groupId:artifactId`."""
+    return f"{group.strip()}:{artifact.strip()}"
+
+
+def _parse_pom_xml(content: str) -> ParsedManifest:
+    """pom.xml — what the build *asks for*, which is not always a version.
+
+    Deliberately not treated as a lockfile. A POM can state a version as a
+    property (`${spring.version}`), inherit it from a parent this server never
+    sees, or give a range. Resolving any of those needs Maven itself and the
+    whole parent chain.
+
+    Properties defined in the same file are substituted, because that case is
+    both common and knowable. Anything still unresolved after that is reported
+    as a warning and skipped rather than guessed at — a made-up version checked
+    against advisory ranges produces confident, wrong answers.
+
+    `test` and `provided` scopes map to dev-only: neither ships in the artefact
+    you deploy.
+    """
+    result = ParsedManifest(kind=ManifestKind.POM_XML, ecosystem=Ecosystem.MAVEN)
+
+    # No POM needs a document type declaration, and every entity-expansion
+    # attack does. Refusing one outright is a complete fix for the attack this
+    # parser is exposed to, and cheaper than a dependency.
+    #
+    # Verified rather than assumed: `xml.etree` already refuses external
+    # entities — an XXE payload raises "undefined entity" — but it *does*
+    # expand internal ones, so a billion-laughs document parses and grows
+    # until it exhausts memory.
+    if _DOCTYPE_RE.search(content):
+        raise ManifestParseError(
+            "This POM declares a document type. POMs do not need one, and it is "
+            "the mechanism behind entity-expansion attacks, so it is refused."
+        )
+
+    try:
+        # The suppression below is earned by the DTD guard above, not waved
+        # through: S314 flags `xml` wholesale, and the two attacks it exists
+        # for are an external entity — which expat already refuses here, tested
+        # — and entity expansion, which needs the DTD that is now rejected.
+        # defusedxml would add a dependency and no further protection.
+        root = ElementTree.fromstring(content)  # noqa: S314
+    except ElementTree.ParseError as exc:
+        raise ManifestParseError(f"pom.xml is not valid XML: {exc}") from exc
+
+    # POMs are namespaced; the namespace is on every tag and varies by schema
+    # version, so it is stripped rather than matched.
+    def tag(element) -> str:
+        return element.tag.rpartition("}")[2]
+
+    def child(element, name: str):
+        return next((c for c in element if tag(c) == name), None)
+
+    def text(element, name: str) -> str:
+        found = child(element, name)
+        return (found.text or "").strip() if found is not None else ""
+
+    if tag(root) != "project":
+        raise ManifestParseError("That XML is not a Maven POM (no <project> root).")
+
+    result.project_name = text(root, "artifactId") or None
+
+    properties: dict[str, str] = {}
+    props = child(root, "properties")
+    if props is not None:
+        for entry in props:
+            properties[tag(entry)] = (entry.text or "").strip()
+
+    def resolve(value: str) -> str:
+        seen = 0
+        while value.startswith("${") and value.endswith("}") and seen < 5:
+            value = properties.get(value[2:-1], value)
+            seen += 1
+        return value
+
+    blocks = [child(root, "dependencies")]
+    management = child(root, "dependencyManagement")
+    if management is not None:
+        # Versions declared here apply to dependencies that omit one, which is
+        # the ordinary pattern in a multi-module build.
+        blocks.append(child(management, "dependencies"))
+
+    managed: dict[str, str] = {}
+    declared: list[tuple[str, str, str]] = []  # (name, version, scope)
+
+    for index, block in enumerate(blocks):
+        if block is None:
+            continue
+        for dependency in block:
+            if tag(dependency) != "dependency":
+                continue
+            group = resolve(text(dependency, "groupId"))
+            artifact = resolve(text(dependency, "artifactId"))
+            if not group or not artifact:
+                continue
+            name = _maven_name(group, artifact)
+            version = resolve(text(dependency, "version"))
+            scope = text(dependency, "scope").lower()
+
+            if index == 1:
+                if version:
+                    managed[name] = version
+                continue
+            declared.append((name, version, scope))
+
+    for name, version, scope in declared:
+        version = version or managed.get(name, "")
+
+        if not version:
+            result.warnings.append(
+                f"{name} has no version in this POM — it comes from a parent or BOM "
+                f"that is not in this file, so it was skipped."
+            )
+            continue
+        if version.startswith("${"):
+            result.warnings.append(
+                f"{name} uses the property {version}, which is not defined here — skipped."
+            )
+            continue
+        if version.startswith(("[", "(")):
+            result.warnings.append(
+                f"{name} declares the range {version}. Maven ranges resolve at build "
+                f"time, so it was skipped rather than guessed at."
+            )
+            continue
+
+        result.dependencies.append(
+            Dependency(
+                ecosystem=Ecosystem.MAVEN,
+                name=name,
+                version=normalize(Ecosystem.MAVEN, version),
+                version_spec=version,
+                reachability=(
+                    Reachability.DEV_ONLY
+                    if scope in _MAVEN_DEV_SCOPES
+                    else Reachability.RUNTIME_DIRECT
+                ),
+                version_exact=True,
+            )
+        )
+
+    if not result.dependencies and not result.warnings:
+        result.warnings.append("This POM declares no dependencies.")
+    return result
+
+
+#: Gradle names its configurations, and the name says whether the classpath
+#: ships. Anything only ever seen on a test or annotation-processor classpath
+#: is build tooling.
+_GRADLE_DEV_MARKERS = ("test", "checkstyle", "pmd", "spotbugs", "jacoco", "annotationprocessor")
+
+
+def _parse_gradle_lockfile(content: str) -> ParsedManifest:
+    """gradle.lockfile — one resolved coordinate per line.
+
+    The format is `group:artifact:version=configuration,configuration`, with
+    `#` comments and a trailing `empty=` line listing configurations that
+    resolved to nothing.
+
+    The configuration list is the only signal about whether a dependency
+    ships. A coordinate seen *only* on test-ish classpaths is dev-only; one
+    that appears on any runtime classpath is not, however many test
+    configurations also pull it in.
+    """
+    result = ParsedManifest(kind=ManifestKind.GRADLE_LOCKFILE, ecosystem=Ecosystem.MAVEN)
+
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or line.startswith("empty="):
+            continue
+
+        coordinate, _, configurations = line.partition("=")
+        parts = coordinate.strip().split(":")
+        if len(parts) != 3:
+            continue
+        group, artifact, version = (part.strip() for part in parts)
+        if not group or not artifact or not version:
+            continue
+
+        names = [c.strip().lower() for c in configurations.split(",") if c.strip()]
+        ships = any(not any(marker in name for marker in _GRADLE_DEV_MARKERS) for name in names)
+
+        result.dependencies.append(
+            Dependency(
+                ecosystem=Ecosystem.MAVEN,
+                name=_maven_name(group, artifact),
+                version=normalize(Ecosystem.MAVEN, version),
+                version_spec=version,
+                reachability=(Reachability.RUNTIME_TRANSITIVE if ships else Reachability.DEV_ONLY),
+                version_exact=True,
+            )
+        )
+
+    if not result.dependencies:
+        raise ManifestParseError(
+            "No `group:artifact:version=` lines found — this does not look like a Gradle lockfile."
+        )
+    return result
+
+
+def _parse_sbt_lock(content: str) -> ParsedManifest:
+    """build.sbt.lock — the sbt-dependency-lock plugin's JSON.
+
+    Worth being precise about what this supports: plain `build.sbt` is a Scala
+    program, not a data file, and resolving it means running sbt. This file is
+    the only sbt artefact that states resolved versions as fact, and it exists
+    only if the project uses the plugin.
+
+    Configurations follow Ivy's naming, so `test` is the dev marker.
+    """
+    result = ParsedManifest(kind=ManifestKind.SBT_LOCK, ecosystem=Ecosystem.MAVEN)
+
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ManifestParseError(f"build.sbt.lock is not valid JSON: {exc}") from exc
+
+    if not isinstance(data, dict) or not isinstance(data.get("dependencies"), list):
+        raise ManifestParseError("build.sbt.lock has no `dependencies` list.")
+
+    for entry in data["dependencies"]:
+        if not isinstance(entry, dict):
+            continue
+        group = str(entry.get("org") or entry.get("organization") or "").strip()
+        artifact = str(entry.get("name") or entry.get("artifact") or "").strip()
+        version = str(entry.get("version") or "").strip()
+        if not group or not artifact or not version:
+            continue
+
+        configurations = entry.get("configurations") or []
+        if isinstance(configurations, str):
+            configurations = [configurations]
+        names = [str(c).lower() for c in configurations]
+        dev_only = bool(names) and all("test" in name for name in names)
+
+        result.dependencies.append(
+            Dependency(
+                ecosystem=Ecosystem.MAVEN,
+                name=_maven_name(group, artifact),
+                version=normalize(Ecosystem.MAVEN, version),
+                version_spec=version,
+                reachability=(
+                    Reachability.DEV_ONLY if dev_only else Reachability.RUNTIME_TRANSITIVE
+                ),
+                version_exact=True,
+            )
+        )
+
+    if not result.dependencies:
+        result.warnings.append("build.sbt.lock lists no dependencies.")
+    return result

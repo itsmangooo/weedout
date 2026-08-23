@@ -19,13 +19,14 @@ from app.core.types import AffectedPackage, AffectedRange, Ecosystem, Severity, 
 
 __all__ = ["normalize_osv_record", "parse_affected", "parse_osv_datetime"]
 
-#: OSV ecosystem identifiers we can act on. Others (Debian, Alpine, Maven, …)
-#: are skipped rather than guessed at.
-_SUPPORTED: dict[str, Ecosystem] = {
-    "npm": Ecosystem.NPM,
-    "pypi": Ecosystem.PYPI,
-    "go": Ecosystem.GO,
-}
+#: OSV ecosystem identifiers we can act on. Others (Debian, Alpine, …) are
+#: skipped rather than guessed at.
+#:
+#: Derived from `Ecosystem` rather than written out. As a second hand-kept
+#: allowlist this silently dropped every advisory for an ecosystem that had a
+#: parser but had not been added here — the export downloaded, nothing stored,
+#: and every project in that language scanning clean.
+_SUPPORTED: dict[str, Ecosystem] = {ecosystem.value.lower(): ecosystem for ecosystem in Ecosystem}
 
 #: Range types expressible as version comparisons. GIT ranges are commit
 #: hashes, which have no ordering we can evaluate, so they are ignored.

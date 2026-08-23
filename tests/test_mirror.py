@@ -275,9 +275,17 @@ class TestSync:
 
     @respx.mock
     async def test_one_broken_ecosystem_does_not_cost_the_others_their_refresh(self, db):
+        from app.services.mirror_service import MIRRORED_ECOSYSTEMS
+
         mock_export(Ecosystem.NPM, export_zip(LODASH))
         mock_export(Ecosystem.PYPI, export_zip(PYPI_ADVISORY))
         mock_export(Ecosystem.GO, 500)
+        # The rest are mocked empty rather than named, so adding an ecosystem
+        # does not break this test for a reason that has nothing to do with
+        # what it is checking.
+        for ecosystem in MIRRORED_ECOSYSTEMS:
+            if ecosystem not in (Ecosystem.NPM, Ecosystem.PYPI, Ecosystem.GO):
+                mock_export(ecosystem, export_zip())
 
         reports = await sync_all_ecosystems(db)
         await db.flush()
@@ -286,7 +294,7 @@ class TestSync:
         # Every ecosystem is reported on, including the one that failed —
         # omitting it would make a broken feed indistinguishable from one that
         # was never attempted.
-        assert set(by_ecosystem) == {"npm", "PyPI", "Go"}
+        assert set(by_ecosystem) == {str(e) for e in MIRRORED_ECOSYSTEMS}
         assert by_ecosystem["npm"].records_stored == 1
         assert by_ecosystem["PyPI"].records_stored == 1
         assert by_ecosystem["Go"].errors
@@ -308,3 +316,35 @@ class TestSync:
 
         assert report.records_stored == 1
         assert report.skipped == 1
+
+
+class TestEveryParsedEcosystemIsMirrored:
+    """A manifest kind we can parse but do not mirror is the worst case.
+
+    The scan succeeds, finds no advisories because none were ever downloaded,
+    and reports the project clean. Adding a parser without adding its export
+    is a one-line omission with exactly that consequence, so it is asserted
+    rather than remembered.
+    """
+
+    def test_no_manifest_kind_maps_to_an_unmirrored_ecosystem(self):
+        from app.core.types import ManifestKind
+        from app.services.mirror_service import MIRRORED_ECOSYSTEMS
+
+        parsed = {kind.ecosystem for kind in ManifestKind}
+        missing = sorted(str(e) for e in parsed - set(MIRRORED_ECOSYSTEMS))
+
+        assert missing == [], (
+            f"these ecosystems have a parser but no mirror, so every project "
+            f"using them would scan clean: {missing}"
+        )
+
+    def test_nothing_is_mirrored_that_cannot_be_parsed(self):
+        """The other direction is only waste, but it is still worth knowing."""
+        from app.core.types import ManifestKind
+        from app.services.mirror_service import MIRRORED_ECOSYSTEMS
+
+        parsed = {kind.ecosystem for kind in ManifestKind}
+        unused = sorted(str(e) for e in set(MIRRORED_ECOSYSTEMS) - parsed)
+
+        assert unused == [], f"mirrored but never parsed: {unused}"
