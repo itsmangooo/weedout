@@ -2,6 +2,7 @@
 name = "weedout"
 version = "0.1.0"
 description = "Reachable-CVE watchlist for small dev teams. Alerts only on what is actually exploited or actually reachable."
+license = "AGPL-3.0-only"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

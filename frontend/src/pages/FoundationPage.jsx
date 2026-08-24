@@ -55,6 +55,13 @@ export function FoundationPage() {
                 something is broken, so it must not be a URL they have to
                 guess. */}
             <Link to="/status">Status</Link>
+            <Link to="/terms">Terms</Link>
+            <Link to="/privacy">Privacy</Link>
+            {/* AGPL-3.0 section 13: a service has to offer its users the
+                source it is running. */}
+            <a href="https://github.com/itsmangooo/weedout" rel="noopener" target="_blank">
+              Source
+            </a>
             {/* Reachable from the public footer as well as from inside the
                 app: somebody who cannot sign in is exactly who needs to be
                 able to tell us so. */}

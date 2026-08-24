@@ -68,6 +68,8 @@ SHELL_ROUTES = (
     "/billing/success",
     "/pricing",
     "/status",
+    "/terms",
+    "/privacy",
     "/cli",
     "/contact",
     "/docs",
@@ -206,6 +208,16 @@ async def billing_success_entry() -> FileResponse:
     including any open in a browser tab right now. Changing it would turn a
     payment that has just succeeded into a 404.
     """
+    return _shell()
+
+
+@router.get("/terms", include_in_schema=False)
+async def terms_entry() -> FileResponse:
+    return _shell()
+
+
+@router.get("/privacy", include_in_schema=False)
+async def privacy_entry() -> FileResponse:
     return _shell()
 
 

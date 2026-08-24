@@ -26,6 +26,8 @@ from app.main import create_app
 PUBLIC_ROUTES: dict[str, str] = {
     "/": "the marketing page — the React shell, or a redirect if already signed in",
     "/pricing": "public pricing",
+    "/terms": "the static React shell for the terms of service",
+    "/privacy": "the static React shell for the privacy policy",
     "/status": (
         "the static React shell for the public status page. A status page you have "
         "to sign in to read is not a status page."
@@ -78,6 +80,10 @@ PUBLIC_ROUTES: dict[str, str] = {
     # right to know about it without an account. Error strings and the backup
     # job are filtered out before anything is returned; see status_service.
     "/api/internal/status": "service health; no account details and no error text",
+    "/api/internal/legal/{slug}": (
+        "the terms and the privacy policy, which have to be readable before "
+        "somebody has an account to read them with"
+    ),
     "/api/internal/docs": "the published documentation index",
     "/api/internal/docs/{slug}": "one published documentation page",
     "/api/internal/contact": (
@@ -230,6 +236,7 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/pricing": "none",
     "/api/internal/cli": "none",
     "/api/internal/status": "none",
+    "/api/internal/legal/{slug}": "none",
     "/api/internal/docs": "none",
     "/api/internal/docs/{slug}": "none",
     # Reads the session only to fill in a sender's address, never to gate.

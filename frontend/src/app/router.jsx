@@ -42,6 +42,25 @@ export const appRoutes = [
             },
           },
           {
+            // One component for both, chosen by pathname. Two nearly identical
+            // route entries pointing at two nearly identical files is how they
+            // drift apart.
+            path: "terms",
+            handle: { title: "Terms of service" },
+            lazy: async () => {
+              const { LegalPage } = await import("../pages/LegalPage");
+              return { Component: LegalPage };
+            },
+          },
+          {
+            path: "privacy",
+            handle: { title: "Privacy policy" },
+            lazy: async () => {
+              const { LegalPage } = await import("../pages/LegalPage");
+              return { Component: LegalPage };
+            },
+          },
+          {
             // Outside the signed-in boundary, deliberately. A status page you
             // have to sign in to read is not a status page -- the people most
             // likely to load it are the ones who cannot get in.

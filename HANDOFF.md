@@ -450,12 +450,50 @@ Known consequence of the migration, not yet addressed:
   sibling of the JSON endpoint, sharing the same `revoke_session` call so
   there is one way to end a session and not two.
 
-Still flagged for a decision, not started:
+`weedout create` is built, and the conflict it was flagged for was resolved
+rather than waved through. Creating a project does need a credential that
+predates the project, and the answer was not to widen API keys: it is a
+**second credential type**, `CliToken`, obtained by confirming in a browser.
 
-- `weedout create` (make a project from the CLI) conflicts with the deliberate
-  decision that keys are per-project, since creating a project needs a
-  credential that predates the project. Would need an account-scoped key, which
-  is the thing the current design avoids. Ask before building.
+    project key         one project. Pushes scans, reads findings. Lives in CI,
+                        where a build log exposes it.
+    machine credential  the account. Creates projects, mints keys. Cannot read
+                        a single finding. Lives on a laptop.
+
+Separate tables, separate namespace (`/api/account/*`), separate dependency.
+`TestAccountApiSurface` in `test_route_authorization.py` asserts in both
+directions that neither reaches the other's surface. The rule that keys are
+per-project is intact; what changed is that there is now a credential which is
+explicitly not a key.
+
+---
+
+## Launch readiness
+
+What is left before this can take money, and who owns each. Everything in the
+first table needs a decision or an account that only you can make.
+
+| Blocker | State | Owner |
+|---|---|---|
+| Licences | **Done.** AGPL-3.0 server, MIT CLI, source link in the footer for AGPL §13 | — |
+| `/terms`, `/privacy` | **Drafted** at `app/content/legal.py`, every legal decision marked `[[LIKE THIS]]`. `test_legal_pages.py` has two xfail tests that pass once the placeholders are gone — remove the markers in the same commit that fills them in | You: entity, jurisdiction, addresses, retention periods |
+| `MAIL_RELAYHOST` | Empty. Warned at boot, and the warning explains the consequence: password-reset mail from a bare VPS is spam-foldered, which locks people out invisibly | You: a sending provider account |
+| Secret rotation | Runbook in `DEPLOY.md`. The values pasted into a chat during setup have not been rotated | You: Dodo dashboard, Coolify |
+| Off-box backups | **Implemented** (`BACKUP_S3_*`), switched off | You: bucket and credentials |
+| Uptime monitoring | Nothing. `/status` reports feed freshness but runs *inside* the service, so it cannot report the service being down — that needs something watching from outside | You: pick a provider |
+| Error monitoring | Nothing. Structured JSON logs with request ids exist; nothing aggregates or alerts on them | You: pick a provider |
+
+Not blocking, but worth deciding:
+
+- **Public pages are not server-rendered.** `/`, `/pricing`, `/cli`, `/status`,
+  `/terms`, `/privacy` and every `/docs/*` page are a React shell, so a search
+  engine has to run JavaScript to see them. The data endpoints are public and
+  cacheable, so the fix is a prerender step at build time. Nobody has decided
+  whether it matters.
+- **`STATUS_SHOW_ADOPTION` is off**, so `/status` publishes feed health but not
+  account or project counts. Turn it on when the numbers say something worth
+  saying; a figure chosen to flatter would poison the honest half of that page.
+- **The legacy asset pipeline is dead weight** — see below.
 
 ---
 

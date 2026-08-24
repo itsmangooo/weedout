@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import ValidationError
 
 from app.config import get_settings
+from app.content.legal import PRIVACY, TERMS
 from app.deps import CsrfProtected, DbSession, OptionalUser
 from app.logging_config import get_logger
 from app.schemas import ContactForm
@@ -205,6 +206,41 @@ async def docs_page(response: Response, db: DbSession, slug: str) -> dict:
             "updated_at": page.updated_at,
         },
         "pages": [{"slug": entry.slug, "title": entry.title} for entry in await list_public(db)],
+    }
+
+
+#: The two legal pages, by the slug their URL uses.
+_LEGAL = {"terms": ("Terms of service", TERMS), "privacy": ("Privacy policy", PRIVACY)}
+
+
+@router.get("/legal/{slug}")
+async def legal(response: Response, slug: str) -> dict:
+    """The terms, or the privacy policy.
+
+    Served from the repository rather than the database. They change rarely,
+    and when they do the change should go through review like any other change
+    to what the product promises -- and `git log` is then the version history,
+    which matters because "what did the privacy policy say when I signed up?"
+    is a question somebody may ask in earnest.
+    """
+    from app.markdown import render_markdown
+
+    entry = _LEGAL.get(slug)
+    if entry is None:
+        raise _fail(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "That page doesn't exist.")
+
+    title, body = entry
+
+    # Cacheable and public. Nothing here varies by visitor, and these are
+    # exactly the pages somebody links to.
+    response.headers["Cache-Control"] = "public, max-age=600"
+
+    return {
+        "data": {
+            "slug": slug,
+            "title": title,
+            "body_html": render_markdown(body),
+        }
     }
 
 

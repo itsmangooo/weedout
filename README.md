@@ -737,4 +737,18 @@ than assumed.
 
 ## License
 
-Not yet chosen.
+[GNU AGPL-3.0](LICENSE).
+
+Source-available with a network clause: anyone who runs a modified version of
+this as a service has to make their changes available too. That is the point of
+choosing AGPL over a permissive licence here — the whole product is a hosted
+service, and a permissive licence would mean the code doubles as a competitor
+starter kit.
+
+It also means you can read the thing deciding which vulnerabilities you hear
+about. For a tool whose pitch is that it filters out most of what it finds,
+being able to check the filter is not a nice-to-have.
+
+The CLI is a separate repository under [MIT](https://github.com/itsmangooo/weedout-cli/blob/main/LICENSE),
+because it runs on your machines and in your pipelines, and should be
+vendorable without asking.

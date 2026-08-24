@@ -14,6 +14,36 @@ Entries note breaking changes and anything a deployment has to do by hand.
 
 ### 2026-08-24
 
+**Licences chosen.** The server is [AGPL-3.0](LICENSE); the CLI is MIT. Both
+repositories said "not yet chosen", which for a security tool is a real
+blocker — people will not run an unlicensed binary, and "all rights reserved by
+default" is the least useful thing an empty licence field can mean.
+
+- AGPL for the server because the whole product is a hosted service, and a
+  permissive licence there would make the code a competitor starter kit. It
+  also means the thing deciding which vulnerabilities you hear about is
+  readable, which for a tool whose pitch is filtering is not a nice-to-have.
+- MIT for the CLI because it runs on other people's machines with their
+  credentials in the environment, and should be vendorable without asking.
+- AGPL §13 requires a networked service to offer its source to its users. The
+  footer now links it — an obligation, not a flourish.
+
+**Terms of service and a privacy policy**, at `/terms` and `/privacy`, written
+from what the code actually does rather than from a template.
+
+- Everything requiring a legal or business decision is marked `[[LIKE THIS]]`,
+  and a test fails while any remains, so they cannot ship half-finished.
+- The privacy claims are *tested against the code*. The policy says there is no
+  analytics, and a test fails if any appears. It says a scan reaches no third
+  party, and a test fails if the scan path grows an outbound call. A promise
+  nothing verifies becomes false the first time somebody adds a snippet "just
+  to see the numbers".
+- The terms name what the product will miss — unpublished advisories,
+  dependencies you did not declare, findings your own rules suppressed, and
+  any period when a feed is stale — rather than saying "may not catch
+  everything". A limitations section that names cases is a warning somebody
+  can act on.
+
 **An account can say it is a company.** A label, not a capability — the plan,
 the limits and everything the account may do are identical. It exists so
 invoices and the interface can say the right thing, and so "are you a company?"

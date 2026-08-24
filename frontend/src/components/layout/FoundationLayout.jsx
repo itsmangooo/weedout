@@ -5,6 +5,10 @@ import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
 import { ThemeControl } from "../../features/theme/ThemeControl";
 
+//: Where the source lives. Required rather than offered: AGPL-3.0 section 13
+//: obliges a service to give its users a way to get the code it is running.
+const SOURCE_URL = "https://github.com/itsmangooo/weedout";
+
 const SECTIONS = [
   { to: "/cli", label: "CLI" },
   { to: "/docs", label: "Docs" },
@@ -172,7 +176,17 @@ function Footer() {
           <Link to="/status">Status</Link>
           <Link to="/docs">Docs</Link>
           <Link to="/cli">CLI</Link>
+          <Link to="/terms">Terms</Link>
+          <Link to="/privacy">Privacy</Link>
           <Link to="/contact">Contact</Link>
+          {/* Not decoration. Weedout is AGPL-3.0, and section 13 requires a
+              service to offer its source to the people using it over a
+              network. This link is how that obligation is met — and it is
+              also the honest answer to "what is deciding which
+              vulnerabilities I hear about?". */}
+          <a href={SOURCE_URL} rel="noopener" target="_blank">
+            Source
+          </a>
         </nav>
       </div>
     </footer>
