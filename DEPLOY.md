@@ -284,6 +284,93 @@ target including the query string, which would write password-reset tokens into
 the logs in plaintext. The app emits its own structured request line with
 method, path, status and duration — and never the query.
 
+### Rotating a secret
+
+Every secret below can be replaced without downtime, and each one has a
+different order of operations. Getting the order wrong is how a rotation turns
+into an outage, so they are written out rather than left to be worked out at
+the moment somebody is already worried.
+
+**Rotate on a schedule, and rotate on suspicion.** Suspicion includes: a value
+pasted into a chat window, a terminal, a screenshot, a ticket, or any log you
+did not write yourself. A secret that has been *seen* by something that keeps
+history is a secret that has been disclosed, whether or not anybody read it.
+There is no way to un-see one, and the cost of rotating unnecessarily is ten
+minutes.
+
+| Secret | Where it lives | Blast radius if leaked |
+|---|---|---|
+| `SECRET_KEY` | `.env.prod` | Session cookies and signed challenges can be forged |
+| `DODO_API_KEY` | `.env.prod` | Read and write against the billing account |
+| `DODO_WEBHOOK_SECRET` | `.env.prod` + Dodo dashboard | Forged billing events: free upgrades, fake cancellations |
+| `POSTGRES_PASSWORD` | `.env.prod` + the database | Everything |
+| Email provider key | `.env.prod` + the provider | Mail sent as you, from your domain |
+| Pusher / realtime credentials | `.env.prod` + the provider | Whatever that channel carries |
+
+#### `SECRET_KEY`
+
+Signs session cookies and the two-factor challenge. Changing it invalidates
+every session, so everybody is signed out — which is the point when you are
+rotating on suspicion.
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Put it in `.env.prod`, redeploy. Nothing else to do; there is no other copy.
+
+#### `DODO_API_KEY`
+
+1. Create a new key in the Dodo dashboard. Do not delete the old one yet.
+2. Put the new one in `.env.prod` and redeploy.
+3. Confirm a checkout link still builds — open `/billing` while signed in.
+4. **Then** revoke the old key.
+
+New key first, revoke second. The other order has a window where checkout is
+broken, and the window is however long the redeploy takes.
+
+#### `DODO_WEBHOOK_SECRET`
+
+This one is different: the secret is shared, so it cannot be rotated on one
+side alone. Signature verification fails for everything sent with the other
+value, and a rejected webhook is a subscription change that silently did not
+happen.
+
+1. Rotate it in the Dodo dashboard and copy the new value.
+2. Put it in `.env.prod` and redeploy **immediately**.
+3. Check the logs for `billing.webhook_signature_invalid` over the next few
+   minutes.
+4. If any events were rejected in the gap, replay them from the Dodo dashboard.
+
+If the gap is a concern, take the outage deliberately: a few minutes of
+rejected webhooks you know about and can replay beats a forged one you do not.
+
+#### `POSTGRES_PASSWORD`
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml \
+  exec db psql -U weedout -c "ALTER USER weedout WITH PASSWORD 'new-value';"
+```
+
+Then update `.env.prod` (both `POSTGRES_PASSWORD` and the copy inside
+`DATABASE_URL`) and redeploy. The running containers keep their open
+connections until they restart, so the change and the redeploy do not have to
+be simultaneous — but do not leave them apart for long, because anything that
+reconnects in between fails.
+
+#### Email and realtime provider keys
+
+Same shape as the Dodo API key: create the new one, deploy it, verify, then
+revoke the old. Verify by actually sending something — a password reset to an
+address you control — rather than by the absence of errors. A mail key that is
+wrong produces silence, and silence is what a working mail key produces too.
+
+#### After any rotation
+
+- Check `/readyz` and the admin feed board.
+- Check the logs for authentication failures against whatever you rotated.
+- Note the date. "When did we last rotate this?" should not need archaeology.
+
 ### Health endpoints
 
 | Endpoint | Purpose |
