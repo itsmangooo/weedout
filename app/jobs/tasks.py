@@ -34,6 +34,7 @@ from app.services.feed_service import refresh_epss_scores, refresh_kev_catalog
 from app.services.mirror_service import sync_all_ecosystems
 from app.services.package_metadata_service import refresh_package_metadata
 from app.services.password_reset_service import purge_expired_reset_tokens
+from app.services.plan_service import apply_tier_change
 from app.services.rate_limit_service import purge_expired_rate_limits
 from app.services.scan_service import due_targets, scan_target
 
@@ -304,7 +305,11 @@ async def expire_subscriptions_task() -> int:
             ).all()
 
             for user in stale:
-                user.tier = Tier.FREE
+                # A downgrade nobody clicked, and the one most likely to be
+                # forgotten. Through the service like the other two, so a
+                # cancelled account stops being scanned four-hourly at the
+                # moment the paid period ends.
+                await apply_tier_change(db, user, Tier.FREE)
                 log.info("billing.downgrade_applied", user_id=user.id)
 
             return len(stale)

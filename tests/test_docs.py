@@ -8,6 +8,8 @@ meaningful if there is no way to read one from outside.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import ClassVar
 
 import pytest
@@ -677,6 +679,80 @@ class TestTheDocsKeepUpWithTheCli:
         from app.services.docs_service import STARTER_PAGES
 
         return next(page["content"] for page in STARTER_PAGES if page["slug"] == slug)
+
+    #: Where the CLI lives when both repositories are checked out together.
+    #: Relative to this one, because that is how they sit on a working machine.
+    SIBLING = Path(__file__).resolve().parent.parent.parent / "weedout-cli"
+
+    def _commands_the_cli_dispatches(self) -> set[str] | None:
+        """Parsed from the CLI's own source, or None when it is not here.
+
+        The same regex the CLI's `usage_test.go` uses, for the same reason: a
+        list maintained by hand is the problem one level down.
+        """
+        source = self.SIBLING / "internal" / "cli" / "cli.go"
+        if not source.exists():
+            return None
+
+        text = source.read_text(encoding="utf-8")
+        # A leading dash means a flag handled in the same switch --
+        # --interactive, --version, -h -- not a command. They are documented
+        # as flags, and demanding a command entry would mean listing
+        # `weedout --version` as one.
+        found = {
+            name
+            for name in re.findall(r'(?m)^\tcase "([a-z-]+)"', text)
+            if not name.startswith("-")
+        }
+        # A parser that silently matches nothing would make this pass forever.
+        return found if len(found) >= 10 else None
+
+    def test_the_documented_list_matches_the_cli(self):
+        """Verified against the real dispatch when both repositories are here.
+
+        Skipped otherwise, which is most CI runs. That is a weaker guarantee
+        than deriving the list, and it is the strongest one available across a
+        repository boundary without a network call -- and a guardrail that is
+        flaky is a guardrail somebody deletes.
+        """
+        dispatched = self._commands_the_cli_dispatches()
+        if dispatched is None:
+            pytest.skip("the CLI repository is not checked out beside this one")
+
+        # Aliases and `help` never need a documentation entry of their own.
+
+        aliases = {
+            "help",
+            "interactive",
+            "signals",
+            "keys",
+            "profile",
+            "login",
+            "upgrade",
+            "self-update",
+            "add",
+            "remove",
+            "rm",
+            "list",
+            "unignore",
+            "ignore",
+            "regenerate",
+            "rotate",
+            "on",
+            "off",
+        }
+        expected = dispatched - aliases
+
+        undocumented = sorted(expected - set(self.DOCUMENTED_IN))
+        assert undocumented == [], (
+            f"the CLI dispatches {undocumented}, which this file has never heard of. "
+            f"Add them to DOCUMENTED_IN and to the page it names."
+        )
+
+        # And the other direction: an entry here for a command that no longer
+        # exists is an entry nobody will remove, guarding nothing.
+        stale = sorted(set(self.DOCUMENTED_IN) - dispatched)
+        assert stale == [], f"documented but no longer a command: {stale}"
 
     def test_every_command_is_documented_somewhere(self):
         missing = [

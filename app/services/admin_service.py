@@ -31,6 +31,7 @@ from app.models import (
     User,
     utcnow,
 )
+from app.services.plan_service import apply_tier_change
 
 log = get_logger(__name__)
 
@@ -344,7 +345,10 @@ async def change_user_tier(
         raise AdminActionError(f"{target.email} is already on the {new_tier.value} plan.")
 
     previous = target.tier
-    target.tier = new_tier
+    # Through the service, so the account's scan cadence moves with the plan.
+    # Setting `tier` here would leave every project on the schedule of the plan
+    # they are no longer on, for up to a day.
+    await apply_tier_change(db, target, new_tier)
 
     record_audit(
         db,

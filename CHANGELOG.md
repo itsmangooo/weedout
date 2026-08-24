@@ -14,6 +14,56 @@ Entries note breaking changes and anything a deployment has to do by hand.
 
 ### 2026-08-24
 
+**A plan change reaches a running CLI immediately.** Half of this already
+worked and is now pinned; half was broken.
+
+Reading the tier was already live — nothing caches it, so the next request
+after an upgrade is served under the new plan, with no window and nothing to
+invalidate. `test_plan_changes_take_effect.py` proves that in both directions,
+and the downgrade direction matters more: a scanner still applying rules the
+account no longer has is reporting on rules nobody is enforcing.
+
+What was stale was the *schedule*. `next_scan_at` is written at the end of a
+scan from the cadence in force at that moment, so upgrading a Free account
+left it on daily checks until the next daily check happened to run — up to a
+full day of having bought the four-hourly cadence and not receiving it. Every
+plan change now goes through `plan_service.apply_tier_change`, and a static
+test fails if anything assigns `user.tier` anywhere else. A rescheduling only
+some of the three call sites did would be worse than none — it would work when
+an admin changed a plan by hand and not when a customer actually paid.
+
+**The CLI notices and says so, once.** A CLI cannot be pushed to, so every
+machine-facing response now carries a `plan` block and the CLI compares it
+against what it last saw:
+
+> Your plan is now Pro. Scans reach the whole dependency tree, and your custom
+> rules apply.
+
+- Capabilities, not labels. "You are on Pro" tells somebody what their receipt
+  already told them.
+- The downgrade sentence says the rules are *kept, not deleted*, because that
+  is the obvious fear on reading it.
+- Silent on a first run, on a server that sends no plan block, and under
+  `--quiet` and `--json`. Absence must never read as a downgrade, and a
+  sentence in a JSON stream breaks whatever is parsing it.
+- Recorded even when suppressed, or `--quiet` in a cron job leaves the machine
+  primed to announce the same change later.
+- Nothing is decided from it. Every limit stays server-side.
+
+**Fixed: `weedout rules` listed rules that were not in force.** On a Free
+account none of them apply, and the listing said nothing about it — a tidy page
+of configuration doing nothing, which is the exact failure this product exists
+to avoid, found on our own page about filtering. It now says so above the list
+rather than below it, and says the rules are kept rather than deleted, because
+that is the obvious next worry.
+
+**The cross-repo docs check now cross-checks.** The list of documented commands
+was a second copy of something the CLI repository already knows, which I
+flagged when I wrote it. When both repositories are checked out side by side —
+exactly when somebody is adding a command and forgetting the docs — it is
+verified against the real dispatch switch, and skips otherwise. Verified by
+injecting a fake command and watching it fail.
+
 **The CLI documentation caught up with the CLI.** Eight commands shipped this
 stretch and none of them appeared anywhere a user would look. `/docs/the-cli`
 now covers every command and every flag, with a complete reference table and a

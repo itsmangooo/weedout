@@ -65,6 +65,23 @@ def _fail(status_code: int, code: str, message: str, **extra) -> HTTPException:
     )
 
 
+async def _plan_for(db, key) -> dict:
+    """The plan this key's owner is on, right now.
+
+    On every machine-facing response so a client can notice a change at the
+    first command after it and say so. A CLI cannot be pushed to -- it runs,
+    prints and exits -- so the honest version of "in real time" is that the
+    very next thing it does reflects the change.
+
+    Read fresh, never cached. A cached tier would put a window between paying
+    and being served, and a longer one between cancelling and being cut off.
+    """
+    from app.services.plan_service import plan_summary
+
+    owner = await db.get(User, key.user_id)
+    return plan_summary(owner.tier if owner else "free")
+
+
 async def _check_rate_limit(db, target_id: int, limit: int) -> None:
     """Refuse if this project has already had `limit` scans in the past hour.
 
@@ -217,6 +234,9 @@ async def scan(
 
     return {
         "project": target.name,
+        # What this scan actually ran under. A client comparing it to what it
+        # saw last time is how a plan change becomes visible in a terminal.
+        "plan": await _plan_for(db, key),
         "manifest_changed": changed,
         "dependencies_scanned": outcome.dependencies_scanned,
         "actionable": outcome.actionable_count,
@@ -259,6 +279,7 @@ async def project_status(db: DbSession, key: ReadKey):
 
     return {
         "project": target.name,
+        "plan": await _plan_for(db, key),
         "ecosystem": str(target.ecosystem),
         "dependencies": target.dependency_count,
         "last_scanned_at": _iso(target.last_scanned_at),
@@ -316,6 +337,7 @@ async def list_findings(
 
     return {
         "show": show,
+        "plan": await _plan_for(db, key),
         "count": len(rows),
         "findings": [
             {
@@ -443,6 +465,11 @@ async def list_scan_rules(db: DbSession, key: ManageKey):
             "ignores": list(policy.ignored_ids),
             "ignored_packages": list(policy.ignored_packages),
         },
+        # Here more than anywhere else. A Free account with rules configured
+        # gets a tidy list of things that are not doing anything, and without
+        # this there is nothing on the page to say so -- which is the exact
+        # shape of failure this product exists to avoid.
+        "plan": await _plan_for(db, key),
     }
 
 

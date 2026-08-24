@@ -1283,6 +1283,56 @@ weedout --interactive     # turn the menu on for this installation
 `--interactive` is a preference, saved next to the binary, not a flag you pass
 every time.
 
+## When your plan changes
+
+Upgrades and downgrades take effect on your **next command**. There is no cache
+to wait out, nothing to sign out of, and no need to run `weedout auth` again:
+the tier is read fresh on every request, so a scan started a second after an
+upgrade is served under the new plan.
+
+The CLI notices and says so, once:
+
+```
+$ weedout scan
+
+Your plan is now Pro. Scans reach the whole dependency tree, and your custom
+rules apply.
+
+  acme-storefront  package-lock.json
+  1,284 dependencies scanned · 44 filtered out as noise
+```
+
+A downgrade is announced just as plainly, because it is the one you need to
+read before you trust the result underneath it:
+
+```
+Your plan is now Free. Scans stop after direct dependencies and theirs, and
+your custom rules no longer apply — they are kept, not deleted.
+```
+
+Nothing is destroyed by a downgrade. Severity floors, ignore rules, rule
+profiles and your `.weedout.yml` all stay exactly as they are and simply stop
+applying, so re-subscribing puts everything back without you reconstructing it.
+
+The notice appears once per change per machine, and never under `--quiet` or
+`--json` — those two promise that the output is only what you asked for, and a
+sentence appearing in a JSON stream would break whatever is parsing it. The
+plan is in the JSON either way, under `plan`.
+
+### Scheduled scans move too
+
+The cadence changes at the moment the plan does, not at the next scan. Upgrade
+and the four-hourly checks start within four hours rather than after your next
+daily one; downgrade and the schedule relaxes immediately. Otherwise an upgrade
+could take a full day to produce the thing it was bought for.
+
+### What the CLI does not do
+
+It does not decide anything from the plan. Every limit — scan depth, custom
+rules, the project count — is enforced on the server, and the block the CLI
+reads is for saying what changed rather than for gating. A client that decided
+for itself what a plan allows would be a client somebody could edit.
+
 ## Every command
 
 | Command | Needs | Does |

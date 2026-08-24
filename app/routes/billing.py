@@ -29,6 +29,7 @@ from app.deps import DbSession
 from app.logging_config import get_logger
 from app.models import User
 from app.security import verify_dodo_signature
+from app.services.plan_service import apply_tier_change
 
 log = get_logger(__name__)
 
@@ -183,7 +184,10 @@ async def _handle_subscription_event(db: DbSession, event_type: str, data: dict[
             status=status,
             event_type=event_type,
         )
-    user.tier = new_tier
+    # The path that runs when somebody actually pays, and therefore the one
+    # that matters most: through the service, so the cadence they just bought
+    # starts now rather than after their next daily scan.
+    await apply_tier_change(db, user, new_tier)
     return True
 
 
