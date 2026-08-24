@@ -26,6 +26,10 @@ from app.main import create_app
 PUBLIC_ROUTES: dict[str, str] = {
     "/": "the marketing page — the React shell, or a redirect if already signed in",
     "/pricing": "public pricing",
+    "/status": (
+        "the static React shell for the public status page. A status page you have "
+        "to sign in to read is not a status page."
+    ),
     "/healthz": "liveness probe",
     "/readyz": "readiness probe",
     "/login": "sign-in form and submission",
@@ -69,6 +73,11 @@ PUBLIC_ROUTES: dict[str, str] = {
     ),
     "/api/internal/pricing": "the plan table; the same thing the pricing page shows a stranger",
     "/api/internal/cli": "the CLI version and dependency list; both already public",
+    # Public on purpose. The failure it reports -- a stale advisory feed --
+    # breaks the product's promise without breaking a page, and users have a
+    # right to know about it without an account. Error strings and the backup
+    # job are filtered out before anything is returned; see status_service.
+    "/api/internal/status": "service health; no account details and no error text",
     "/api/internal/docs": "the published documentation index",
     "/api/internal/docs/{slug}": "one published documentation page",
     "/api/internal/contact": (
@@ -220,6 +229,7 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/landing": "none",
     "/api/internal/pricing": "none",
     "/api/internal/cli": "none",
+    "/api/internal/status": "none",
     "/api/internal/docs": "none",
     "/api/internal/docs/{slug}": "none",
     # Reads the session only to fill in a sender's address, never to gate.
@@ -262,6 +272,8 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/alerts/{match_id}/status": "internal_user",
     "/api/internal/billing": "internal_user",
     "/api/internal/settings": "internal_user",
+    "/api/internal/settings/organisation": "internal_user",
+    "/api/internal/settings/showcase": "internal_user",
     "/api/internal/settings/alerts": "internal_user",
     "/api/internal/settings/password": "internal_user",
     "/api/internal/settings/sessions/revoke-others": "internal_user",
@@ -279,6 +291,7 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/admin/users": "internal_admin",
     "/api/internal/admin/users/{user_id}": "internal_admin",
     "/api/internal/admin/users/{user_id}/tier": "internal_admin",
+    "/api/internal/admin/users/{user_id}/showcase": "internal_admin",
     "/api/internal/admin/users/{user_id}/suspend": "internal_admin",
     "/api/internal/admin/users/{user_id}/unsuspend": "internal_admin",
     "/api/internal/admin/users/{user_id}/delete": "internal_admin",

@@ -3,6 +3,7 @@ import { Mail } from "lucide-react";
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { InlineNotice } from "../components/ui/InlineNotice";
 import { AccountKeys } from "../features/settings/components/AccountKeys";
+import { OrganisationSection } from "../features/settings/components/OrganisationSection";
 import { PasswordSection } from "../features/settings/components/PasswordSection";
 import { RuleProfiles } from "../features/settings/components/RuleProfiles";
 import { SessionList } from "../features/settings/components/SessionList";
@@ -45,6 +46,7 @@ export function SettingsPage() {
       </header>
 
       <AlertsSection enabled={page.data.email_alerts} />
+      <OrganisationSection account={page.data} />
       {profiles.isSuccess ? (
         <RuleProfiles meta={profiles.data.meta} profiles={profiles.data.data} />
       ) : null}

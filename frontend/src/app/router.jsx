@@ -42,6 +42,17 @@ export const appRoutes = [
             },
           },
           {
+            // Outside the signed-in boundary, deliberately. A status page you
+            // have to sign in to read is not a status page -- the people most
+            // likely to load it are the ones who cannot get in.
+            path: "status",
+            handle: { title: "Status" },
+            lazy: async () => {
+              const { StatusPage } = await import("../pages/StatusPage");
+              return { Component: StatusPage };
+            },
+          },
+          {
             path: "cli",
             handle: { title: "Command line" },
             lazy: async () => {

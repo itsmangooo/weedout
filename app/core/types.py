@@ -205,6 +205,25 @@ class ActionableReason(StrEnum):
         }[self.value]
 
 
+class AccountKind(StrEnum):
+    """Whether an account belongs to a person or a company.
+
+    A label, not a capability. Nothing about the plan, the limits or what the
+    account may do changes with it — an organisation account is a personal
+    account that has told us it is a company, so that invoices, support and the
+    interface can say the right thing.
+
+    It is explicitly **not** a team: there is one login, one set of
+    credentials, and no members. Building that is a materially larger feature
+    -- invitations, roles, per-member audit, what happens to a project when the
+    person who made it leaves -- and calling this a team would promise all of
+    it.
+    """
+
+    PERSONAL = "personal"
+    ORGANIZATION = "organization"
+
+
 class IgnoreKind(StrEnum):
     """What an ignore rule names.
 

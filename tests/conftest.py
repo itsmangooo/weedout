@@ -193,6 +193,33 @@ async def pro_user(db: AsyncSession) -> User:
 
 
 @pytest.fixture
+async def admin_user(db: AsyncSession) -> User:
+    """An account with the admin flag.
+
+    Here rather than in one test file because more than one suite needs it now.
+    `test_admin_api.py` keeps its own copy under the same name; a local fixture
+    wins, and rewriting a working suite to share this one was not worth the
+    churn.
+    """
+    record = User(
+        email="root@example.com",
+        password_hash=hash_password("correct-horse-battery"),
+        tier=Tier.FREE,
+        is_admin=True,
+    )
+    db.add(record)
+    await db.flush()
+    return record
+
+
+@pytest.fixture
+async def admin_client(client: httpx.AsyncClient, admin_user: User) -> httpx.AsyncClient:
+    response = await sign_in(client, admin_user.email)
+    assert response.status_code == 200, response.text
+    return client
+
+
+@pytest.fixture
 async def second_pro_user(db: AsyncSession) -> User:
     """A second Pro account, for the tests that matter most: the ones checking
     that one account cannot reach another's configuration."""

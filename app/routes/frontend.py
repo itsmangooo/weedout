@@ -67,6 +67,7 @@ SHELL_ROUTES = (
     "/billing",
     "/billing/success",
     "/pricing",
+    "/status",
     "/cli",
     "/contact",
     "/docs",
@@ -205,6 +206,12 @@ async def billing_success_entry() -> FileResponse:
     including any open in a browser tab right now. Changing it would turn a
     payment that has just succeeded into a 404.
     """
+    return _shell()
+
+
+@router.get("/status", include_in_schema=False)
+async def status_entry() -> FileResponse:
+    """The public status page. No session, and none implied."""
     return _shell()
 
 

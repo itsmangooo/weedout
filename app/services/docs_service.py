@@ -345,13 +345,17 @@ in your way.
 Sign up with an email address and a password of at least 10 characters. The free
 plan tracks one project, checks it daily, and sends email alerts. No card.
 
+If the account belongs to a company, add the name in **Settings**. It changes
+nothing about the plan or the limits — invoices and emails just use the name
+instead of your address. It is not a team account: one login, no members.
+
 ## 2. Add the project
 
 Adding a project is what creates the thing an API key can push to. Either:
 
-- **Run the CLI** (below), which creates nothing on its own — so add the project
-  in the browser first, then point a key at it. One upload or paste of any
-  supported file is enough to get started.
+- **Run the CLI**: `weedout auth` to sign the machine in, then `weedout create`
+  in the project directory. It makes the project and saves a key for that
+  directory in one step — nothing is copied or pasted.
 - Or paste the contents on **Add a project** if you would rather not install
   anything yet.
 

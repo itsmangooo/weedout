@@ -1766,3 +1766,50 @@
     height: 12rem;
   }
 }
+
+/* Who uses this
+   -------------------------------------------------------------------------
+   Names, not logos. Deliberately quiet: this section is credible in inverse
+   proportion to how hard it is trying, and a row of names set like a headline
+   reads as a claim rather than a fact. */
+
+.used-by {
+  display: grid;
+  gap: var(--wo-space-4);
+  justify-items: center;
+  width: min(100% - 3rem, var(--wo-page-max));
+  margin-inline: auto;
+  padding-block: var(--wo-space-7);
+  text-align: center;
+}
+
+.used-by__list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--wo-space-4) var(--wo-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.used-by__list li {
+  color: var(--wo-text-muted);
+  font-size: 1rem;
+  font-weight: 560;
+  /* Slight tracking, because these are set in a row and read as a set rather
+     than as running text. */
+  letter-spacing: 0.01em;
+}
+
+.used-by__list a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.used-by__list a:hover,
+.used-by__list a:focus-visible {
+  color: var(--wo-text);
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}

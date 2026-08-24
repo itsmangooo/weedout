@@ -14,6 +14,59 @@ Entries note breaking changes and anything a deployment has to do by hand.
 
 ### 2026-08-24
 
+**An account can say it is a company.** A label, not a capability — the plan,
+the limits and everything the account may do are identical. It exists so
+invoices and the interface can say the right thing, and so "are you a company?"
+is asked once rather than inferred from an email domain.
+
+It is **not** a team. One login, no members, no roles. Teams need invitations,
+per-member audit, and an answer to what happens to a project when the person
+who made it leaves; calling this a team would promise all of that.
+
+**A trust section on the landing page, gated twice.** A company appears only
+when it asked *and* somebody here checked the name was theirs to give.
+
+- Consent, because for a security product naming a customer says publicly that
+  they scan their dependencies with us. That is theirs to disclose, not ours.
+  Off by default, one click to withdraw, no review on the way out.
+- Approval, because consent alone would let anybody sign up as a well-known
+  company and land on our front page — impersonation with our own marketing as
+  the vehicle. Approving and revoking are audited.
+- Renaming an approved company withdraws the approval. We checked that one
+  name was theirs; the next is a different claim.
+- Names, not logos. Three that are real beat twenty that are decoration, and
+  the section disappears rather than padding itself.
+- **Deployment note:** the migration is additive. Every existing account is
+  personal, opted out, unapproved.
+
+**A public status page at /status.** It opens by admitting what it cannot tell
+you, which is the only honest way to run one from inside the thing it reports
+on: if the service is down, this page is down with it. It is not an uptime
+monitor and does not pretend to be.
+
+What it is for is the failure nothing else catches. An outage is loud; a stale
+advisory feed is not — scans keep running, the dashboard keeps rendering, and
+every user of that ecosystem is quietly told they are clean.
+
+- Freshness per ecosystem, not one aggregate line. A green "OSV" row while the
+  Go export has been failing for a week is the same lie in a nicer font.
+- Record counts, because a feed can succeed and still be broken.
+- Error strings never reach it. They are written for us and name paths and
+  hostnames; a visitor can act on "this feed is behind", not on a traceback.
+  Whether *our* backups ran is filtered out for the same reason.
+- Adoption numbers are off by default (`STATUS_SHOW_ADOPTION`). On a product
+  with three accounts they undersell, and on a page whose whole purpose is
+  being trusted, a figure chosen to flatter would poison everything above it.
+  A switch somebody throws, not a rounding rule nobody can audit.
+- Cached for a minute. This is the page people load when they think something
+  is wrong, which is when the database can least afford six aggregates per
+  visitor.
+
+**A footer**, which the site did not have. Without one the status page would
+have been reachable only by typing the URL — and the people who need it are the
+ones already wondering whether something is broken. It links only to pages that
+exist: a dead `/terms` link is worse than no link.
+
 **`weedout auth`: a credential reaches a laptop without passing through one.**
 What it replaces is worse than it looks — "create a key in Settings, copy it,
 paste it into your terminal" puts a live credential through a clipboard, a

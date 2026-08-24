@@ -39,6 +39,35 @@ export async function setEmailAlerts(enabled) {
   return payload?.data;
 }
 
+/**
+ * Say this account is a company, or that it is not.
+ *
+ * An empty name means personal. One endpoint rather than two, because "am I a
+ * company" is one fact and a second way to express it is a second thing to
+ * keep in step.
+ */
+export async function setOrganisation({ name, website = "" }) {
+  const payload = await api(`${SETTINGS_PATH}/organisation`, {
+    method: "POST",
+    body: { name, website },
+  });
+  return payload?.data;
+}
+
+/**
+ * Ask to be named on the landing page, or stop being named.
+ *
+ * Asking is not being listed: somebody checks that the name is theirs to give
+ * first. Turning it off is immediate and needs nobody's approval.
+ */
+export async function setShowcase(listed) {
+  const payload = await api(`${SETTINGS_PATH}/showcase`, {
+    method: "POST",
+    body: { listed },
+  });
+  return payload?.data;
+}
+
 export async function changePassword({ currentPassword, newPassword }) {
   const payload = await api(`${SETTINGS_PATH}/password`, {
     method: "POST",

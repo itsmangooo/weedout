@@ -45,6 +45,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.supply_chain import SignalKind, SignalLevel
 from app.core.types import (
+    AccountKind,
     ActionableReason,
     AlertStatus,
     AudienceKind,
@@ -133,6 +134,45 @@ class User(TimestampMixin, Base):
         Boolean, nullable=False, default=False, server_default="false", index=True
     )
 
+    #: Whether this account belongs to a person or a company.
+    #:
+    #: A label rather than a capability: the plan, the limits and what the
+    #: account may do are identical either way. It exists so invoices and the
+    #: interface can say the right thing, and so the question "are you a
+    #: company?" is asked once rather than inferred from an email domain.
+    account_kind: Mapped[AccountKind] = mapped_column(
+        enum_column(AccountKind, "account_kind"),
+        nullable=False,
+        default=AccountKind.PERSONAL,
+        server_default=AccountKind.PERSONAL.value,
+    )
+
+    #: What the company is called. Null on a personal account.
+    organisation_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    #: Their site. Not shown anywhere by default -- it is here so that a
+    #: showcase request can be checked against something before it is approved.
+    organisation_website: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+    #: The account asked to be named on the landing page.
+    #:
+    #: Consent, and only half of what is needed. For a security product this is
+    #: more sensitive than an ordinary logo wall: naming a company here says
+    #: publicly that they scan their dependencies with us, which is information
+    #: about their security programme that is theirs to disclose and not ours.
+    #: So it is opt-in, off by default, and revocable at any time.
+    showcase_opt_in: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
+    #: When we checked that the name is theirs to give.
+    #:
+    #: The other half. Consent alone would let anybody sign up as a
+    #: well-known company and appear on our front page -- impersonation with
+    #: our marketing as the vehicle. Nothing is shown until both are true, and
+    #: the check is a person looking, not a rule.
+    showcase_approved_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+
     email_alerts_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
@@ -165,6 +205,27 @@ class User(TimestampMixin, Base):
     #: whole 30-second step, so without this the same six digits can be
     #: replayed until the step rolls over.
     totp_last_counter: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    @property
+    def display_name(self) -> str:
+        """What to call this account in an interface or on an invoice.
+
+        The company where there is one, the email otherwise. Never a guess at a
+        person's name from their address.
+        """
+        if self.account_kind is AccountKind.ORGANIZATION and self.organisation_name:
+            return self.organisation_name
+        return self.email
+
+    @property
+    def is_showcased(self) -> bool:
+        """Both halves: they asked, and we checked."""
+        return (
+            self.account_kind is AccountKind.ORGANIZATION
+            and bool(self.organisation_name)
+            and self.showcase_opt_in
+            and self.showcase_approved_at is not None
+        )
 
     @property
     def two_factor_enabled(self) -> bool:

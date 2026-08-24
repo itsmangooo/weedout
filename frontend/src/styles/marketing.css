@@ -1,7 +1,60 @@
 .foundation-shell {
+  /* A column so the footer sits after the content rather than floating up on
+     a short page — the status page is short, and it is the one page people
+     scroll to the bottom of looking for a link. */
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   overflow: clip;
   background: var(--wo-bg);
+}
+
+.foundation-shell > main {
+  flex: 1;
+}
+
+.foundation-footer {
+  margin-top: var(--wo-space-8);
+  border-top: 1px solid var(--wo-border);
+}
+
+.foundation-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--wo-space-3) var(--wo-space-6);
+  /* The same measure as the header, so the two align down the page rather
+     than the footer sitting a few pixels wider than everything above it. */
+  width: min(100% - 3rem, var(--wo-page-max));
+  margin-inline: auto;
+  padding-block: var(--wo-space-6);
+}
+
+.foundation-footer__note {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--wo-text-dim);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.foundation-footer__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--wo-space-4);
+  font-size: 0.85rem;
+}
+
+.foundation-footer__nav a {
+  color: var(--wo-text-muted);
+  text-decoration: none;
+}
+
+.foundation-footer__nav a:hover,
+.foundation-footer__nav a:focus-visible {
+  color: var(--wo-text);
+  text-decoration: underline;
 }
 
 .foundation-header {
@@ -544,4 +597,148 @@
   .docs-nav {
     position: static;
   }
+}
+
+/* The public status page
+   -------------------------------------------------------------------------
+   Read by somebody deciding whether to trust a scan result, often while
+   suspecting something is wrong. So: one unmistakable banner, then the detail,
+   then the honest caveat about what this page cannot tell them. Nothing here
+   is decorative — a status page that looks designed reads as marketing. */
+
+.status-page {
+  display: grid;
+  gap: var(--wo-space-6);
+}
+
+.status-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--wo-space-3);
+  padding: var(--wo-space-4) var(--wo-space-5);
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-sm);
+  /* A tint across the whole box rather than a rule down one edge: the edge
+     disappears at the widths where this page is most often read. */
+  background: var(--wo-level-1);
+}
+
+/* The quiet variants are the per-theme tints the rest of the product uses;
+   mixing my own here would come out at a different lightness in dark mode. */
+.status-banner--good {
+  background: var(--wo-success-quiet);
+  color: var(--wo-success);
+}
+
+.status-banner--warn {
+  background: var(--wo-warning-quiet);
+  color: var(--wo-warning);
+}
+
+.status-banner--neutral {
+  color: var(--wo-text-muted);
+}
+
+.status-banner__headline {
+  margin: 0;
+  color: var(--wo-text);
+  font-size: 1.05rem;
+  font-weight: 640;
+}
+
+.status-banner__detail {
+  margin: var(--wo-space-1) 0 0;
+  max-width: var(--wo-measure);
+  color: var(--wo-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.status-section {
+  display: grid;
+  gap: var(--wo-space-3);
+}
+
+.status-section h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 640;
+}
+
+.status-section__lede {
+  margin: 0;
+  max-width: var(--wo-measure);
+  color: var(--wo-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.status-list {
+  display: grid;
+  gap: var(--wo-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--wo-space-2) var(--wo-space-4);
+  padding: var(--wo-space-3) 0;
+  border-bottom: 1px solid var(--wo-border);
+}
+
+.status-row__label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.status-row__meta {
+  margin: var(--wo-space-1) 0 0;
+  color: var(--wo-text-dim);
+  font-size: 0.8rem;
+}
+
+.status-row__value {
+  margin: 0;
+  color: var(--wo-text-muted);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-row__value--stale {
+  color: var(--wo-warning);
+  font-weight: 600;
+}
+
+.status-figures {
+  display: grid;
+  gap: var(--wo-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  margin: 0;
+}
+
+.status-figures dt {
+  color: var(--wo-text-muted);
+  font-size: 0.82rem;
+}
+
+.status-figures dd {
+  margin: var(--wo-space-1) 0 0;
+  font-size: 1.5rem;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-caveat {
+  max-width: var(--wo-measure);
+  margin: 0;
+  padding-top: var(--wo-space-4);
+  border-top: 1px solid var(--wo-border);
+  color: var(--wo-text-dim);
+  font-size: 0.85rem;
+  line-height: 1.65;
 }

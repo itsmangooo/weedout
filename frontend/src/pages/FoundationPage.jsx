@@ -5,6 +5,7 @@ import { LandingCli } from "../features/landing/components/LandingCli";
 import { LiveSignal } from "../features/landing/components/LiveSignal";
 import { MagneticLink } from "../features/landing/components/MagneticLink";
 import { StageShowcase } from "../features/landing/components/StageShowcase";
+import { UsedBy } from "../features/landing/components/UsedBy";
 import { ScrollFilterStory } from "../features/landing/components/ScrollFilterStory";
 import { SystemStatus } from "../features/system/components/SystemStatus";
 import { Link } from "react-router";
@@ -17,6 +18,7 @@ export function FoundationPage() {
       <StageShowcase />
       <LandingCli />
       <LiveSignal />
+      <UsedBy />
 
       <section className="landing-close" aria-labelledby="landing-close-title">
         <div className="landing-close__copy">
@@ -49,6 +51,10 @@ export function FoundationPage() {
             <Link to="/cli">CLI</Link>
             <Link to="/docs">Docs</Link>
             <Link to="/pricing">Pricing</Link>
+            {/* The people who load this are already wondering whether
+                something is broken, so it must not be a URL they have to
+                guess. */}
+            <Link to="/status">Status</Link>
             {/* Reachable from the public footer as well as from inside the
                 app: somebody who cannot sign in is exactly who needs to be
                 able to tell us so. */}

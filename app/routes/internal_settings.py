@@ -20,7 +20,7 @@ cache, history or log touched the page.
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.core.totp import provisioning_uri
 from app.core.types import KeyScope
@@ -35,6 +35,12 @@ from app.services.auth_service import (
     change_password,
     revoke_session_by_id,
     revoke_sessions_except,
+)
+from app.services.organisation_service import (
+    OrganisationError,
+    become_organisation,
+    become_personal,
+    set_showcase_opt_in,
 )
 from app.services.target_service import get_target_for_user, list_targets
 from app.services.twofactor_service import ISSUER as TOTP_ISSUER
@@ -92,6 +98,14 @@ async def settings(
             "two_factor_enabled": user.two_factor_enabled,
             "backup_codes_unused": unused_codes,
             "backup_codes_total": total_codes,
+            "account_kind": str(user.account_kind),
+            "organisation_name": user.organisation_name,
+            "organisation_website": user.organisation_website,
+            "showcase_opt_in": user.showcase_opt_in,
+            # Whether the name is actually appearing. The interface has to be
+            # able to say "asked for, not yet listed" -- an opt-in that looks
+            # done while nothing is published is a promise we did not make.
+            "showcase_listed": user.is_showcased,
         },
         "projects": [
             {"id": summary.target.id, "name": summary.target.name}
@@ -131,6 +145,74 @@ async def settings(
 # ---------------------------------------------------------------------------
 # Preferences
 # ---------------------------------------------------------------------------
+
+
+class OrganisationBody(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    #: Empty means "this is a personal account", which is how somebody undoes
+    #: it. A separate endpoint for that would be a second way to express one
+    #: thing.
+    name: str = Field(default="", max_length=200)
+    website: str = Field(default="", max_length=300)
+
+
+class ShowcaseBody(BaseModel):
+    listed: bool = False
+
+
+@router.post("/settings/organisation", dependencies=[CsrfProtected])
+async def set_organisation(
+    db: DbSession, user: CurrentInternalUser, body: OrganisationBody
+) -> dict:
+    """Say this account is a company, or that it is not.
+
+    Changes nothing about the plan or the limits. An account type that quietly
+    altered either would make "are you a company?" a question with a wrong
+    answer, and people would learn to answer it in whichever direction was
+    cheaper.
+    """
+    try:
+        if body.name:
+            await become_organisation(db, user, name=body.name, website=body.website)
+        else:
+            await become_personal(db, user)
+    except OrganisationError as exc:
+        raise _fail(status.HTTP_400_BAD_REQUEST, "INVALID_REQUEST", str(exc)) from None
+
+    await db.commit()
+    return {
+        "data": {
+            "account_kind": str(user.account_kind),
+            "organisation_name": user.organisation_name,
+            "showcase_listed": user.is_showcased,
+        }
+    }
+
+
+@router.post("/settings/showcase", dependencies=[CsrfProtected])
+async def set_showcase(db: DbSession, user: CurrentInternalUser, body: ShowcaseBody) -> dict:
+    """Ask to be named on the landing page, or stop being named.
+
+    Asking is not being listed. A person checks that the name is theirs to
+    give before anything appears, because consent alone would let anybody sign
+    up as a well-known company and land on our front page.
+
+    Turning it off is immediate and needs nobody's approval: withdrawing
+    consent must never be slower than giving it.
+    """
+    try:
+        await set_showcase_opt_in(db, user, opted_in=body.listed)
+    except OrganisationError as exc:
+        raise _fail(status.HTTP_400_BAD_REQUEST, "INVALID_REQUEST", str(exc)) from None
+
+    await db.commit()
+    return {
+        "data": {
+            "showcase_opt_in": user.showcase_opt_in,
+            "showcase_listed": user.is_showcased,
+        }
+    }
 
 
 class AlertsBody(BaseModel):

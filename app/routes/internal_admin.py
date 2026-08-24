@@ -71,6 +71,11 @@ from app.services.email_service import (
     recent_sends,
     send_campaign,
 )
+from app.services.organisation_service import (
+    OrganisationError,
+    approve_showcase,
+    revoke_showcase,
+)
 
 log = get_logger(__name__)
 
@@ -127,6 +132,15 @@ def _user_summary(user: User) -> dict:
         "is_active": user.is_active,
         "is_suspended": user.is_suspended,
         "email_alerts_enabled": user.email_alerts_enabled,
+        "account_kind": str(user.account_kind),
+        "organisation_name": user.organisation_name,
+        # Shown so whoever is deciding has something to check the name
+        # against. That check is the whole reason approval is a person rather
+        # than a rule.
+        "organisation_website": user.organisation_website,
+        "showcase_opt_in": user.showcase_opt_in,
+        "showcase_approved_at": user.showcase_approved_at,
+        "showcase_listed": user.is_showcased,
         "created_at": user.created_at,
         "last_login_at": user.last_login_at,
         "suspended_at": user.suspended_at,
@@ -379,8 +393,58 @@ async def change_tier(
     return {"data": {"user": _user_summary(target)}}
 
 
+class ShowcaseApprovalBody(BaseModel):
+    approved: bool = False
+
+
 class SuspendBody(BaseModel):
     reason: str = ""
+
+
+@router.post("/users/{user_id}/showcase", dependencies=[CsrfProtected])
+async def set_user_showcase(
+    request: Request,
+    db: DbSession,
+    admin: CurrentInternalAdmin,
+    user_id: int,
+    body: ShowcaseApprovalBody,
+) -> dict:
+    """Approve or withdraw a company's appearance on the landing page.
+
+    The second half of a two-part gate. The account has to have asked, and
+    somebody here has to have checked that the name is theirs to give --
+    consent alone would let anybody sign up as a well-known company and land on
+    our front page, which is impersonation with our own marketing as the
+    vehicle.
+
+    Approving does not create the consent, and withdrawing does not remove it.
+    They are separate facts, and conflating them would let a withdrawal by us
+    look like a decision by them.
+    """
+    target = await _load_target(db, user_id)
+
+    try:
+        if body.approved:
+            await approve_showcase(db, target)
+        else:
+            await revoke_showcase(db, target)
+    except OrganisationError as exc:
+        raise _fail(status.HTTP_400_BAD_REQUEST, "REFUSED", str(exc)) from None
+
+    # Audited like every other admin action on an account. Publishing a
+    # customer's name is not a small thing, and "who approved that, and when"
+    # has to have an answer.
+    record_audit(
+        db,
+        admin,
+        action="user.showcase_approved" if body.approved else "user.showcase_revoked",
+        target=target,
+        details={"organisation": target.organisation_name},
+        ip_address=_client_ip(request),
+    )
+
+    await db.commit()
+    return {"data": {"user": _user_summary(target)}}
 
 
 @router.post("/users/{user_id}/suspend", dependencies=[CsrfProtected])

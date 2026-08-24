@@ -28,6 +28,7 @@ from app.services.cli_release_service import go_module, latest_release
 from app.services.contact_service import submit_message
 from app.services.docs_service import get_published, list_public
 from app.services.rate_limit_service import check_rate_limit, client_ip, record_attempt
+from app.services.status_service import public_status
 from app.tiers import PLANS
 
 log = get_logger(__name__)
@@ -113,6 +114,51 @@ async def cli(response: Response) -> dict:
                     for dependency in module.dependencies
                 ],
             },
+        }
+    }
+
+
+@router.get("/status")
+async def service_status(response: Response, db: DbSession) -> dict:
+    """What the service can honestly say about itself, to anyone.
+
+    Public, because the failure it reports is one users have a right to know
+    about and cannot otherwise detect: a stale advisory feed breaks the promise
+    without breaking a page, and every user of that ecosystem is quietly told
+    they are clean.
+
+    Cached briefly rather than computed per visitor. This is the page people
+    load when they think something is wrong, which is exactly when the database
+    is least able to answer six aggregates per request -- a status page that
+    becomes part of the outage is worse than none.
+    """
+    # Short and public. A CDN or proxy holding this for a minute is the
+    # intended behaviour, not a compromise.
+    response.headers["Cache-Control"] = "public, max-age=60"
+
+    current = await public_status(db)
+
+    return {
+        "data": {
+            "state": current.state,
+            "checked_at": current.checked_at,
+            "feeds": [
+                {
+                    "label": feed.label,
+                    "hours_behind": feed.hours_behind,
+                    "stale_after_hours": feed.stale_after_hours,
+                    "record_count": feed.record_count,
+                    "is_stale": feed.is_stale,
+                }
+                for feed in current.feeds
+            ],
+            "scans_24h": current.scans_24h,
+            "advisories": current.advisories,
+            # Null unless the deployment publishes them. The page renders the
+            # section only when both are present, rather than showing a zero
+            # that reads as "nobody uses this".
+            "accounts": current.accounts,
+            "projects": current.projects,
         }
     }
 

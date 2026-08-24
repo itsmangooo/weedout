@@ -140,6 +140,41 @@ export function FoundationLayout({ children }) {
       </header>
 
       <main id="main">{children ?? <Outlet />}</main>
+
+      {/* The landing page brings its own, richer footer -- brand, diagnostics,
+          the lot. Two footers on one page is worse than either alone, so the
+          utility strip stands down there. */}
+      {location.pathname === "/" ? null : <Footer />}
     </div>
+  );
+}
+
+/**
+ * The public footer.
+ *
+ * Small on purpose. Its whole job is to make three things reachable that
+ * nothing else links to — the status page most of all, because the people who
+ * need it are the ones already wondering whether something is wrong, and a
+ * status page you have to guess the URL of is a status page nobody reads.
+ *
+ * Only links to pages that exist. A footer with a dead /terms is worse than a
+ * footer without one: it turns a missing page into a broken promise.
+ */
+function Footer() {
+  return (
+    <footer className="foundation-footer">
+      <div className="foundation-footer__inner">
+        <p className="foundation-footer__note">
+          Weedout watches your dependencies and tells you about the vulnerabilities that
+          can actually reach you.
+        </p>
+        <nav aria-label="Footer" className="foundation-footer__nav">
+          <Link to="/status">Status</Link>
+          <Link to="/docs">Docs</Link>
+          <Link to="/cli">CLI</Link>
+          <Link to="/contact">Contact</Link>
+        </nav>
+      </div>
+    </footer>
   );
 }

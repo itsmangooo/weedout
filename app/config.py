@@ -115,6 +115,18 @@ class Settings(BaseSettings):
 
     # ---- Local advisory mirror --------------------------------------------
     #: How often the worker re-pulls OSV's ecosystem exports.
+    #: Whether /status publishes how many accounts and projects exist.
+    #:
+    #: Off by default, and the default is the interesting part. The freshness
+    #: half of that page is always public, because a stale advisory feed is
+    #: something users have a right to know about. Adoption numbers are a
+    #: different thing: on a product with three accounts they undersell, and on
+    #: a page whose entire purpose is being trusted, a number chosen to flatter
+    #: would poison the rest of it. So it is a switch somebody throws when the
+    #: numbers say something worth saying, rather than a rounding rule nobody
+    #: can audit.
+    status_show_adoption: bool = False
+
     mirror_refresh_hours: int = 12
     #: A scan whose mirror is older than this is served with a warning rather
     #: than silently presented as current.

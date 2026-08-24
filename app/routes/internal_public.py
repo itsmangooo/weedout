@@ -23,6 +23,7 @@ from fastapi import APIRouter, Response
 from app.deps import DbSession
 from app.logging_config import get_logger
 from app.services.docs_service import list_public
+from app.services.organisation_service import showcased_organisations
 from app.services.public_service import LandingData, get_landing_data
 
 log = get_logger(__name__)
@@ -87,6 +88,15 @@ async def landing(response: Response, db: DbSession) -> dict:
                     "advisory_count": package.advisory_count,
                 }
                 for package in data.trending_packages
+            ],
+            # Companies that asked to be named *and* were checked. Both, and
+            # `showcased_organisations` puts every condition in the query so
+            # there is no path where a caller forgets one -- naming a customer
+            # who did not ask would be a worse failure than any bug on this
+            # page. Empty is normal, and the client renders no section.
+            "used_by": [
+                {"name": account.organisation_name, "website": account.organisation_website}
+                for account in await showcased_organisations(db)
             ],
             "docs": [{"slug": page.slug, "title": page.title} for page in await list_public(db)],
         }
