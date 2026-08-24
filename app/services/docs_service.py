@@ -444,28 +444,56 @@ have to remember to do.
 
 ```bash
 curl -sSL https://weedout.dev/install.sh | sh
+weedout auth
+weedout create
 weedout scan
 ```
 
-`weedout scan` looks for a manifest in the current directory, uploads it, and
-prints what came back. It needs an API key, which you create in **Settings**
-against a specific project:
+Four commands, once. `weedout auth` signs the machine in — it prints a code,
+opens your browser, and you approve. `weedout create` makes a project from
+whatever lockfile is in the current directory and saves a key for that
+directory. After that `weedout scan` just works here, and in every other
+directory you run `weedout link` in.
 
-```bash
-export WEEDOUT_API_KEY=wo_...
-weedout scan
-```
+Nothing was copied or pasted at any point, which is the reason it works this
+way: a credential you paste is a credential in your clipboard, your shell
+history, and your terminal scrollback.
 
-Or write it once per project with `weedout init`, which creates a `.weedout`
-file. **Add that file to `.gitignore`** — it holds a credential.
+If the project already exists, use `weedout link` instead of `weedout create`.
+Full detail in [The CLI](/docs/the-cli).
 
-A key belongs to one project. That is deliberate: a key leaked out of a build
-log can only push results for the repository that build was for.
+### Your scan rules travel with the scan
+
+A `.weedout.yml` beside your lockfile — or anywhere up to six directories above
+it — is uploaded with every scan. Commit it: it is reviewed like code, it moves
+with a branch, and `git log` answers "who silenced this and when". See
+[Scan rules](/docs/scan-rules).
 
 ## From your pipeline
 
-The same command, with `--ci` so it fails the build on anything critical or
-actively exploited. See *Gate your pipeline* for a complete workflow.
+A pipeline has no browser, so it gets a project key in an environment variable
+rather than signing in:
+
+```bash
+export WEEDOUT_API_KEY=wo_...
+weedout scan --ci
+```
+
+Use a **scan**-scoped key. It is the narrowest thing that works, and it is the
+one that will end up in a build log; a key that can read your findings or
+silence an advisory has no business being there.
+
+`--ci` is what makes it a gate rather than a notification — it exits 1 on
+anything critical or actively exploited. See
+[Gate your pipeline](/docs/gate-your-pipeline) for a complete workflow.
+
+`weedout init` writes the same key to a `.weedout` file, which is the local
+equivalent for a machine where an environment variable is awkward. **Add it to
+`.gitignore`** — it holds a credential, and it is not the same file as
+`.weedout.yml`, which holds your rules and belongs in the repository.
+
+A key belongs to one project. That is deliberate: a key leaked out of a build
+log can only push results for the repository that build was for.
 
 ## From the web
 
@@ -732,6 +760,56 @@ It also publishes outputs, so a later step can react to the numbers:
 `filtered-count` and `findings-url` are all available, on a failed run as well
 as a passing one.
 
+## Your rules run in CI too
+
+If a `.weedout.yml` is committed at your repository root, the scan uploads it
+along with the lockfile — from the checkout, on every run. That is what makes
+the pipeline the source of truth for your rules: the file that ran in the
+build is the file that applied, and it went through review to get there.
+
+```yaml
+# .weedout.yml, committed
+severity:
+  direct: high
+  transitive: critical
+
+ignore:
+  - cve: CVE-2021-23337
+    reason: Not reachable from any entry point we ship.
+```
+
+Nothing to configure — it is found automatically from the lockfile's directory
+upward, so a monorepo with rules at the root and lockfiles in `services/*`
+works as it is.
+
+A file that will not parse does not fail the build. The scan runs on the
+defaults and reports the error, which can only ever produce *more* alerts than
+you intended. A parser that failed the other way would turn a typo into a
+vulnerability nobody hears about.
+
+### Different rules per environment
+
+A rule profile is a named set of rules kept on your account, so several
+repositories can share one standard without eight copies of the same file
+drifting apart.
+
+```bash
+weedout scan --ci --profile production
+```
+
+Or name it in the repository's own file, so every pipeline gets it without a
+flag:
+
+```yaml
+# .weedout.yml
+profile: production
+```
+
+The name is resolved on the server. One that does not exist **fails the scan
+with exit 2** rather than quietly running on the built-in rules — a pipeline
+that believed it was enforcing a stricter standard than it was would find out
+at the worst possible moment. See [Scan rules](/docs/scan-rules).
+
 ## On any other CI system
 
 The action is a wrapper around one command. GitLab, CircleCI, Jenkins and a
@@ -748,6 +826,13 @@ the published checksum before installing anything.
 The key comes from `WEEDOUT_API_KEY` in the environment. Set it as a secret in
 your CI provider — never in the repository, and never as a command-line
 argument, which shows up in process listings and some runner logs.
+
+Use a **scan**-scoped key here. It is the narrowest thing that works, and it is
+the one that ends up in a build log: a key that can read your findings or
+silence an advisory has no business in a runner. `weedout auth` and the machine
+credential it produces are for your laptop, not for CI — a pipeline has no
+browser to confirm in, and a credential that can create projects is not
+something to leave in one.
 
 ## Exit codes
 
@@ -817,14 +902,12 @@ pipeline needs and low enough that a misconfigured loop cannot run away.
     {
         "slug": "the-cli",
         "title": "The CLI, command by command",
-        "summary": (
-            "Scan, read and change what gets reported \u2014 without opening the dashboard."
-        ),
+        "summary": ("Scan, read and change what gets reported — without opening the dashboard."),
         "content": """
 The CLI is a single static binary with no dependencies. It does three kinds of
 thing: it scans, it reads what the dashboard would show you, and it changes
 what gets reported. Which of those a given key can do is decided by the key's
-scope \u2014 see [API keys and scopes](/docs/api-keys-and-scopes).
+scope — see [API keys and scopes](/docs/api-keys-and-scopes).
 
 ## Install
 
@@ -847,9 +930,32 @@ else to set up.
 weedout auth
 ```
 
-It prints an eight-character code and opens your browser. Check that the page
-shows the same code, approve, and you are done \u2014 nothing is copied, pasted or
-printed. The credential goes straight to a file only your account can read.
+Prints an eight-character code and opens your browser:
+
+```
+  Your code is  HXKR-2FQP
+
+  Open this page and check that it shows the same code:
+  https://weedout.dev/cli-auth?code=HXKR-2FQP
+
+  Waiting for you to approve it\u2026
+```
+
+Check that the page shows the same code, approve, and the terminal completes.
+Nothing is copied, pasted, or printed — the credential travels from the
+server to the waiting process and straight into a file only your account can
+read. That is the point of doing it this way: a token you paste is a token in
+your clipboard, your scrollback, your shell history, and often a chat window
+where you asked a colleague for help.
+
+| Flag | For |
+|---|---|
+| `--no-browser` | Print the URL instead of opening one. For a machine with no browser — open the link from wherever you are sitting. |
+| `--label NAME` | What this machine is called under **Signed-in machines**. Defaults to the hostname. |
+| `--url URL` | A self-hosted instance. |
+
+The code lasts ten minutes. If it expires, run the command again; nothing is
+left behind by an approval that never happened.
 
 Then, in a project directory:
 
@@ -858,6 +964,41 @@ weedout create              # a new project, with a key saved for this directory
 weedout link                # or connect to one you already have
 weedout scan                # from now on this just works here
 ```
+
+#### `weedout create`
+
+Makes a project and saves a key for this directory, in one call. If there is a
+lockfile beside you it is sent too, so the project starts with real contents
+instead of waiting for its first scan.
+
+```bash
+weedout create                      # named after the directory
+weedout create checkout-api         # named explicitly
+weedout create --scope read         # a wider key than the default
+weedout create --ecosystem npm      # when there is no lockfile here yet
+```
+
+`--ecosystem` is required only when there is no lockfile to read, because
+nothing else can then say which advisories the project should be matched
+against. It is never guessed: a project that silently changed ecosystem would
+reinterpret every finding ever recorded against it. Accepted values are `npm`,
+`PyPI`, `Go`, `crates.io` and `Maven`.
+
+#### `weedout link`
+
+Connects this directory to a project that already exists.
+
+```bash
+weedout link                    # match by directory name, or ask
+weedout link --project 7        # by id
+weedout link --scope manage     # a key that can also change rules
+```
+
+With no `--project`, it matches the directory name against your project names.
+An unambiguous match is used; anything else prints the list and stops rather
+than guessing. Guessing is the worst available outcome here — results pushed
+to the wrong project look entirely correct until somebody notices a count is
+off.
 
 ### In CI
 
@@ -882,14 +1023,85 @@ the repository; the second holds your scan rules and belongs in it. See
 ## Scanning
 
 ```bash
-weedout scan              # report, always exit 0
-weedout scan --ci         # exit 1 if something blocking is found
-weedout scan --json       # the same result, machine-readable
-weedout scan --quiet      # print nothing; the exit code is the answer
+weedout scan                    # report, always exit 0
+weedout scan --ci               # exit 1 if something blocking is found
+weedout scan --json             # the same result, machine-readable
+weedout scan --quiet            # print nothing; the exit code is the answer
+weedout scan path/to/project    # somewhere other than here
 ```
 
-`--fail-on high` widens the gate from the default `critical`. Confirmed
-exploitation fails at either setting.
+| Flag | Default | What it does |
+|---|---|---|
+| `--ci` | off | Exit 1 on anything at or above `--fail-on`. Without it the command always exits 0 and only reports. |
+| `--fail-on LEVEL` | `critical` | `critical` or `high`. Confirmed exploitation fails at either setting. |
+| `--json` | off | The whole result as JSON. |
+| `-q`, `--quiet` | off | Print nothing; the exit code is the answer. Errors still go to stderr. |
+| `--profile NAME` | — | Scan under one of the account's rule profiles. |
+| `-v`, `--verbose` | off | Say which file, which key, which rules and which profile were used. |
+| `--api-key KEY` | — | Overrides everything else. |
+| `--url URL` | weedout.dev | A self-hosted instance. |
+| `--timeout SECONDS` | 120 | How long to wait. |
+
+### Which file it picks
+
+Pointed at a directory, it searches for a manifest and prefers a lockfile when
+it finds one. Pointed at a file, it scans that file. Which file you scan
+changes the answer more than anything else on this page — see
+[Scanning your project](/docs/scanning-your-project).
+
+### It sends your rules with the scan
+
+If there is a `.weedout.yml` beside your lockfile — or anywhere up to six
+directories above it — the scan uploads it along with the manifest. A
+monorepo keeping its rules at the root and its lockfiles in `services/*` works
+without configuration. `.weedout.yaml` is accepted too.
+
+The server never sees your repository, only what is uploaded, so the rules have
+to travel with the scan. That is also what makes CI the source of truth: the
+file that ran in the pipeline is the file that applied.
+
+A `.weedout.yml` that cannot be read is not fatal. The scan runs on the
+defaults and reports the parse error, which can only ever produce *more* alerts
+than you intended, never fewer.
+
+### Which rules applied
+
+```bash
+$ weedout scan --verbose
+Scanning /repos/checkout-api/package-lock.json
+Key from /repos/checkout-api linked to checkout-api
+Endpoint https://weedout.dev
+Rules from /repos/checkout-api/.weedout.yml
+Profile production
+```
+
+Worth running the first time you wire a project up. "Why did this scan report
+that?" is usually answered by one of those five lines, and a `.weedout.yml`
+found three directories above you is not obvious.
+
+### Scanning under a named rule profile
+
+```bash
+weedout scan --profile production
+```
+
+A profile is a set of scan rules kept on your account and shared across
+projects. The name is resolved on the server against your own profiles, and a
+name that does not exist **fails the scan** rather than quietly running on the
+defaults:
+
+```
+$ weedout scan --profile prodcution
+There is no rule profile called 'prodcution' on this account.
+$ echo $?
+2
+```
+
+Exit 2 — the scan did not run. A pipeline that believed it was enforcing a
+stricter standard than it was would find out at the worst possible moment.
+
+See [Scan rules](/docs/scan-rules) for what a profile can contain and how it
+combines with everything else.
 
 ## Reading, without the dashboard
 
@@ -897,15 +1109,49 @@ These need a key with **read** access. Everything the web dashboard shows is
 available here, which is the point: if you would rather live in a terminal, you
 never have to open a browser after setup.
 
-| Command | Answers |
-|---|---|
-| `weedout status` | Counts, when it was last checked, when it is next due. |
-| `weedout findings` | What is open, with fixes and how each one got in. |
-| `weedout history` | Recent scans, and how the count has moved. |
-| `weedout supply-chain` | Signals about the packages themselves. |
+| Command | Answers | Flags of its own |
+|---|---|---|
+| `weedout status` | Counts, when it was last checked, when it is next due. | — |
+| `weedout findings` | What is open, with fixes and how each one got in. | `--show` (open, filtered, dismissed or resolved), `--limit N` (default 50) |
+| `weedout history` | Recent scans, and how the count has moved. | `--limit N` (default 20) |
+| `weedout supply-chain` | Signals about the packages themselves. | — |
+| `weedout profiles` | The account's rule profiles, and which one applies here. | — |
 
-Every one of them takes `--json`, so they compose with `jq` and with whatever
-your team already runs.
+All of them also take `--json`, `--api-key`, `--url` and `--timeout`. The JSON
+is the whole response, so they compose with `jq` and with whatever your team
+already runs:
+
+```bash
+weedout findings --json | jq '.findings[] | select(.exploited) | .package'
+weedout findings --show filtered --limit 200 --json > filtered.json
+```
+
+`--show filtered` is the one worth knowing about. It lists what Weedout decided
+*not* to tell you about, with the reason attached — the number this product
+is proud of is the one it suppressed, and it would be worth very little if you
+could not audit it.
+
+### `weedout profiles`
+
+```
+$ weedout profiles
+
+  Rule profiles
+    production        account default
+      What everything customer-facing runs under.
+    internal-tools    chosen here
+
+  A scan here runs under internal-tools. Pass --profile NAME to use another one.
+```
+
+Three facts, kept apart because they mean different things: which profile is
+the account default, which one *this* project chose, and which one a scan here
+would actually use. Most projects have not chosen and are inheriting the
+default, and that is the state people misread.
+
+Needs a key with **read** access. Knowing which rule sets exist is part of
+understanding a result, and a CI key that can see the name it is meant to pass
+fails with a useful message rather than a puzzle.
 
 ## Two credentials
 
@@ -918,7 +1164,7 @@ single credential that did everything.
 | From | `weedout auth` | `weedout create`, `weedout link`, or the project's settings page |
 | Belongs to | your account | one project |
 | Lives | in your OS config directory, on your machine | in `WEEDOUT_API_KEY`, or a `.weedout` file |
-| Can | create projects, list them, issue keys | scan, read findings, edit rules \u2014 depending on scope |
+| Can | create projects, list them, issue keys | scan, read findings, edit rules — depending on scope |
 | Cannot | read a single finding | create a project or reach another one |
 
 A key taken from a CI runner reaches the one project that runner builds. A
@@ -928,7 +1174,7 @@ you are vulnerable to. Both are worth revoking quickly; neither is everything.
 ### Which machines are signed in
 
 Account settings lists them, with what each one called itself and when it was
-last used. Sign one out there and it stops working immediately \u2014 `weedout
+last used. Sign one out there and it stops working immediately — `weedout
 logout` on the machine itself only forgets the local copy.
 
 Machine credentials expire after 180 days. A developer credential that never
@@ -947,6 +1193,30 @@ weedout unlink        # forget this directory
 weedout logout        # forget the account credential (--all drops project keys)
 ```
 
+```
+$ weedout whoami
+
+  Signed in as  dev@example.com
+  Config /home/dev/.config/weedout/config.json
+
+  This directory  checkout-api
+    project 7, linked at /repos/checkout-api
+```
+
+`--json` gives the same thing machine-readably, and deliberately **omits both
+credentials** — that output is the kind of thing that ends up in a log.
+
+`weedout unlink` forgets the association locally. The key it was using stays
+valid on the server; revoke it in the project's settings if it should stop
+working. Saying that out loud matters, because somebody who thinks unlinking
+revoked something is walking around with a live credential they believe is
+dead.
+
+`weedout logout` forgets the machine credential and leaves the project keys, so
+a laptop you are handing on is not half-cleaned. `--all` drops those too. Either
+way it is only the local copy: sign the machine out under **Signed-in machines**
+in your account settings if the machine itself is out of your hands.
+
 Where a key comes from, strongest first:
 
 1. `--api-key` on the command line
@@ -957,18 +1227,29 @@ Where a key comes from, strongest first:
 The environment beating both files is the one that matters. CI injects secrets
 as environment variables, and a `.weedout` accidentally committed to a
 repository must never quietly override the key a pipeline was configured with
-\u2014 a build that authenticates as the wrong account is worse than one that
+— a build that authenticates as the wrong account is worse than one that
 fails to authenticate at all.
 
 ### Rotating a key
 
 ```bash
 weedout key regenerate
+weedout key regenerate --scope read     # and widen it while you are there
 ```
 
-Issues a new key for the linked project and saves it. The old one keeps working
-until you revoke it in the project's settings, so a rotation that fails
-part-way leaves you with something that works rather than nothing.
+Issues a new key for the linked project and saves it over the old one in your
+config. Nothing is printed — the key goes from the response to the file, the
+same as it does at `create` and `link`.
+
+The old key keeps working. That is deliberate: minting before revoking means a
+rotation that fails part-way leaves you with a credential that works rather
+than none, and an extra live key you can see and revoke is a smaller problem
+than being locked out of your own project. Revoke it under **API keys** in the
+project's settings once nothing is using it.
+
+For a key that is in CI rather than on your machine, rotate it from the
+project's settings page — this command only touches the one saved for this
+directory.
 
 ## Changing what gets reported
 
@@ -983,7 +1264,7 @@ weedout rules unignore GHSA-xxxx                # report it again
 ```
 
 A reason is required, and it is recorded. Six months from now the question is
-never "is this ignored" \u2014 it is "who decided that, and why".
+never "is this ignored" — it is "who decided that, and why".
 
 Quote the glob. An unquoted `@acme/*` is expanded by your shell against the
 working directory before Weedout ever sees it.
@@ -1002,13 +1283,76 @@ weedout --interactive     # turn the menu on for this installation
 `--interactive` is a preference, saved next to the binary, not a flag you pass
 every time.
 
+## Every command
+
+| Command | Needs | Does |
+|---|---|---|
+| `weedout auth` | nothing | Signs this machine in by browser confirmation |
+| `weedout logout` | nothing | Forgets the credential here. `--all` drops project keys too |
+| `weedout whoami` | nothing | Which account, and what this directory is linked to |
+| `weedout create [name]` | machine credential | Makes a project and saves a key for this directory |
+| `weedout link` | machine credential | Connects this directory to an existing project |
+| `weedout unlink` | nothing | Forgets the association. Does not revoke the key |
+| `weedout key regenerate` | machine credential | Replaces this directory's key |
+| `weedout scan [path]` | **scan** key | Scans, and sends `.weedout.yml` if there is one |
+| `weedout status` | **read** key | Counts, last check, next check |
+| `weedout findings` | **read** key | What is open, with fixes and how it got in |
+| `weedout history` | **read** key | Recent scans, and how the count has moved |
+| `weedout supply-chain` | **read** key | Signals about the packages themselves |
+| `weedout profiles` | **read** key | The account's rule profiles, and which applies here |
+| `weedout rules` | **manage** key | The rules in force on this project |
+| `weedout rules ignore` | **manage** key | Stop reporting an advisory, or a family of packages |
+| `weedout rules unignore` | **manage** key | Report it again |
+| `weedout init [path]` | nothing | Writes a `.weedout` file, for CI or a shared box |
+| `weedout version` | nothing | What you are running |
+| `weedout update` | nothing | Installs the newest release. `--check` reports without installing |
+| `weedout --interactive` | nothing | Turns the menu on for this installation |
+
+Flags shared by everything that talks to the service: `--api-key`, `--url`,
+`--timeout`, and `--json` on anything that produces output worth parsing.
+
+## From nothing to a gated pipeline
+
+The whole path, once:
+
+```bash
+# 1. Install
+curl -sSL https://weedout.dev/install.sh | sh
+
+# 2. Sign this machine in. Approve in the browser it opens.
+weedout auth
+
+# 3. In your project, after installing dependencies
+npm ci
+weedout create
+
+# 4. Check it
+weedout scan --verbose
+
+# 5. Write the rules you want, and commit them
+cat > .weedout.yml <<'YAML'
+severity:
+  direct: high
+  transitive: critical
+YAML
+git add .weedout.yml && git commit -m "Weedout scan rules"
+
+# 6. A key for CI, narrower than the one you have locally
+weedout key regenerate --scope scan
+```
+
+Then put that key in your CI secret store and add the step from
+[Gate your pipeline](/docs/gate-your-pipeline). The `.weedout.yml` you
+committed travels with every scan from then on, including the ones the
+scheduler runs.
+
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | `0` | It ran. Nothing blocking. |
 | `1` | It ran and found something blocking. `--ci` only. |
-| `2` | It did **not** run \u2014 bad key, unreachable service, or no manifest. |
+| `2` | It did **not** run — bad key, unreachable service, or no manifest. |
 
 The gap between `1` and `2` is the one that matters. A pipeline treating every
 non-zero exit as "vulnerabilities found" will eventually treat an expired key as
@@ -1018,7 +1362,7 @@ a security finding, and somebody will fix that by deleting the step.
     {
         "slug": "scan-rules",
         "title": "Scan rules",
-        "summary": "Thresholds, ignores and .weedout.yml \u2014 and the two things a rule cannot silence.",
+        "summary": "Thresholds, ignores and .weedout.yml — and the two things a rule cannot silence.",
         "content": """
 Weedout's defaults are deliberate, and most projects should leave them alone.
 Scan rules exist for the cases where your codebase knows something the advisory
@@ -1052,7 +1396,7 @@ override where it needs something different. A profile that beat the project's
 own settings would make the per-project controls decorative.
 
 Precedence is per setting, not all-or-nothing. A file that only sets thresholds
-does not wipe out ignores you added in the interface \u2014 it says nothing about
+does not wipe out ignores you added in the interface — it says nothing about
 them, and silence is not an instruction. Ignores from every layer are unioned
 for the same reason: no layer un-ignores what another ignored, and the only way
 to stop ignoring something is to remove the rule that says so.
@@ -1088,7 +1432,7 @@ position is recorded and filed rather than raised.
 
 `dev` is the odd one out: leaving it unset does not mean "use the default", it
 means dev-only findings stay filed the way they always have. Setting it says
-something more precise \u2014 tell me about build tooling, but only when it is
+something more precise — tell me about build tooling, but only when it is
 this bad. A critical in a linter is not a critical in a web framework, and it is
 not nothing either.
 
@@ -1114,7 +1458,7 @@ ignore:
 
 For the case an advisory id cannot serve. A private package sharing a name with
 a public one matches advisories written about somebody else's code, and there is
-no fixed list of ids to enumerate \u2014 the next advisory that other project
+no fixed list of ids to enumerate — the next advisory that other project
 publishes is a new one.
 
 `*` matches any run of characters and `?` matches exactly one. Matching is
@@ -1123,7 +1467,7 @@ evaluated against every dependency on every scan, and a regular expression is
 where that becomes a way to hang the scanner on a crafted package name.
 
 A pattern that matches every package is refused. That is not a filter, it is the
-scan switched off, and a project is switched off by deactivating it \u2014 which
+scan switched off, and a project is switched off by deactivating it — which
 says so on the dashboard, where a rule that happens to match everything does
 not.
 
@@ -1141,7 +1485,7 @@ looser set on the internal tools, and something stricter on the one facing the
 internet. Configuring that project by project means eight copies that drift, and
 changing the standard means eight edits.
 
-A profile is a policy document \u2014 the same YAML as above \u2014 stored on your
+A profile is a policy document — the same YAML as above — stored on your
 account under a name. Create them in **Settings**.
 
 ```
@@ -1174,7 +1518,7 @@ capitalisation or spacing. "Production APIs", `production-apis` and
 the name in Settings, and `weedout profiles` prints it.
 
 Renaming a profile changes what `--profile` matches, so a pipeline naming the
-old one starts failing. That is a refusal, not a silent fall back \u2014 see
+old one starts failing. That is a refusal, not a silent fall back — see
 below.
 
 ### A name that does not exist fails the scan
@@ -1191,7 +1535,7 @@ reporting success. A pipeline that believes it is enforcing a stricter standard
 than it is would find out at the worst possible moment.
 
 The name is resolved on the server against your account's own profiles. Nothing
-a pipeline sends decides which rules apply \u2014 it only asks.
+a pipeline sends decides which rules apply — it only asks.
 
 ### From the terminal
 
@@ -1218,7 +1562,7 @@ Two things are reported however you have configured the project.
 **Known exploitation.** An ignore is a judgement about a risk, made at a moment
 in time. A CISA KEV listing is new information about that same risk, so the
 judgement is out of date rather than binding. The finding is raised, and the
-rule is marked on the settings page as having been set aside \u2014 whoever wrote
+rule is marked on the settings page as having been set aside — whoever wrote
 "ignore this, it is disputed" needs to see that it is now being exploited.
 
 **Malware.** An advisory saying a package *is* malicious is not the risk your
@@ -1237,7 +1581,7 @@ you cannot audit is a filter you have to take on faith.
 
 If `.weedout.yml` cannot be parsed, the whole file is discarded and the scan
 runs on the defaults. Every ignore in it stops applying and every raised
-threshold reverts, so the failure mode is extra alerts \u2014 never silence. The
+threshold reverts, so the failure mode is extra alerts — never silence. The
 error is reported on the project page and by `weedout rules`.
 
 Unknown keys are skipped with a warning rather than refused: a file mentioning
@@ -1262,7 +1606,7 @@ show it to you again and neither can anyone who reads our database.
 |---|---|---|
 | `scan` | Push a scan. | Read findings, change rules. |
 | `read` | Push a scan, read findings, history and supply-chain signals. | Change rules. |
-| `manage` | All of it, including ignoring advisories. | \u2014 |
+| `manage` | All of it, including ignoring advisories. | — |
 
 `scan` is the default, and it is what every key created before scopes existed
 already was.
@@ -1273,7 +1617,7 @@ A CI key lives in an environment variable. Anyone who can read a build log, open
 a pull request against your workflow, or compromise a runner can take it.
 
 If that key could add an ignore rule, whoever took it could **silence the alert
-for the vulnerability they are about to exploit** \u2014 and the dashboard would
+for the vulnerability they are about to exploit** — and the dashboard would
 show a clean project while it happened. That is the whole reason a scan key
 cannot change what gets reported.
 
@@ -1282,8 +1626,8 @@ Create a `manage` key when you need one and revoke it when you are done.
 
 ## What a rejected key looks like
 
-Every failure \u2014 missing, malformed, unknown, revoked, or belonging to a
-suspended account \u2014 returns the same `401`. Distinguishing "revoked" from
+Every failure — missing, malformed, unknown, revoked, or belonging to a
+suspended account — returns the same `401`. Distinguishing "revoked" from
 "never existed" would tell anyone holding a list of leaked strings which ones
 were once real.
 

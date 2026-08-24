@@ -62,17 +62,35 @@ const EXIT_CODES = [
   },
 ];
 
+/** `1` -> `01`. The eyebrow above each numbered section. */
+function Step({ n }) {
+  return <p className="eyebrow">{String(n).padStart(2, "0")}</p>;
+}
+
 const READ_COMMANDS = [
   ["weedout status", "Counts, last check, next check."],
   ["weedout findings", "What is open, with fixes and how it got in."],
+  ["weedout findings --show filtered", "What it decided not to tell you, and why."],
   ["weedout history", "Recent scans and how the count has moved."],
   ["weedout supply-chain", "Signals about the packages themselves."],
+  ["weedout profiles", "The rule profiles on your account, and which applies here."],
 ];
 
 const MANAGE_COMMANDS = [
   ["weedout rules", "The rules in force."],
   ["weedout rules ignore ID --reason R", "Stop reporting one advisory."],
+  ['weedout rules ignore --package "@acme/*"', "Stop reporting a family of packages."],
   ["weedout rules unignore ID", "Report it again."],
+];
+
+/** Setting a machine up. Needs no key — `auth` is what produces one. */
+const SETUP_COMMANDS = [
+  ["weedout auth", "Sign this machine in, by confirming a code in your browser."],
+  ["weedout create", "Make a project from this directory and save a key for it."],
+  ["weedout link", "Connect this directory to a project you already have."],
+  ["weedout whoami", "Which account, and what this directory is linked to."],
+  ["weedout key regenerate", "Replace this directory's key. The old one keeps working."],
+  ["weedout logout", "Forget the credential here. --all drops project keys too."],
 ];
 
 export function CliPage() {
@@ -93,10 +111,14 @@ export function CliPage() {
         <Transcript />
       </section>
 
-      <Install />
-      <ExitCodes />
-      <Action />
-      <WithoutTheDashboard />
+      {/* The numbered walk-through. Order and numbering live here, together,
+          so inserting a section cannot leave two of them called 04. */}
+      <Install step={1} />
+      <Setup step={2} />
+      <Rules step={3} />
+      <ExitCodes step={4} />
+      <Action step={5} />
+      <WithoutTheDashboard step={6} />
 
       {query.isPending ? <AsyncLoading>Checking the latest release…</AsyncLoading> : null}
       {query.isError ? (
@@ -176,14 +198,14 @@ function Transcript() {
   );
 }
 
-function Install() {
+function Install({ step }) {
   const [active, setActive] = useState(INSTALLERS[0].id);
   const installer = INSTALLERS.find((option) => option.id === active);
 
   return (
     <section aria-labelledby="install-heading" className="cli-section">
       <div className="cli-section__head">
-        <p className="eyebrow">01</p>
+        <Step n={step} />
         <h2 id="install-heading">Install it</h2>
       </div>
 
@@ -237,11 +259,11 @@ function Install() {
   );
 }
 
-function ExitCodes() {
+function ExitCodes({ step }) {
   return (
     <section aria-labelledby="exit-heading" className="cli-section">
       <div className="cli-section__head">
-        <p className="eyebrow">02</p>
+        <Step n={step} />
         <h2 id="exit-heading">Three exit codes, and they mean different things</h2>
       </div>
 
@@ -267,11 +289,144 @@ function ExitCodes() {
   );
 }
 
-function Action() {
+/**
+ * Signing a machine in, and what that credential is allowed to do.
+ *
+ * The distinction between the two credential types is the part people get
+ * wrong, and getting it wrong means putting the powerful one in CI. So the
+ * table states what each one *cannot* do, which is the half that matters.
+ */
+function Setup({ step }) {
+  return (
+    <section aria-labelledby="setup-heading" className="cli-section">
+      <div className="cli-section__head">
+        <Step n={step} />
+        <h2 id="setup-heading">Nothing to copy and paste</h2>
+      </div>
+
+      <p className="cli-section__lede">
+        <code>weedout auth</code> prints an eight-character code and opens your browser. You
+        check the page shows the same code and approve; the credential travels straight to a
+        file only your account can read. It is never printed — not on success, not with{" "}
+        <code>--verbose</code>, not in an error.
+      </p>
+
+      <pre className="command-block command-block--wide">
+        <code>{`$ weedout auth
+
+  Your code is  HXKR-2FQP
+
+  Open this page and check that it shows the same code:
+  https://weedout.dev/cli-auth?code=HXKR-2FQP
+
+  Waiting for you to approve it…
+
+Signed in as dev@example.com.`}</code>
+      </pre>
+
+      <div className="command-grid">
+        <div>
+          <p className="command-grid__label">
+            Set up <span className="dim">— no key needed; this is what makes one</span>
+          </p>
+          <dl className="command-list">
+            {SETUP_COMMANDS.map(([command, detail]) => (
+              <div key={command}>
+                <dt>{command}</dt>
+                <dd>{detail}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div>
+          <p className="command-grid__label">Two credentials, and neither is the other</p>
+          <dl className="command-list">
+            <div>
+              <dt>Machine credential</dt>
+              <dd>
+                From <code>weedout auth</code>, lives on your laptop. Creates projects and
+                issues keys. <strong>Cannot read a single finding.</strong>
+              </dd>
+            </div>
+            <div>
+              <dt>Project key</dt>
+              <dd>
+                One project. Scans, reads findings, edits rules — by scope. Lives in{" "}
+                <code>WEEDOUT_API_KEY</code>. <strong>Cannot reach another project.</strong>
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      <p className="cli-note">
+        A key taken from a CI runner reaches the one project that runner builds. A credential
+        taken from a laptop can make projects and cannot see what you are vulnerable to. Both
+        are worth revoking quickly; neither is everything.{" "}
+        <Link to="/docs/the-cli">Every command and flag</Link>.
+      </p>
+    </section>
+  );
+}
+
+/**
+ * Rules that live in the repository, and the fact that the scan sends them.
+ *
+ * Worth its own section because it is the least discoverable thing the binary
+ * does: a file you commit changes what a scan reports, with nothing to
+ * configure and no flag to pass.
+ */
+function Rules({ step }) {
+  return (
+    <section aria-labelledby="rules-heading" className="cli-section">
+      <div className="cli-section__head">
+        <Step n={step} />
+        <h2 id="rules-heading">Your rules, reviewed like code</h2>
+      </div>
+
+      <p className="cli-section__lede">
+        Commit a <code>.weedout.yml</code> and every scan sends it — found from your
+        lockfile&rsquo;s directory upward, so a monorepo with rules at the root works as it
+        is. The file that ran in the pipeline is the file that applied, and it went through
+        review to get there.
+      </p>
+
+      <pre className="command-block command-block--wide">
+        <code>{`# .weedout.yml — commit this one
+severity:
+  direct: high
+  transitive: critical
+  dev: critical        # a build tool held to a higher bar, not silenced
+
+ignore:
+  - cve: CVE-2021-23337
+    reason: Not reachable from any entry point we ship.
+
+  - package: "@acme/*"
+    reason: Our own packages, mirrored under a name that also exists publicly.`}</code>
+      </pre>
+
+      <p className="cli-note">
+        Known exploitation and malware are reported whatever the file says. An ignore is a
+        judgement about a risk made at a moment in time; a KEV listing is new information
+        about that same risk, so the judgement is out of date rather than binding.
+      </p>
+
+      <p className="cli-note">
+        A file that will not parse never silences anything — the scan runs on the defaults
+        and says so, which can only produce more alerts than you intended, never fewer.{" "}
+        <Link to="/docs/scan-rules">Every key it takes</Link>.
+      </p>
+    </section>
+  );
+}
+
+function Action({ step }) {
   return (
     <section aria-labelledby="action-heading" className="cli-section">
       <div className="cli-section__head">
-        <p className="eyebrow">03</p>
+        <Step n={step} />
         <h2 id="action-heading">Or one line of workflow</h2>
       </div>
 
@@ -290,11 +445,11 @@ function Action() {
   );
 }
 
-function WithoutTheDashboard() {
+function WithoutTheDashboard({ step }) {
   return (
     <section aria-labelledby="read-heading" className="cli-section">
       <div className="cli-section__head">
-        <p className="eyebrow">04</p>
+        <Step n={step} />
         <h2 id="read-heading">Everything the dashboard shows, without opening it</h2>
       </div>
 

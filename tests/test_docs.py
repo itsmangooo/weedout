@@ -8,6 +8,8 @@ meaningful if there is no way to read one from outside.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 from sqlalchemy import select
 
@@ -632,6 +634,116 @@ class TestStarterContentUpdates:
 
         assert "getting-started" in await reseed_starter_pages(db)
         assert await get_published(db, "getting-started") is not None
+
+
+class TestTheDocsKeepUpWithTheCli:
+    """Commands the CLI has that the documentation has not heard of.
+
+    The failure is the quiet one: a command ships, works, and nobody outside
+    the person who wrote it finds out. The CLI repository guards its own help
+    text and README the same way, by parsing its dispatch switch; this side
+    cannot read that source, so the list below is the seam between the two.
+
+    Keeping it here rather than deriving it is a deliberate trade. It is a
+    second copy, which is normally the thing to avoid -- but the alternative is
+    a test that reaches across repositories or over the network, and a
+    guardrail that is flaky is a guardrail somebody deletes. The cost is one
+    line to add when a command is added; the failure message says so.
+    """
+
+    #: Every command a user could reasonably look up, and the page that should
+    #: answer them. Aliases and `help` are left out.
+    DOCUMENTED_IN: ClassVar[dict[str, str]] = {
+        "auth": "the-cli",
+        "create": "the-cli",
+        "link": "the-cli",
+        "unlink": "the-cli",
+        "whoami": "the-cli",
+        "logout": "the-cli",
+        "key": "the-cli",
+        "scan": "the-cli",
+        "status": "the-cli",
+        "findings": "the-cli",
+        "history": "the-cli",
+        "supply-chain": "the-cli",
+        "profiles": "the-cli",
+        "rules": "the-cli",
+        "init": "the-cli",
+        "version": "the-cli",
+        "update": "the-cli",
+    }
+
+    def _page(self, slug: str) -> str:
+        from app.services.docs_service import STARTER_PAGES
+
+        return next(page["content"] for page in STARTER_PAGES if page["slug"] == slug)
+
+    def test_every_command_is_documented_somewhere(self):
+        missing = [
+            command
+            for command, slug in self.DOCUMENTED_IN.items()
+            if f"weedout {command}" not in self._page(slug)
+        ]
+
+        assert missing == [], (
+            f"the {sorted({self.DOCUMENTED_IN[c] for c in missing})} page(s) do not mention: "
+            f"{missing}. If a command was added to the CLI, add it here and to the page."
+        )
+
+    def test_the_cli_page_has_a_complete_command_table(self):
+        """One place a reader can see everything, rather than a command
+        mentioned in passing three sections apart."""
+        page = self._page("the-cli")
+
+        assert "## Every command" in page
+        table = page[page.index("## Every command") :]
+        missing = [c for c in self.DOCUMENTED_IN if f"weedout {c}" not in table]
+
+        assert missing == [], f"absent from the reference table: {missing}"
+
+    def test_the_newer_flags_are_documented(self):
+        """A flag nobody knows about is a feature nobody uses."""
+        page = self._page("the-cli")
+
+        for flag in ("--profile", "--ecosystem", "--scope", "--no-browser", "--show", "--all"):
+            assert flag in page, f"{flag} is not documented"
+
+    def test_the_policy_file_upload_is_explained(self):
+        """The least discoverable thing the binary does: a file you commit
+        changes what a scan reports, with nothing to configure and no flag."""
+        for slug in ("the-cli", "scanning-your-project", "gate-your-pipeline"):
+            assert ".weedout.yml" in self._page(slug), slug
+
+    def test_the_two_files_are_never_confused(self):
+        """`.weedout` holds a credential and `.weedout.yml` holds rules.
+        Pointing somebody at the wrong one is how a key gets committed."""
+        for slug in ("the-cli", "scanning-your-project"):
+            page = self._page(slug)
+            assert "not the same file" in page or "is not `.weedout.yml`" in page, slug
+
+    def test_nothing_still_tells_people_init_writes_the_rules_file(self):
+        """It writes `.weedout`. Three pages said otherwise once.
+
+        Scoped to the sentence making the claim rather than a window of
+        characters around it. Every one of these pages goes on to explain that
+        `.weedout` is not `.weedout.yml`, and a proximity check reads that
+        clarification as the mistake it exists to prevent.
+        """
+        from app.services.docs_service import STARTER_PAGES
+
+        for page in STARTER_PAGES:
+            flattened = " ".join(page["content"].split())
+            if "weedout init" not in flattened:
+                continue
+
+            index = flattened.index("weedout init")
+            stop = flattened.find(".", index + len("weedout init` writes"))
+            sentence = flattened[index : stop if stop != -1 else index + 200]
+
+            assert ".weedout.yml" not in sentence, (
+                f"{page['slug']} says `weedout init` writes .weedout.yml, which holds "
+                f"rules and belongs in the repository: {sentence!r}"
+            )
 
 
 class TestStarterContentIsCliFirst:

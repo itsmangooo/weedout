@@ -14,6 +14,34 @@ Entries note breaking changes and anything a deployment has to do by hand.
 
 ### 2026-08-24
 
+**The CLI documentation caught up with the CLI.** Eight commands shipped this
+stretch and none of them appeared anywhere a user would look. `/docs/the-cli`
+now covers every command and every flag, with a complete reference table and a
+start-to-gated-pipeline walkthrough; `/cli` gained sections on signing a
+machine in and on rules that travel with the scan; and
+`scanning-your-project`, which still taught the old create-a-key-in-Settings
+flow, leads with `weedout auth`.
+
+The parts worth documenting most were the least discoverable: that a committed
+`.weedout.yml` is found and uploaded with every scan, with nothing to
+configure; that `--profile` is resolved server-side and a wrong name *fails*
+the scan rather than quietly running on the defaults; and that the two
+credentials cannot do each other's job.
+
+**Guardrails so it cannot fall behind again.** In the CLI repository, three
+tests parse the dispatch switch and require every command to appear in
+`weedout --help` and in the README, and require the help text not to promise a
+command that does not exist. On this side, a test requires every command and
+the newer flags to appear on the documentation page.
+
+- One of them immediately caught `TestEveryMenuEntryNamesARealCommand` keeping
+  its own copy of the command list — a copy that had been passing since three
+  real commands were added to the menu, which is the exact failure it existed
+  to catch, one level up.
+- The interactive menu gained the setup commands. Someone who turned it on
+  with no credential was previously offered nine entries that all fail with
+  "no API key" and no way forward.
+
 **Licences chosen.** The server is [AGPL-3.0](LICENSE); the CLI is MIT. Both
 repositories said "not yet chosen", which for a security tool is a real
 blocker — people will not run an unlicensed binary, and "all rights reserved by
