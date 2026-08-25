@@ -7,7 +7,6 @@ import {
   Menu,
   Settings,
   ShieldCheck,
-  Sprout,
   Terminal,
   X,
 } from "lucide-react";
@@ -15,6 +14,7 @@ import { useEffect, useId, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 
 import { signOut } from "../../api/authActions";
+import { WeedoutLogo } from "../brand/WeedoutLogo";
 import { useAuthRefresh, useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
 import { ThemeControl } from "../../features/theme/ThemeControl";
 
@@ -78,10 +78,7 @@ export function AppShell() {
       <aside className="app-sidebar">
         <div className="app-sidebar__top">
           <NavLink className="app-shell__brand" to="/dashboard">
-            <span aria-hidden="true" className="app-shell__brand-mark">
-              <Sprout size={17} strokeWidth={2} />
-            </span>
-            <span>Weedout</span>
+            <WeedoutLogo />
           </NavLink>
 
           {/* Only ever visible at narrow widths, where the sidebar has
