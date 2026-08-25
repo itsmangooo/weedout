@@ -1,4 +1,4 @@
-import { ScanSearch, Sprout } from "lucide-react";
+import { ScanSearch } from "lucide-react";
 
 import { HeroSignalField } from "../features/landing/components/HeroSignalField";
 import { LandingCli } from "../features/landing/components/LandingCli";
@@ -9,6 +9,8 @@ import { UsedBy } from "../features/landing/components/UsedBy";
 import { ScrollFilterStory } from "../features/landing/components/ScrollFilterStory";
 import { SystemStatus } from "../features/system/components/SystemStatus";
 import { Link } from "react-router";
+
+import { WeedoutLogo } from "../components/brand/WeedoutLogo";
 
 export function FoundationPage() {
   return (
@@ -41,10 +43,7 @@ export function FoundationPage() {
       <footer className="landing-footer">
         <div className="landing-footer__main">
           <Link className="foundation-brand" to="/" aria-label="Weedout home">
-            <span className="foundation-brand__mark" aria-hidden="true">
-              <Sprout size={17} strokeWidth={2} />
-            </span>
-            <span>Weedout</span>
+            <WeedoutLogo />
           </Link>
           <p>Vulnerability noise, reduced to a reachable signal.</p>
           <nav aria-label="Footer navigation">
