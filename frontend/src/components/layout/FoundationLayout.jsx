@@ -1,8 +1,9 @@
-import { Menu, Sprout, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 
 import { useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
+import { WeedoutLogo } from "../brand/WeedoutLogo";
 import { ThemeControl } from "../../features/theme/ThemeControl";
 
 //: Where the source lives. Required rather than offered: AGPL-3.0 section 13
@@ -58,10 +59,7 @@ export function FoundationLayout({ children }) {
       <header className="foundation-header">
         <div className="foundation-header__inner mx-auto flex w-full items-center justify-between">
           <Link aria-label="Weedout home" className="foundation-brand" to="/">
-            <span aria-hidden="true" className="foundation-brand__mark">
-              <Sprout size={17} strokeWidth={2} />
-            </span>
-            <span>Weedout</span>
+            <WeedoutLogo />
           </Link>
 
           <nav aria-label="Main" className="foundation-header__nav">

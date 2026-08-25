@@ -1,0 +1,24 @@
+.weedout-brand__mark {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  color: inherit;
+}
+
+.weedout-brand__wordmark {
+  font-size: 0.88rem;
+  font-weight: 780;
+  letter-spacing: 0.14em;
+  line-height: 1;
+}
+
+.app-shell__brand .weedout-brand__mark {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+
+.app-shell__brand .weedout-brand__wordmark {
+  font-size: 0.8rem;
+  letter-spacing: 0.13em;
+}

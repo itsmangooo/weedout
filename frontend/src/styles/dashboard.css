@@ -71,16 +71,6 @@
   text-decoration: none;
 }
 
-.app-shell__brand-mark {
-  display: grid;
-  width: 1.85rem;
-  height: 1.85rem;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--wo-accent-solid);
-  color: var(--wo-on-accent);
-}
-
 .app-shell__nav {
   display: grid;
   gap: 0.2rem;
