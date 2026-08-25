@@ -79,16 +79,6 @@
   text-decoration: none;
 }
 
-.foundation-brand__mark {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--wo-text);
-  color: var(--wo-bg);
-}
-
 .foundation-header__nav {
   display: flex;
   align-items: center;
