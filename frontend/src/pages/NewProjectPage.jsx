@@ -23,8 +23,8 @@ const METHODS = [
 
 const ECOSYSTEMS = [
   { value: "npm", label: "npm" },
-  { value: "pypi", label: "PyPI" },
-  { value: "go", label: "Go" },
+  { value: "PyPI", label: "PyPI" },
+  { value: "Go", label: "Go" },
 ];
 
 export function NewProjectPage() {
