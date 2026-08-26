@@ -40,6 +40,18 @@ jobs:
           python-version: "3.13"
           cache: pip
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
       - name: Install
         run: pip install -e ".[dev]"
 
@@ -55,6 +67,12 @@ jobs:
       - name: Check for schema drift
         # Fails when app/models.py changed but nobody generated a migration.
         run: alembic check
+
+      - name: Build frontend shell for integration tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
 
       - name: Test
         run: pytest -q

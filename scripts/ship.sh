@@ -67,9 +67,6 @@ printf 'Checking database migrations...\n'
 "$python_bin" -m alembic upgrade head
 "$python_bin" -m alembic check
 
-printf 'Running Python tests...\n'
-"$python_bin" -m pytest -q
-
 printf 'Installing and validating the frontend...\n'
 (
   cd frontend
@@ -78,6 +75,11 @@ printf 'Installing and validating the frontend...\n'
   npm run test -- --run
   npm run build
 )
+
+# Route tests exercise the real React shell. Build it before pytest so a clean
+# checkout validates the application rather than returning 503 for every page.
+printf 'Running Python tests...\n'
+"$python_bin" -m pytest -q
 
 # Fetch after validation so a branch that changed while checks ran is caught
 # before this script creates a local commit.

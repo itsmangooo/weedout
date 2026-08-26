@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.core.types import ContactCategory, EmailStatus, MessageStatus, Tier
 from app.models import ContactMessage, EmailLog, User
 from app.security import hash_password
@@ -157,7 +158,8 @@ class TestAnyoneCanSend:
             raise EmailError("smtp is having an afternoon")
 
         monkeypatch.setattr("app.services.email_service.send_email", explode)
-        monkeypatch.setattr("app.config.Settings.admin_email", "admin@example.com", raising=False)
+        settings = get_settings().model_copy(update={"admin_email": "admin@example.com"})
+        monkeypatch.setattr("app.services.contact_service.get_settings", lambda: settings)
 
         csrf = set_csrf(client)
         response = await client.post(
