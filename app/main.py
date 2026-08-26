@@ -247,7 +247,7 @@ def _register_middleware(app: FastAPI) -> None:
             "default-src 'self'; "
             f"script-src {script_src}; "
             "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data:; "
+            "img-src 'self' data: https://api.votekicker.com; "
             "font-src 'self'; "
             f"connect-src {connect_src}; "
             f"frame-src {frame_src}; "

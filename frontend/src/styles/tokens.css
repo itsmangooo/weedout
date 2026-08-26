@@ -18,8 +18,8 @@
   --wo-app-max: 92rem;
   --wo-measure: 66ch;
 
-  --wo-font-sans: "Segoe UI Variable", "Aptos", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --wo-font-display: "Segoe UI Variable Display", "Aptos Display", "Segoe UI", sans-serif;
+  --wo-font-sans: "Poppins", sans-serif;
+  --wo-font-display: "Poppins", sans-serif;
   --wo-font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
 
   /* Status colours live in themes.css: they are palette-dependent.

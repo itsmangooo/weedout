@@ -11,6 +11,7 @@ import { SystemStatus } from "../features/system/components/SystemStatus";
 import { Link } from "react-router";
 
 import { WeedoutLogo } from "../components/brand/WeedoutLogo";
+import ownerPhoto from "../assets/emanuel-rm-linkedin.jpg";
 
 export function FoundationPage() {
   return (
@@ -40,6 +41,46 @@ export function FoundationPage() {
         </div>
       </section>
 
+      <section className="owner-word" aria-labelledby="owner-word-title">
+        <div className="owner-word__identity">
+          <a
+            className="owner-word__portrait"
+            href="https://www.linkedin.com/in/emanuel-rm?utm_source=share_via&utm_content=profile&utm_medium=member_android"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Emanuel RM on LinkedIn"
+          >
+            <img
+              src={ownerPhoto}
+              alt="Emanuel RM"
+              width="200"
+              height="200"
+              loading="lazy"
+            />
+          </a>
+          <div>
+            <p className="section-label" id="owner-word-title">Owner&apos;s word</p>
+            <strong>Emanuel RM</strong>
+            <a
+              href="https://www.linkedin.com/in/emanuel-rm?utm_source=share_via&utm_content=profile&utm_medium=member_android"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Founder · LinkedIn
+            </a>
+          </div>
+        </div>
+
+        <blockquote className="owner-word__quote">
+          <span aria-hidden="true">“</span>
+          <p>
+            I built Weedout because security tools should help you decide what to fix — not
+            bury you under another list of CVEs.
+          </p>
+          <span aria-hidden="true">”</span>
+        </blockquote>
+      </section>
+
       <footer className="landing-footer">
         <div className="landing-footer__main">
           <Link className="foundation-brand" to="/" aria-label="Weedout home">
@@ -60,6 +101,13 @@ export function FoundationPage() {
                 source it is running. */}
             <a href="https://github.com/itsmangooo/weedout" rel="noopener" target="_blank">
               Source
+            </a>
+            <a
+              href="https://www.linkedin.com/in/emanuel-rm?utm_source=share_via&utm_content=profile&utm_medium=member_android"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              LinkedIn
             </a>
             {/* Reachable from the public footer as well as from inside the
                 app: somebody who cannot sign in is exactly who needs to be

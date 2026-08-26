@@ -221,6 +221,20 @@ export function HeroSignalField() {
       <div className="landing-hero__actions">
         <MagneticLink to="/dashboard">See what needs attention</MagneticLink>
         <span>Free for one project · no card · results in about a minute</span>
+        <a
+          className="votekicker-badge"
+          href="https://votekicker.com/weedout?utm_source=votekicker&utm_medium=badge&utm_campaign=weedout"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img
+            src="https://api.votekicker.com/api/projects/weedout/badge.svg?size=xs"
+            alt="Featured on Votekicker"
+            width="180"
+            height="36"
+            loading="lazy"
+          />
+        </a>
       </div>
     </section>
   );

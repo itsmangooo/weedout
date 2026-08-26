@@ -131,6 +131,16 @@ describe("frontend routes", () => {
       screen.getByRole("heading", { name: "Four passes. Nothing thrown away quietly." }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ship the fix. Ignore the noise." })).toBeInTheDocument();
+    expect(screen.getByText("Owner's word")).toBeInTheDocument();
+    expect(screen.getByAltText("Emanuel RM")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Featured on Votekicker" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("votekicker.com/weedout"),
+    );
+    expect(screen.getByRole("link", { name: "LinkedIn", exact: true })).toHaveAttribute(
+      "href",
+      expect.stringContaining("linkedin.com/in/emanuel-rm"),
+    );
     expect(screen.getAllByText("CVE-2026-5001").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Replay filter" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
