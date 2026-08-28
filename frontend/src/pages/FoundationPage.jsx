@@ -10,8 +10,8 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 
-import { WeedoutLogo } from "../components/brand/WeedoutLogo";
 import ownerPhoto from "../assets/emanuel-rm-linkedin.jpg";
+import { WeedoutLogo } from "../components/brand/WeedoutLogo";
 import { ProductScreenshot } from "../features/landing/components/ProductScreenshot";
 import { SystemStatus } from "../features/system/components/SystemStatus";
 
@@ -130,79 +130,176 @@ export function FoundationPage() {
                 <span>02</span>
                 <div>
                   <strong>Let context remove noise</strong>
-                  <p>Alert rules, dependency depth and exploit signals separate mmtÓN-¢G§²ÚîÆ­yÚ\Èİ[Û™H\]Ø^Kˆ
-‹ÂYYXH
-X^]ÚYˆ™[JHÂˆ˜\\Ú[Âˆ\Ü^Nˆ›ØÚÎÂˆB‚ˆ˜\\ÚYX˜\ˆÂˆÜÚ][ÛˆİXÚŞNÂˆÜˆÂˆ‹Z[™^ˆÌÂˆ\Ü^Nˆ›ØÚÎÂˆÚYˆL	NÂˆZYÚˆ]]ÎÂˆY[™ÎˆÜ™[H\™[NÂˆ›Ü™\‹\šYÚˆÂˆ›Ü™\‹X›İÛNˆ\ÛÛY˜\ŠK]ÛËX›Ü™\ŠNÂˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË]™Z[
-NÂˆ˜XÚÙ›ÜYš[\ˆ›\ŠMœ
-NÂˆB‚ˆ˜\\Ú[×ÛY[HÂˆ\Ü^Nˆ[›[™KY›^ÂˆB‚ˆ˜\\ÚYX˜\—×Ü[™[Âˆ\Ü^Nˆ›Û™NÂˆB‚ˆš\Ë[˜]‹[Ü[ˆ˜\\ÚYX˜\—×Ü[™[Âˆ\Ü^NˆÜšYÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKM
-NÂˆY[™Ë]Üˆ˜\ŠK]ÛË\ÜXÙKM
-NÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKLÊNÂˆ›Ü™\‹]Üˆ\ÛÛY˜\ŠK]ÛËX›Ü™\ŠNÂˆB‚ˆ˜\\Ú[×Û˜]ˆÂˆX\™Ú[‹]ÜˆÂˆB‚ˆ˜\\Ú[×Ù›ÛİÂˆX\™Ú[‹]ÜˆÂˆB‚ˆ˜\\Ú[×ÛXZ[ˆÂˆÚYˆZ[ŠL	HHœ™[K˜\ŠK]ÛËX\[X^
-JNÂˆBŸB‚YYXH
-X^]ÚYˆ™[JHÂˆ™\Ú›Ø\™ZXY\‹ˆ˜][[Û‹\İ[[X\W×Ø›ÙHÂˆ[YÛ‹Z][\Îˆ›^\İ\ÂˆB‚ˆ™\Ú›Ø\™ZXY\ˆÂˆ›^Y\™Xİ[ÛˆÛÛ[[ÂˆB‚ˆ˜][[Û‹\İ[[X\W×Ø›ÙHÂˆÜšY][\]KXÛÛ[[œÎˆYœÂˆB‚ˆ˜][[Û‹\İ[[X\W×ÛY\ÜØYÙHÂˆÜšY][\]KXÛÛ[[œÎˆ]]ÈZ[›X^
-YœŠNÂˆB‚ˆ˜][[Û‹\İ[[X\W×ØÜš]XØ[ÂˆÜšYXÛÛ[[ˆÂˆB‚ˆ˜][[Û‹\İ[[X\H˜]ÛˆÂˆÚYˆL	NÂˆB‚ˆœ›Ú™Xİ\›İ××ÛXZ[ˆÂˆÜšY][\]KXÛÛ[[œÎˆZ[›X^
-YœŠH]]ÎÂˆB‚ˆœ›Ú™Xİ\›İ××Ùš[™[™ÜÈÂˆÜšYXÛÛ[[ˆHÈLNÂˆB‚ˆœ›Ú™Xİ\›İ××Ø\œ›İÈÂˆÜšYXÛÛ[[ˆÂˆÜšY\›İÎˆNÂˆBŸB‚YYXH
-X^]ÚYˆ™[JHÂˆ˜\\Ú[×Û˜]‹[[šÈÂˆY[™ËZ[›[™NˆM\™[NÂˆB‚ˆÊˆİXÚÙYˆHY[HšYÙÙ\ˆÛÙ\È˜XÚÈÛˆH]H[™H˜]\ˆ[‚ˆ›Ø][™È]HÜšYÚÙˆHØ\™]›ÈÛ™Ù\ˆÚ]È™\ÚYKˆ
-‹Âˆ™š[™[™Ë\›İÈÂˆÜšY][\]KXÛÛ[[œÎˆZ[›X^
-YœŠH]]ÎÂˆ[YÛ‹Z][\Îˆİ\ÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKLŠNÂˆY[™Îˆ˜\ŠK]ÛË\ÜXÙKM
-NÂˆB‚ˆ™š[™[™Ë\›İ××ÚY[]HÂˆÜšYXÛÛ[[ˆNÂˆÜšY\›İÎˆNÂˆB‚ˆ™š[™[™Ë\›İÈˆ™[]K[Y[K]šYÙÙ\ˆÂˆÜšYXÛÛ[[ˆÂˆÜšY\›İÎˆNÂˆB‚ˆ™š[™[™Ë\›İ××Ü›Ú™Xİˆ™š[™[™Ë\›İ××ÜÚYÛ˜[Ëˆ™š[™[™Ë\›İ××Üİ]HÂˆÜšYXÛÛ[[ˆHÈLNÂˆÜšY\›İÎˆ]]ÎÂˆB‚ˆ™š[™[™Ë\›İ××Üİ]HÂˆ\Ü^Nˆ›^Âˆ[YÛ‹Z][\Îˆ˜\Ù[[™NÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKLŠNÂˆB‚ˆ™\Ú›Ø\™\YÙHÂˆY[™Ë]Üˆ˜\ŠK]ÛË\ÜXÙKMÊNÂˆB‚ˆ™\Ú›Ø\™ZXY\—×ØXİ[ÛœËˆ™\Ú›Ø\™ZXY\—×ØXİ[ÛœÈ˜]ÛˆÂˆÚYˆL	NÂˆB‚ˆ›Ü[‹Yš[™[™Ü××ÚXY[™ÈÂˆ[YÛ‹Z][\Îˆ›^\İ\ÂˆB‚ˆ™š[™[™Ë\›İÈÂˆÜšY][\]KXÛÛ[[œÎˆZ[›X^
-YœŠH]]ÎÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKLÊNÂˆY[™ËX›ØÚÎˆ˜\ŠK]ÛË\ÜXÙKMJNÂˆB‚ˆ™š[™[™Ë\›İ××ÚY[]Kˆ™š[™[™Ë\›İ××Ü›Ú™Xİˆ™š[™[™Ë\›İ××ÜÚYÛ˜[Ëˆ™š[™[™Ë\›İ××Üİ]HÂˆÜšYXÛÛ[[ˆNÂˆÜšY\›İÎˆ]]ÎÂˆB‚ˆ™š[™[™Ë\›İ××Üİ]HÂˆ\Ü^Nˆ›^Âˆ\İYKXÛÛ[ˆ›^\İ\ÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKLÊNÂˆB‚ˆ™š[™[™Ë\›İÈˆ™[]K[Y[K]šYÙÙ\ˆÂˆÜšYXÛÛ[[ˆÂˆÜšY\›İÎˆNÂˆB‚ˆœ›Ú™Xİ[\İ×ÚXY[™Ëˆ™š[™[™Ë\İ[[X\Kˆ›Ü[‹Yš[™[™Ü××ÚXY[™ÈÂˆY[™Îˆ˜\ŠK]ÛË\ÜXÙKMJNÂˆB‚ˆœ›Ú™Xİ\›İ××ÛXZ[ˆÂˆÜšY][\]KXÛÛ[[œÎˆYœÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKM
-NÂˆB‚ˆœ›Ú™Xİ\›İ××Ø\œ›İÈÂˆ\Ü^Nˆ›Û™NÂˆB‚ˆ™š[™[™Ë\İ[[X\W×ØÛİ[ÈÂˆÜšY][\]KXÛÛ[[œÎˆ™\X]
-‹Z[›X^
-YœŠJNÂˆB‚ˆ™\Ú›Ø\™Y[\HÂˆÜšY][\]KXÛÛ[[œÎˆYœÂˆB‚ˆ™\Ú›Ø\™Y[\H˜]ÛˆÂˆÚYˆL	NÂˆBŸB‚YYXH
-™Y™\œË\™YXÙY[[İ[Ûˆ™YXÙJHÂˆ™\Ú›Ø\™\]Y\K\İ]W×ÜÜ[›™\ˆÂˆ[š[X][Ûˆ›Û™NÂˆBŸB‚‹ÊˆKKHÛÙØXTÈÛÜšÜÜXÙHKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKBˆH\XØ][Ûˆœ˜[YH\È[X™\˜][H]ZY]\ˆ[ˆH]H]ÛÛZ[œË‚ˆ™Y[X™\ˆ[™Ü™Y[ˆİ^H™\Ù\™Y›Üˆš[™[™ÜÈ[™ØØ[ˆİ]NÈ˜]šYØ][Û‹ˆ[Ù[\È[™Ü™[˜\HØ\™È\ÙH™]]˜[İ\™˜XÙ\È[™Hœ˜[™XØÙ[ˆ
-‹Â‚‹˜\\Ú[ÂˆÜšY][\]KXÛÛ[[œÎˆMÜ™[HZ[›X^
-YœŠNÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKLÊNÂˆY[™Ë\šYÚˆ˜\ŠK]ÛË\ÜXÙKLÊNÂŸB‚‹˜\\ÚYX˜\ˆÂˆÜˆ˜\ŠK]ÛË\ÜXÙKLÊNÂˆZYÚˆØ[ÊLšH
-˜\ŠK]ÛË\ÜXÙKLÊH
-ˆŠJNÂˆX\™Ú[ˆ˜\ŠK]ÛË\ÜXÙKLÊH˜\ŠK]ÛË\ÜXÙKLÊH˜\ŠK]ÛË\ÜXÙKLÊNÂˆY[™Îˆ˜\ŠK]ÛË\ÜXÙKM
-NÂˆİ™\™›İÎˆY[Âˆ›Ü™\ˆ\ÛÛY˜\ŠK]ÛËX›Ü™\ŠNÂˆ›Ü™\‹\˜Y]\Îˆ˜\ŠK]ÛË\˜Y]\Ë^
-NÂˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË\İ\™˜XÙJNÂˆ›Ş\ÚYİÎˆ˜\ŠK]ÛË\ÚYİË\ÛÙ
-NÂŸB‚‹˜\\ÚYX˜\—×Ü[™[Âˆİ™\™›İË^Nˆ]]ÎÂˆØÜ›Û˜\‹]ÚYˆ[ÂŸB‚‹˜\\Ú[×Øœ˜[™ÂˆY[™ËZ[›[™Nˆ\™[NÂŸB‚‹˜\\Ú[×Û˜]ˆÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKMJNÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKMŠNÂŸB‚‹˜\\Ú[×Û˜]‹YÜ›İ\Âˆ\Ü^NˆÜšYÂˆØ\ˆŒœ™[NÂŸB‚‹˜\\Ú[×Û˜]‹[X™[ÂˆX\™Ú[ˆ˜\ŠK]ÛË\ÜXÙKLŠNÂˆY[™ËZ[›[™Nˆ\™[NÂˆÛÛÜˆ˜\ŠK]ÛË]^Y[JNÂˆ›Û\Ú^™Nˆœ™[NÂˆ›Û]ÙZYÚˆLÂˆ]\‹\ÜXÚ[™ÎˆŒ[NÂˆ^]˜[œÙ›Ü›Nˆ\\˜Ø\ÙNÂŸB‚‹˜\\Ú[×Û˜]‹[[šÈÂˆZ[‹ZZYÚˆ‹œ™[NÂˆ›Ü™\‹\˜Y]\Îˆ˜\ŠK]ÛË\˜Y]\Ë\ÛJNÂˆÛÛÜˆ˜\ŠK]ÛË]^[]]Y
-NÂˆ›Û\Ú^™NˆÎ™[NÂŸB‚‹˜\\Ú[×Û˜]‹[[šÈˆÜ[ˆÂˆZ[‹]ÚYˆÂˆ›^ˆNÂŸB‚‹˜\\Ú[×Û˜]‹[[šÎšİ™\ˆÂˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË\İ\™˜XÙK[İÊNÂˆÛÛÜˆ˜\ŠK]ÛË]^
-NÂŸB‚‹˜\\Ú[×Û˜]‹[[šËš\ËXXİ]™HÂˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛËXXØÙ[\]ZY]
-NÂˆÛÛÜˆ˜\ŠK]ÛËXXØÙ[\İ›Û™ÊNÂŸB‚‹˜\\Ú[×Û˜]‹[[šËK[[Ù[HÂˆİ\œÛÜˆY˜][ÂŸB‚‹˜\\Ú[×Û˜]‹[[šËK[[Ù[Nšİ™\ˆÂˆ˜XÚÙÜ›İ[™ˆ˜[œÜ\™[ÂˆÛÛÜˆ˜\ŠK]ÛË]^[]]Y
-NÂŸB‚‹˜\\Ú[×Û˜]‹[[šËK[[Ù[VØ\šXKY\ØX›YHYH—HÂˆÛÛÜˆ˜\ŠK]ÛË]^Y[JNÂŸB‚‹˜\\Ú[×Û˜]‹[[šËK[[Ù[HÛX[ÂˆY[™ÎˆŒ\™[HŒÎ™[NÂˆ›Ü™\‹\˜Y]\ÎˆNN\Âˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË\İ\™˜XÙK[İÊNÂˆÛÛÜˆ˜\ŠK]ÛË]^Y[JNÂˆ›Û\Ú^™Nˆ\™[NÂˆ›Û]ÙZYÚˆÂŸB‚‹˜\\Ú[×Û˜]‹[[šËK[[Ù[Kš\ËXİ\œ™[ÂˆÛÛÜˆ˜\ŠK]ÛË]^[]]Y
-NÂŸB‚‹˜\\Ú[×Û˜]‹[[šËK[[Ù[Kš\ËXİ\œ™[ÛX[Âˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË\İXØÙ\ÜË\]ZY]
-NÂˆÛÛÜˆ˜\ŠK]ÛË\İXØÙ\ÜÊNÂŸB‚‹˜\\Ú[×Ù›ÛİÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKMJNÂˆY[™Ë]Üˆ˜\ŠK]ÛË\ÜXÙKM
-NÂŸB‚‹˜\\Ú[×ÛXZ[ˆÂˆÚYˆZ[ŠL	HHÛ[\
-œ™[K]Ë\™[JK˜\ŠK]ÛËX\[X^
-JNÂŸB‚‹™\Ú›Ø\™\YÙHÂˆY[™ËX›ØÚÎˆÛ[\
-œ™[KËËÍ\™[JH\™[NÂŸB‚‹™\Ú›Ø\™ZXY\ˆÂˆ[YÛ‹Z][\ÎˆÙ[\ÂŸB‚‹™\Ú›Ø\™ZXY\ˆK‹™\Ú›Ø\™\]Y\K\İ]HHÂˆX^]ÚYˆ›Û™NÂˆ›Û\Ú^™NˆÛ[\
-‹Œ\™[KËËÍ\™[JNÂˆ›Û]ÙZYÚˆŒÂˆ]\‹\ÜXÚ[™ÎˆLŒMY[NÂˆ[™KZZYÚˆNÂŸB‚‹™\Ú›Ø\™ZXY\—×ÛYHÂˆX^]ÚYˆ™[NÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKLÊNÂˆÛÛÜˆ˜\ŠK]ÛË]^[]]Y
-NÂˆ›Û\Ú^™Nˆ™[NÂˆ[™KZZYÚˆKNÂŸB‚‹™\Ú›Ø\™ZXY\—×ØÛÛ^ÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKM
-NÂŸB‚‹œÙXİ\š]KXÛİ™\˜YÙHÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKMÊNÂŸB‚‹œÙXİ\š]KXÛİ™\˜YÙW×ÚXY[™ÈÂˆ\Ü^Nˆ›^Âˆ[YÛ‹Z][\Îˆ›^Y[™Âˆ\İYKXÛÛ[ˆÜXÙKX™]ÙY[ÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKMŠNÂˆX\™Ú[‹X›İÛNˆ˜\ŠK]ÛË\ÜXÙKM
-NÂŸB‚‹œÙXİ\š]KXÛİ™\˜YÙW×ÚXY[™ÈˆÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKLŠNÂˆ›Û\Ú^™NˆÛ[\
-KŒ\™[KËKÜ™[JNÂˆ›Û]ÙZYÚˆŒÌÂˆ]\‹\ÜXÚ[™ÎˆLŒÍY[NÂŸB‚‹œÙXİ\š]KXÛİ™\˜YÙW×ÚXY[™ÈˆÂˆX^]ÚYˆÍ\™[NÂˆÛÛÜˆ˜\ŠK]ÛË]^Y[JNÂˆ›Û\Ú^™NˆÍœ™[NÂˆ[™KZZYÚˆKMNÂˆ^X[YÛˆšYÚÂŸB‚‹œÙXİ\š]KXÛİ™\˜YÙW×ÙÜšYÂˆ\Ü^NˆÜšYÂˆÜšY][\]KXÛÛ[[œÎˆ™\X]
-Z[›X^
-YœŠJNÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKLÊNÂŸB‚‹œÙXİ\š]K[[Ù[HÂˆ\Ü^Nˆ›^ÂˆZ[‹ZZYÚˆLK\™[NÂˆ›^Y\™Xİ[ÛˆÛÛ[[ÂˆY[™Îˆ˜\ŠK]ÛË\ÜXÙKM
-NÂˆ›Ü™\ˆ\ÛÛY˜\ŠK]ÛËX›Ü™\ŠNÂˆ›Ü™\‹\˜Y]\Îˆ˜\ŠK]ÛË\˜Y]\Ë[ÊNÂˆ˜XÚÙÜ›İ[™ˆÛÛÜ‹[Z^
-[ˆÜ™Ø‹˜\ŠK]ÛË\İ\™˜XÙK[İÊHŒ	K˜\ŠK]ÛË\İ\™˜XÙJJNÂˆÛÛÜˆ[š\š]Âˆ^YXÛÜ˜][Ûˆ›Û™NÂŸB‚‹œÙXİ\š]K[[Ù[KKXXİ]™HÂˆ›Ü™\‹XÛÛÜˆÛÛÜ‹[Z^
-[ˆÜ™Ø‹˜\ŠK]ÛËXXØÙ[
-HŒ‰K˜\ŠK]ÛËX›Ü™\ŠJNÂˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË\İ\™˜XÙKZYÚ
-NÂˆ›Ş\ÚYİÎˆ˜\ŠK]ÛË\ÚYİË\ÛÙ
-NÂˆ˜[œÚ][Û‚ˆ›Ü™\‹XÛÛÜˆ˜\ŠK]ÛËY\˜][Û‹Y˜\İ
-Kˆ˜[œÙ›Ü›H˜\ŠK]ÛËY\˜][ÛŠH˜\ŠK]ÛËYX\ÙK[İ]
-NÂŸB‚‹œÙXİ\š]K[[Ù[KKXXİ]™Nšİ™\ˆÂˆ›Ü™\‹XÛÛÜˆÛÛÜ‹[Z^
-[ˆÜ™Ø‹˜\ŠK]ÛËXXØÙ[
-H‰K˜\ŠK]ÛËX›Ü™\ŠJNÂˆ˜[œÙ›Ü›Nˆ˜[œÛ]VJLœ
-NÂŸB‚‹œÙXİ\š]K[[Ù[KK\[›™YÂˆÛÛÜˆ˜\ŠK]ÛË]^[]]Y
-NÂŸB‚‹œÙXİ\š]K[[Ù[W×İÜÂˆ\Ü^Nˆ›^Âˆ[YÛ‹Z][\ÎˆÙ[\Âˆ\İYKXÛÛ[ˆÜXÙKX™]ÙY[ÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKLÊNÂŸB‚‹œÙXİ\š]K[[Ù[W×ÚXÛÛˆÂˆ\Ü^NˆÜšYÂˆÚYˆ‹ŒÍ\™[NÂˆZYÚˆ‹ŒÍ\™[NÂˆXÙKZ][\ÎˆÙ[\Âˆ›Ü™\‹\˜Y]\ÎˆÎ™[NÂˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛËXXØÙ[\]ZY]
-NÂˆÛÛÜˆ˜\ŠK]ÛËXXØÙ[\İ›Û™ÊNÂŸB‚‹œÙXİ\š]K[[Ù[W×Üİ]\ÈÂˆY[™ÎˆŒ™[Hœ™[NÂˆ›Ü™\‹\˜Y]\ÎˆNN\Âˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË\İ\™˜XÙK[İÊNÂˆÛÛÜˆ˜\ŠK]ÛË]^Y[JNÂˆ›Û\Ú^™NˆM™[NÂˆ›Û]ÙZYÚˆÂŸB‚‹œÙXİ\š]K[[Ù[W×Üİ]\Ëš\ËXXİ]™HÂˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË\İXØÙ\ÜË\]ZY]
-NÂˆÛÛÜˆ˜\ŠK]ÛË\İXØÙ\ÜÊNÂŸB‚‹œÙXİ\š]K[[Ù[Hˆİ›Û™ÈÂˆX\™Ú[‹]Üˆ]]ÎÂˆY[™Ë]Üˆ˜\ŠK]ÛË\ÜXÙKMJNÂˆ›Û\Ú^™Nˆ™[NÂŸB‚‹œÙXİ\š]K[[Ù[HˆÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKLŠNÂˆÛÛÜˆ˜\ŠK]ÛË]^Y[JNÂˆ›Û\Ú^™NˆÜ™[NÂˆ[™KZZYÚˆKNÂŸB‚‹œÙXİ\š]K[[Ù[W×ÛY]šXÈÂˆ\Ü^Nˆ›^Âˆ[YÛ‹Z][\ÎˆÙ[\Âˆ\İYKXÛÛ[ˆÜXÙKX™]ÙY[ÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKLÊNÂˆÛÛÜˆ˜\ŠK]ÛË]^[]]Y
-NÂˆ›Û\Ú^™Nˆ™[NÂˆ›Û]ÙZYÚˆLÂŸB‚‹˜][[Û‹\İ[[X\HÂˆX\™Ú[‹]Üˆ˜\ŠK]ÛË\ÜXÙKMJNÂˆ›Ü™\ˆ\ÛÛY˜\ŠK]ÛËX›Ü™\ŠNÂˆ›Ü™\‹\˜Y]\Îˆ˜\ŠK]ÛË\˜Y]\Ë^
-NÂˆ›Ş\ÚYİÎˆ›Û™NÂŸB‚‹˜][[Û‹\İ[[X\KKY^Ú]YÂˆ›Ü™\‹XÛÛÜˆÛÛÜ‹[Z^
-[ˆÜ™Ø‹˜\ŠK]ÛËXÜš]XØ[
-H	K˜\ŠK]ÛËX›Ü™\ŠJNÂˆ›Ş\ÚYİÎˆ›Û™NÂŸB‚‹˜][[Û‹\İ[[X\KK[Ü[ˆÂˆ›Ü™\‹XÛÛÜˆÛÛÜ‹[Z^
-[ˆÜ™Ø‹˜\ŠK]ÛË]Ø\›š[™ÊH	K˜\ŠK]ÛËX›Ü™\ŠJNÂˆ›Ş\ÚYİÎˆ›Û™NÂŸB‚‹˜][[Û‹\İ[[X\KKXÛX\ˆÂˆ›Ü™\‹XÛÛÜˆÛÛÜ‹[Z^
-[ˆÜ™Ø‹˜\ŠK]ÛË\İXØÙ\ÜÊH	K˜\ŠK]ÛËX›Ü™\ŠJNÂˆ›Ş\ÚYİÎˆ›Û™NÂŸB‚‹›Ü[‹Yš[™[™ÜË‹œ›Ú™Xİ[\İ‹™š[™[™Ë\İ[[X\K‹™\Ú›Ø\™Y[\HÂˆ›Ü™\ˆ\ÛÛY˜\ŠK]ÛËX›Ü™\ŠNÂˆ›Ü™\‹\˜Y]\Îˆ˜\ŠK]ÛË\˜Y]\Ë^
-NÂˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË\İ\™˜XÙKZYÚ
-NÂˆ›Ş\ÚYİÎˆ˜\ŠK]ÛË\ÚYİË\ÛÙ
-NÂŸB‚‹œ›Ú™Xİ\›İ××ÛXZ[ˆÂˆ›Ü™\‹\˜Y]\Îˆ˜\ŠK]ÛË\˜Y]\Ë\ÛJNÂŸB‚YYXH
-X^]ÚYˆÎ™[JHÂˆœÙXİ\š]KXÛİ™\˜YÙW×ÙÜšYÂˆÜšY][\]KXÛÛ[[œÎˆ™\X]
-‹Z[›X^
-YœŠJNÂˆBŸB‚YYXH
-X^]ÚYˆ™[JHÂˆ˜\\Ú[ÂˆY[™Ë\šYÚˆÂˆB‚ˆ˜\\ÚYX˜\ˆÂˆÜˆÂˆZYÚˆ]]ÎÂˆX\™Ú[ˆÂˆY[™ÎˆÜ™[H\™[NÂˆİ™\™›İÎˆš\ÚX›NÂˆ›Ü™\‹]ÚYˆ\Âˆ›Ü™\‹\˜Y]\ÎˆÂˆ˜XÚÙÜ›İ[™ˆ˜\ŠK]ÛË]™Z[
-NÂˆ›Ş\ÚYİÎˆ›Û™NÂˆB‚ˆ˜\\ÚYX˜\—×Ü[™[Âˆİ™\™›İË^Nˆš\ÚX›NÂˆB‚ˆš\Ë[˜]‹[Ü[ˆ˜\\ÚYX˜\—×Ü[™[ÂˆX^ZZYÚˆØ[ÊLšH\™[JNÂˆİ™\™›İË^Nˆ]]ÎÂˆB‚ˆ˜\\Ú[×Û˜]ˆÂˆØ\ˆ˜\ŠK]ÛË\ÜXÙKM
-NÂˆB‚ˆ˜\\Ú[×ÛXZ[ˆÂˆÚYˆZ[ŠL	HHœ™[K˜\ŠK]ÛËX\[X^
-JNÂˆBŸB‚YYXH
-X^]ÚYˆ™[JHÂˆœÙXİ\š]KXÛİ™\˜YÙW×ÚXY[™ÈÂˆ[YÛ‹Z][\Îˆ›^\İ\Âˆ›^Y\™Xİ[ÛˆÛÛ[[ÂˆB‚ˆœÙXİ\š]KXÛİ™\˜YÙW×ÚXY[™ÈˆÂˆ^X[YÛˆYÂˆBŸB‚YYXH
-X^]ÚYˆÎ™[JHÂˆœÙXİ\š]KXÛİ™\˜YÙW×ÙÜšYÂˆÜšY][\]KXÛÛ[[œÎˆYœÂˆB‚ˆœÙXİ\š]K[[Ù[HÂˆZ[‹ZZYÚˆL™[NÂˆBŸB
+                  <p>
+                    Alert rules, dependency depth and exploit signals separate urgent work from
+                    background noise.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>03</span>
+                <div>
+                  <strong>Work the attention queue</strong>
+                  <p>Review the few findings that remain, with project context close at hand.</p>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <ProductScreenshot compact />
+        </div>
+      </section>
+
+      <section className="landing-section landing-platform" aria-labelledby="platform-title">
+        <div className="landing-section__intro landing-section__intro--wide">
+          <p className="section-label">A focused platform</p>
+          <h2 id="platform-title">Ready to expand. Honest about what exists.</h2>
+          <p>
+            Dependency intelligence is available now. The workspace is structured for adjacent
+            security modules without presenting roadmap ideas as shipped product.
+          </p>
+        </div>
+
+        <div className="landing-modules">
+          {MODULES.map(({ Icon, title, description, status, available }) => (
+            <article className={`landing-module${available ? " is-available" : ""}`} key={title}>
+              <div className="landing-module__top">
+                <span className="landing-module__icon">
+                  <Icon aria-hidden="true" size={18} />
+                </span>
+                <span className={`landing-module__status${available ? " is-available" : ""}`}>
+                  {status}
+                </span>
+              </div>
+              <h3>{title}</h3>
+              <p>{description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="landing-section landing-capabilities" aria-labelledby="capabilities-title">
+        <div className="landing-section__intro">
+          <p className="section-label">Built with a point of view</p>
+          <h2 id="capabilities-title">Useful context beats a longer finding list.</h2>
+          <p>
+            The current product stays deliberately narrow: supported dependency data, practical
+            risk signals, and workflows a small team can operate without a security department.
+          </p>
+        </div>
+
+        <ul aria-label="Available Weedout capabilities">
+          {CURRENT_CAPABILITIES.map((capability) => (
+            <li key={capability}>
+              <Check aria-hidden="true" size={15} /> {capability}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="landing-section landing-cli" aria-labelledby="cli-title">
+        <div className="landing-cli__copy">
+          <span className="landing-module__icon">
+            <TerminalSquare aria-hidden="true" size={19} />
+          </span>
+          <p className="section-label">CLI and CI ready</p>
+          <h2 id="cli-title">Bring the same attention queue into the delivery loop.</h2>
+          <p>
+            Scan supported manifests from the command line, use the existing API-key flow, and
+            keep project findings visible in the web workspace.
+          </p>
+          <Link className="text-link" to="/cli">
+            Explore the CLI <ArrowRight aria-hidden="true" size={15} />
+          </Link>
+        </div>
+
+        <div className="landing-cli__terminal" aria-label="Example Weedout CLI session">
+          <div aria-hidden="true"><span /><span /><span /></div>
+          <pre><code><span>$ weedout scan requirements.txt</span>{"\n"}{"\n"}Scanning supported dependenciesâ€¦{"\n"}<em>42 advisories classified</em>{"\n"}<strong>2 findings need attention</strong>{"\n"}{"\n"}Open the project queue for context.</code></pre>
+        </div>
+      </section>
+
+      <section className="owner-word" aria-labelledby="owner-word-title">
+        <div className="owner-word__identity">
+          <a
+            className="owner-word__portrait"
+            href="https://www.linkedin.com/in/emanuel-rm?utm_source=share_via&utm_content=profile&utm_medium=member_android"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Emanuel RM on LinkedIn"
+          >
+            <img
+              src={ownerPhoto}
+              alt="Emanuel RM"
+              width="200"
+              height="200"
+              loading="lazy"
+            />
+          </a>
+          <div>
+            <p className="section-label" id="owner-word-title">Owner&apos;s word</p>
+            <strong>Emanuel RM</strong>
+            <a
+              href="https://www.linkedin.com/in/emanuel-rm?utm_source=share_via&utm_content=profile&utm_medium=member_android"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Founder Â· LinkedIn
+            </a>
+          </div>
+        </div>
+
+        <blockquote>
+          I built Weedout because security tools should help you decide what to fixâ€”not bury you
+          under another list of CVEs.
+        </blockquote>
+      </section>
+
+      <section className="landing-section landing-close" aria-labelledby="landing-close-title">
+        <div>
+          <p className="section-label">Start with the signal</p>
+          <h2 id="landing-close-title">Turn dependency noise into a decision queue.</h2>
+          <p>Start free, scan a supported manifest, and see what actually needs attention.</p>
+        </div>
+        <Link className="button button--primary" to="/signup">
+          Create an account <ArrowRight aria-hidden="true" size={16} />
+        </Link>
+      </section>
+
+      <footer className="landing-footer">
+        <div className="landing-footer__main">
+          <div>
+            <Link className="foundation-brand" to="/" aria-label="Weedout home">
+              <WeedoutLogo />
+            </Link>
+            <p>Vulnerability noise, reduced to a reachable signal.</p>
+          </div>
+          <nav aria-label="Footer navigation">
+            <Link to="/cli">CLI</Link>
+            <Link to="/docs">Docs</Link>
+            <Link to="/pricing">Pricing</Link>
+            <Link to="/status">Status</Link>
+            <Link to="/terms">Terms</Link>
+            <Link to="/privacy">Privacy</Link>
+            <a href="https://github.com/itsmangooo/weedout" rel="noopener" target="_blank">
+              Source
+            </a>
+            <a
+              href="https://www.linkedin.com/in/emanuel-rm?utm_source=share_via&utm_content=profile&utm_medium=member_android"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              LinkedIn
+            </a>
+            <Link to="/contact">Contact</Link>
+          </nav>
+        </div>
+
+        <details className="landing-diagnostics">
+          <summary>Service status</summary>
+          <SystemStatus />
+        </details>
+      </footer>
+    </div>
+  );
+}
