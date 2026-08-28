@@ -27,7 +27,7 @@ export const appRoutes = [
         children: [
           {
             index: true,
-            handle: { title: "Weed out the noise in your CVE alerts" },
+            handle: { title: "Project security without the noise" },
             lazy: async () => {
               const { FoundationPage } = await import("../pages/FoundationPage");
               return { Component: FoundationPage };
@@ -229,7 +229,7 @@ export const appRoutes = [
               },
               {
                 path: "alerts",
-                handle: { title: "Findings" },
+                handle: { title: "Dependency findings" },
                 lazy: async () => {
                   const { AlertsPage } = await import("../pages/AlertsPage");
                   return { Component: AlertsPage };

@@ -58,14 +58,22 @@
 }
 
 .foundation-header {
-  position: relative;
+  position: sticky;
   z-index: 40;
+  top: var(--wo-space-3);
+  padding-block: var(--wo-space-2);
 }
 
 .foundation-header__inner {
-  width: min(100% - 3rem, var(--wo-page-max));
-  min-height: 5rem;
+  width: min(88vw, var(--wo-page-max));
+  min-height: 4.35rem;
   margin-inline: auto;
+  padding-inline: var(--wo-space-4);
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-xl);
+  background: var(--wo-veil);
+  box-shadow: var(--wo-shadow-soft);
+  backdrop-filter: blur(18px);
 }
 
 .foundation-brand {
@@ -276,10 +284,15 @@
   .foundation-menu {
     display: grid;
     gap: var(--wo-space-5);
-    width: min(100% - 2rem, var(--wo-page-max));
+    width: min(88vw, var(--wo-page-max));
     margin-inline: auto;
-    padding: var(--wo-space-5) 0 var(--wo-space-6);
-    border-top: 1px solid var(--wo-border);
+    margin-top: var(--wo-space-2);
+    padding: var(--wo-space-5);
+    border: 1px solid var(--wo-border);
+    border-radius: var(--wo-radius-xl);
+    background: var(--wo-veil);
+    box-shadow: var(--wo-shadow-soft);
+    backdrop-filter: blur(18px);
   }
 
   .foundation-menu__nav {
@@ -313,7 +326,7 @@
 
 @media (max-width: 40rem) {
   .foundation-header__inner {
-    width: min(100% - 2rem, var(--wo-page-max));
+    width: calc(100% - 1rem);
   }
 
   .auth-route-state {

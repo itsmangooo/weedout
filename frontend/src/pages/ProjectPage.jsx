@@ -13,8 +13,8 @@ import { useProject, useProjectMutation } from "../features/projects/hooks/usePr
 import { dueTime, relativeTime } from "../lib/time";
 
 const VIEWS = [
-  { id: "findings", label: "Findings" },
-  { id: "overview", label: "Overview" },
+  { id: "overview", label: "Security overview" },
+  { id: "findings", label: "Dependency findings" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -51,16 +51,14 @@ export function ProjectPage() {
   const page = query.data;
   const project = page.data;
 
-  // Findings is the default because it is what somebody clicking through from
-  // the dashboard came for — the dashboard already showed them the counts. A
-  // project with no manifest is the exception: it has no findings to show, so
-  // landing there would be an empty table that can only tell you to leave.
+  // A project is now the stable home for more than one analysis domain. The
+  // overview is therefore the honest default: dependencies are active today,
+  // while future modules are visible as planned rather than pretending their
+  // findings already exist.
   const requested = params.get("view");
   const view = VIEWS.some((entry) => entry.id === requested)
     ? requested
-    : project.has_manifest
-      ? "findings"
-      : "overview";
+    : "overview";
 
   function setParam(key, value) {
     const next = new URLSearchParams(params);
@@ -109,7 +107,7 @@ function ProjectHeader({ project }) {
   const rescan = useProjectMutation(project.id, () => rescanProject(project.id), {
     onSuccess: (result) => {
       setMessage(
-        `Checked ${project.name}: ${result.actionable} to act on, ${result.suppressed} filtered out.`,
+        `Checked ${project.name}: ${result.actionable} matched alert rules, ${result.suppressed} filtered out.`,
       );
     },
   });
@@ -120,7 +118,7 @@ function ProjectHeader({ project }) {
   return (
     <header className="project-head">
       <div className="project-head__identity">
-        <p className="section-label">{project.manifest_kind || project.ecosystem}</p>
+        <p className="section-label">Project security · {project.manifest_kind || project.ecosystem}</p>
         <h1>{project.name}</h1>
         <p className="project-head__meta">
           {project.dependency_count}{" "}

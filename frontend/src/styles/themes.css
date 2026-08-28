@@ -39,6 +39,7 @@
   --wo-light-focus: #426b5c;
   --wo-light-shadow: 0 24px 70px -42px rgb(52 53 46 / 0.34);
   --wo-light-shadow-high: 0 30px 80px -42px rgb(52 53 46 / 0.44);
+  --wo-light-shadow-soft: 0 18px 50px -38px rgb(52 53 46 / 0.28);
   /* Translucent, for a bar that content scrolls under. */
   --wo-light-veil: rgb(243 240 232 / 0.86);
   /* Deeper than the dark theme's. The dark set reads at 2.7:1 on cream,
@@ -71,6 +72,7 @@
   --wo-dark-focus: #9db8a9;
   --wo-dark-shadow: 0 24px 72px -44px rgb(0 0 0 / 0.78);
   --wo-dark-shadow-high: 0 30px 90px -42px rgb(0 0 0 / 0.92);
+  --wo-dark-shadow-soft: 0 18px 54px -36px rgb(0 0 0 / 0.72);
   --wo-dark-veil: rgb(23 25 24 / 0.9);
   --wo-dark-critical: #e86f6b;
   --wo-dark-critical-quiet: rgb(232 111 107 / 0.12);
@@ -104,6 +106,7 @@
   --wo-focus: var(--wo-light-focus);
   --wo-shadow: var(--wo-light-shadow);
   --wo-shadow-high: var(--wo-light-shadow-high);
+  --wo-shadow-soft: var(--wo-light-shadow-soft);
   --wo-veil: var(--wo-light-veil);
   --wo-critical: var(--wo-light-critical);
   --wo-critical-quiet: var(--wo-light-critical-quiet);
@@ -142,6 +145,7 @@
   --wo-focus: var(--wo-dark-focus);
   --wo-shadow: var(--wo-dark-shadow);
   --wo-shadow-high: var(--wo-dark-shadow-high);
+  --wo-shadow-soft: var(--wo-dark-shadow-soft);
   --wo-veil: var(--wo-dark-veil);
   --wo-critical: var(--wo-dark-critical);
   --wo-critical-quiet: var(--wo-dark-critical-quiet);

@@ -147,7 +147,7 @@ describe("React dashboard route", () => {
     renderDashboard();
 
     expect(
-      await screen.findByRole("heading", { name: "What needs your attention?" }),
+      await screen.findByRole("heading", { name: "Security overview" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Exploited in the wild")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "checkout-api" })).toBeInTheDocument();
@@ -302,7 +302,7 @@ describe("React dashboard route", () => {
     renderDashboard({ authenticated: true });
 
     expect(
-      await screen.findByRole("heading", { name: "What needs your attention?" }),
+      await screen.findByRole("heading", { name: "Security overview" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("Open findings unavailable")).toBeInTheDocument();
     expect(screen.getByText("Finding read unavailable")).toBeInTheDocument();

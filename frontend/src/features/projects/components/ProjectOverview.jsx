@@ -1,4 +1,13 @@
-import { CircleAlert, FileUp, Info, TriangleAlert } from "lucide-react";
+import {
+  CircleAlert,
+  Code2,
+  FileKey2,
+  FileUp,
+  GitBranch,
+  Info,
+  PackageSearch,
+  TriangleAlert,
+} from "lucide-react";
 import { useState } from "react";
 
 import { attachManifest } from "../../../api/projects";
@@ -23,8 +32,11 @@ export function ProjectOverview({ page }) {
     <div className="project-section project-overview">
       {!project.has_manifest ? <ManifestUpload projectId={project.id} /> : null}
 
-      <section aria-labelledby="runs-title">
-        <h2 id="runs-title">Recent checks</h2>
+      <ProjectSecurityModules project={project} />
+
+      <div className="project-overview__details">
+      <section aria-labelledby="runs-title" className="project-overview__card">
+        <h2 id="runs-title">Recent dependency checks</h2>
         {page.recent_runs.length === 0 ? (
           <p className="empty-state">No checks yet.</p>
         ) : (
@@ -36,7 +48,7 @@ export function ProjectOverview({ page }) {
         )}
       </section>
 
-      <section aria-labelledby="signals-title">
+      <section aria-labelledby="signals-title" className="project-overview__card">
         <h2 id="signals-title">Package signals</h2>
         {page.supply_chain.length === 0 ? (
           <p className="empty-state">Nothing stood out about these packages.</p>
@@ -75,7 +87,9 @@ export function ProjectOverview({ page }) {
         )}
       </section>
 
-      <section aria-labelledby="deps-title">
+      </div>
+
+      <section aria-labelledby="deps-title" className="project-overview__card">
         <h2 id="deps-title">
           Dependencies <span className="dim">({page.dependencies.length})</span>
         </h2>
@@ -108,6 +122,62 @@ export function ProjectOverview({ page }) {
   );
 }
 
+const PLANNED_PROJECT_MODULES = [
+  {
+    Icon: Code2,
+    title: "Source code",
+    description: "Reserved for code-level analysis when that scanner is available.",
+  },
+  {
+    Icon: FileKey2,
+    title: "Secrets",
+    description: "Reserved for exposed credential and sensitive-value findings.",
+  },
+  {
+    Icon: GitBranch,
+    title: "CI & config",
+    description: "Reserved for workflow and security configuration analysis.",
+  },
+];
+
+function ProjectSecurityModules({ project }) {
+  const open = project.tab_counts?.open ?? 0;
+
+  return (
+    <section className="project-modules" aria-labelledby="project-modules-title">
+      <div className="project-modules__heading">
+        <div>
+          <p className="section-label">Coverage</p>
+          <h2 id="project-modules-title">Security modules</h2>
+        </div>
+        <p>Current coverage and the reserved shape of this project&apos;s future analysis.</p>
+      </div>
+
+      <div className="project-modules__grid">
+        <article className="project-module project-module--active">
+          <div className="project-module__top">
+            <span><PackageSearch aria-hidden="true" size={18} /></span>
+            <em>{project.has_manifest ? "Active" : "Setup needed"}</em>
+          </div>
+          <strong>Dependencies</strong>
+          <p>{project.dependency_count} packages resolved · {open} open {open === 1 ? "finding" : "findings"}</p>
+        </article>
+
+        {PLANNED_PROJECT_MODULES.map(({ Icon, title, description }) => (
+          <article className="project-module" key={title}>
+            <div className="project-module__top">
+              <span><Icon aria-hidden="true" size={18} /></span>
+              <em>Planned</em>
+            </div>
+            <strong>{title}</strong>
+            <p>{description}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function RunRow({ run }) {
   const when = relativeTime(run.started_at);
 
@@ -128,7 +198,7 @@ function RunRow({ run }) {
       <span className="run-row__state">Checked</span>
       <span className="run-row__when">{when}</span>
       <span className="run-row__detail">
-        {run.actionable_count} to act on, {run.suppressed_count} filtered out
+        {run.actionable_count} matched alert rules, {run.suppressed_count} filtered out
         {run.new_actionable_count > 0 ? ` · +${run.new_actionable_count} new` : ""}
         {run.resolved_count > 0 ? ` · −${run.resolved_count} resolved` : ""}
       </span>

@@ -1,10 +1,14 @@
 import {
   Bell,
+  Code2,
   CreditCard,
+  FileKey2,
   FolderKanban,
+  GitBranch,
   LayoutDashboard,
   LogOut,
   Menu,
+  PackageSearch,
   Settings,
   ShieldCheck,
   Terminal,
@@ -18,16 +22,32 @@ import { WeedoutLogo } from "../brand/WeedoutLogo";
 import { useAuthRefresh, useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
 import { ThemeControl } from "../../features/theme/ThemeControl";
 
-const SECTIONS = [
-  { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { to: "/alerts", label: "Findings", Icon: Bell },
-  // /targets, the projects index, went with the Jinja panel — the dashboard is
-  // the project list now, so this points at the one thing that page offered
-  // beyond the list.
-  { to: "/targets/new", label: "Add a project", Icon: FolderKanban },
-  { to: "/billing", label: "Billing", Icon: CreditCard },
-  { to: "/cli", label: "CLI", Icon: Terminal },
-  { to: "/settings", label: "Settings", Icon: Settings },
+const NAV_GROUPS = [
+  {
+    label: "Workspace",
+    items: [
+      { to: "/dashboard", label: "Overview", Icon: LayoutDashboard },
+      { to: "/alerts", label: "Dependency findings", Icon: Bell },
+    ],
+  },
+  {
+    label: "Security analysis",
+    items: [
+      { label: "Dependencies", Icon: PackageSearch, state: "Active" },
+      { label: "Source code", Icon: Code2, state: "Planned" },
+      { label: "Secrets", Icon: FileKey2, state: "Planned" },
+      { label: "CI & config", Icon: GitBranch, state: "Planned" },
+    ],
+  },
+  {
+    label: "Manage",
+    items: [
+      { to: "/targets/new", label: "Add a project", Icon: FolderKanban },
+      { to: "/billing", label: "Billing", Icon: CreditCard },
+      { to: "/cli", label: "CLI", Icon: Terminal },
+      { to: "/settings", label: "Settings", Icon: Settings },
+    ],
+  },
 ];
 
 export function AppShell() {
@@ -97,15 +117,33 @@ export function AppShell() {
 
         <div className="app-sidebar__panel" id={navId}>
           <nav aria-label="Application" className="app-shell__nav">
-            {SECTIONS.map(({ to, label, Icon }) => (
-              <NavLink
-                className={({ isActive }) => `app-shell__nav-link${isActive ? " is-active" : ""}`}
-                end={to === "/dashboard"}
-                key={to}
-                to={to}
-              >
-                <Icon aria-hidden="true" size={16} /> {label}
-              </NavLink>
+            {NAV_GROUPS.map((group) => (
+              <div className="app-shell__nav-group" key={group.label}>
+                <p className="app-shell__nav-label">{group.label}</p>
+                {group.items.map(({ to, label, Icon, state }) =>
+                  to ? (
+                    <NavLink
+                      className={({ isActive }) => `app-shell__nav-link${isActive ? " is-active" : ""}`}
+                      end={to === "/dashboard"}
+                      key={to}
+                      to={to}
+                    >
+                      <Icon aria-hidden="true" size={16} />
+                      <span>{label}</span>
+                    </NavLink>
+                  ) : (
+                    <span
+                      aria-disabled={state === "Planned" ? "true" : undefined}
+                      className={`app-shell__nav-link app-shell__nav-link--module${state === "Active" ? " is-current" : ""}`}
+                      key={label}
+                    >
+                      <Icon aria-hidden="true" size={16} />
+                      <span>{label}</span>
+                      <small>{state}</small>
+                    </span>
+                  ),
+                )}
+              </div>
             ))}
 
             {/* Convenience only. The access control is on

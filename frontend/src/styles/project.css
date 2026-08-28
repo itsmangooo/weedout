@@ -491,6 +491,200 @@
   }
 }
 
+/* --- Project security workspace ---------------------------------------- */
+
+.project-page,
+.alerts-page {
+  padding-block: clamp(2rem, 4vw, 3.75rem) 5rem;
+}
+
+.project-head {
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-xl);
+  background: var(--wo-surface-high);
+  box-shadow: var(--wo-shadow-soft);
+}
+
+.project-head h1 {
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 620;
+  letter-spacing: -0.045em;
+}
+
+.view-tabs {
+  width: fit-content;
+  max-width: 100%;
+  gap: 0.2rem;
+  padding: 0.28rem;
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius);
+  background: var(--wo-surface-low);
+}
+
+.view-tab {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.85rem;
+  border: 0;
+  border-radius: calc(var(--wo-radius) - 0.2rem);
+}
+
+.view-tab--active {
+  border: 0;
+  background: var(--wo-surface-high);
+  color: var(--wo-text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+.project-modules {
+  display: grid;
+  gap: var(--wo-space-4);
+}
+
+.project-modules__heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--wo-space-6);
+}
+
+.project-modules__heading h2 {
+  margin-top: var(--wo-space-2);
+}
+
+.project-modules__heading > p {
+  max-width: 34rem;
+  color: var(--wo-text-dim);
+  font-size: 0.76rem;
+  line-height: 1.55;
+  text-align: right;
+}
+
+.project-modules__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--wo-space-3);
+}
+
+.project-module {
+  display: flex;
+  min-height: 10.5rem;
+  flex-direction: column;
+  padding: var(--wo-space-4);
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-lg);
+  background: color-mix(in srgb, var(--wo-surface-low) 60%, var(--wo-surface));
+}
+
+.project-module--active {
+  border-color: color-mix(in srgb, var(--wo-accent) 22%, var(--wo-border));
+  background: var(--wo-surface-high);
+  box-shadow: var(--wo-shadow-soft);
+}
+
+.project-module__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wo-space-3);
+}
+
+.project-module__top > span {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border-radius: 0.78rem;
+  background: var(--wo-accent-quiet);
+  color: var(--wo-accent-strong);
+}
+
+.project-module__top em {
+  padding: 0.28rem 0.42rem;
+  border-radius: 999px;
+  background: var(--wo-surface-low);
+  color: var(--wo-text-dim);
+  font-size: 0.54rem;
+  font-style: normal;
+  font-weight: 680;
+}
+
+.project-module--active .project-module__top em {
+  background: var(--wo-success-quiet);
+  color: var(--wo-success);
+}
+
+.project-module > strong {
+  margin-top: auto;
+  padding-top: var(--wo-space-5);
+  font-size: 0.88rem;
+}
+
+.project-module > p {
+  margin: var(--wo-space-2) 0 0;
+  color: var(--wo-text-dim);
+  font-size: 0.67rem;
+  line-height: 1.5;
+}
+
+.project-overview__details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--wo-space-4);
+}
+
+.project-overview__card {
+  min-width: 0;
+  padding: var(--wo-space-5);
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-xl);
+  background: var(--wo-surface-high);
+  box-shadow: var(--wo-shadow-soft);
+}
+
+.project-overview__card h2 {
+  margin-bottom: var(--wo-space-4);
+}
+
+.project-overview__card .empty-state {
+  background: var(--wo-surface-low);
+}
+
+@media (max-width: 76rem) {
+  .project-modules__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 56rem) {
+  .project-overview__details {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 44rem) {
+  .project-modules__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .project-modules__heading > p {
+    text-align: left;
+  }
+
+  .project-modules__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-module {
+    min-height: 9.5rem;
+  }
+
+  .project-head {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* --- One finding, explained ---------------------------------------------- */
 
 .alerts-page {

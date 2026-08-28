@@ -56,8 +56,8 @@ export function AlertsPage() {
   return (
     <div className="alerts-page">
       <header className="page-head">
-        <p className="section-label">Across every project</p>
-        <h1>Findings</h1>
+        <p className="section-label">Dependencies · across every project</p>
+        <h1>Dependency findings</h1>
       </header>
 
       <nav aria-label="Finding filters" className="filter-tabs">

@@ -152,6 +152,16 @@ describe("the application sidebar", () => {
     ]);
   });
 
+  it("marks future analysis modules as planned instead of linking to fake screens", () => {
+    renderShell(<AppShell />);
+
+    for (const label of ["Source code", "Secrets", "CI & config"]) {
+      const module = screen.getByText(label).closest(".app-shell__nav-link");
+      expect(module).toHaveAttribute("aria-disabled", "true");
+      expect(module).not.toHaveAttribute("href");
+    }
+  });
+
   it("shows the admin link only to an administrator", () => {
     const { unmount } = renderShell(<AppShell />);
     expect(screen.queryByRole("link", { name: /Admin/ })).not.toBeInTheDocument();

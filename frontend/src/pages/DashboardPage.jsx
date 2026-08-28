@@ -12,6 +12,7 @@ import {
 } from "../features/dashboard/components/DashboardQueryState";
 import { FindingSummary } from "../features/dashboard/components/FindingSummary";
 import { ProjectList } from "../features/dashboard/components/ProjectList";
+import { SecurityCoverage } from "../features/dashboard/components/SecurityCoverage";
 import { useDashboard } from "../features/dashboard/hooks/useDashboard";
 import { OpenFindingsSection } from "../features/findings/components/OpenFindingsSection";
 import { useOpenFindings } from "../features/findings/hooks/useOpenFindings";
@@ -49,6 +50,7 @@ export function DashboardPage() {
         liveStatus={liveStatus}
         projects={summary.projects}
       />
+      <SecurityCoverage summary={summary} />
       <AttentionSummary summary={summary} />
       <OpenFindingsSection query={findings} />
       <div className="dashboard-secondary">

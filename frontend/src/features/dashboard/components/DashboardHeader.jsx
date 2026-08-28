@@ -26,7 +26,10 @@ export function DashboardHeader({ dependencies, liveStatus, projects }) {
             </span>
           ) : null}
         </div>
-        <h1>What needs your attention?</h1>
+        <h1>Security overview</h1>
+        <p className="dashboard-header__lede">
+          Everything that needs a decision, across every project and analysis module.
+        </p>
         <dl className="dashboard-header__context">
           <div><dt>Projects</dt><dd>{projects}</dd></div>
           <div><dt>Dependencies</dt><dd>{dependencies}</dd></div>

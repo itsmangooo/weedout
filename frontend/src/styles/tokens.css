@@ -9,13 +9,14 @@
   --wo-space-8: 4rem;
   --wo-space-9: 6rem;
 
-  --wo-radius-xs: 0.55rem;
-  --wo-radius-sm: 0.7rem;
-  --wo-radius: 0.9rem;
-  --wo-radius-lg: 1.15rem;
-  --wo-radius-xl: 1.35rem;
-  --wo-page-max: 76rem;
-  --wo-app-max: 92rem;
+  --wo-radius-xs: 0.65rem;
+  --wo-radius-sm: 0.85rem;
+  --wo-radius: 1rem;
+  --wo-radius-lg: 1.25rem;
+  --wo-radius-xl: 1.55rem;
+  --wo-radius-2xl: 2rem;
+  --wo-page-max: 86rem;
+  --wo-app-max: 96rem;
   --wo-measure: 66ch;
 
   --wo-font-sans: "Poppins", sans-serif;
