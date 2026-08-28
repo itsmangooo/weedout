@@ -1,5 +1,4 @@
 import {
-  CheckCircle2,
   ChevronRight,
   CircleAlert,
   CircleDot,
@@ -8,36 +7,33 @@ import {
   PackageSearch,
   Settings,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 
 const FINDINGS = [
   {
-    packageName: "runtime package",
+    identifier: "CVE-2021-21315",
+    packageName: "systeminformation@5.0.0",
+    project: "demo-app",
     severity: "Critical",
-    signal: "Known exploited",
+    signal: "Review now",
     tone: "critical",
   },
   {
-    packageName: "transitive package",
+    identifier: "CVE-2021-44906",
+    packageName: "minimist@1.2.5",
+    project: "demo-app",
     severity: "High",
-    signal: "Runtime reachable",
+    signal: "Runtime transitive",
     tone: "high",
-  },
-  {
-    packageName: "development package",
-    severity: "Medium",
-    signal: "Filtered out",
-    tone: "filtered",
   },
 ];
 
-export function ProductScreenshot({ compact = false }) {
+export function ProductScreenshot() {
   return (
-    <figure className={`product-shot${compact ? " product-shot--compact" : ""}`}>
+    <figure className="product-shot">
       <figcaption className="product-shot__caption">
         <span><CircleDot aria-hidden="true" size={13} /> Product preview</span>
-        <span>Example project</span>
+        <span>Example project data</span>
       </figcaption>
 
       <div className="product-shot__window">
@@ -56,45 +52,46 @@ export function ProductScreenshot({ compact = false }) {
         <div className="product-shot__content">
           <header className="product-shot__head">
             <div>
-              <span className="product-shot__eyebrow">Workspace overview</span>
+              <span className="product-shot__eyebrow">What needs attention</span>
               <strong className="product-shot__title">Security overview</strong>
-              <p>Everything that needs a decision, across every project.</p>
+              <p>Open dependency findings across your projects.</p>
             </div>
             <span className="product-shot__button" aria-hidden="true">Add project</span>
           </header>
 
-          <div className="product-shot__metrics">
-            <article>
-              <span>Open findings</span>
-              <strong>3</strong>
-              <small><CircleAlert size={12} /> 1 known exploited</small>
-            </article>
-            <article>
-              <span>Dependencies</span>
-              <strong>143</strong>
-              <small><CheckCircle2 size={12} /> 1 project checked</small>
-            </article>
-            <article>
-              <span>Noise removed</span>
-              <strong>73%</strong>
-              <small><Sparkles size={12} /> 8 filtered findings</small>
-            </article>
+          <div className="product-shot__summary" aria-label="Example project summary">
+            <div>
+              <span>Needs attention</span>
+              <strong>2</strong>
+            </div>
+            <dl>
+              <div><dt>Project</dt><dd>demo-app</dd></div>
+              <div><dt>Dependencies scanned</dt><dd>412</dd></div>
+              <div><dt>Filtered as noise</dt><dd>33</dd></div>
+            </dl>
           </div>
 
           <section className="product-shot__panel">
             <div className="product-shot__panel-head">
               <div>
-                <span>Dependency findings</span>
-                <strong>Needs attention</strong>
+                <span>Open findings</span>
+                <strong>Start with the signal</strong>
               </div>
               <span>View all <ChevronRight size={12} /></span>
             </div>
             <div className="product-shot__rows">
               {FINDINGS.map((finding) => (
-                <div className="product-shot__row" key={finding.packageName}>
+                <div className="product-shot__row" key={finding.identifier}>
                   <span className={`product-shot__severity is-${finding.tone}`} />
-                  <strong>{finding.packageName}</strong>
-                  <span>{finding.signal}</span>
+                  <div>
+                    <strong>{finding.identifier}</strong>
+                    <span>{finding.packageName}</span>
+                  </div>
+                  <span className="product-shot__project">{finding.project}</span>
+                  <span className="product-shot__signal">
+                    {finding.tone === "critical" ? <CircleAlert aria-hidden="true" size={12} /> : null}
+                    {finding.signal}
+                  </span>
                   <em className={`is-${finding.tone}`}>{finding.severity}</em>
                 </div>
               ))}

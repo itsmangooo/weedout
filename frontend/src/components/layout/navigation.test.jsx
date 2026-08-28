@@ -34,7 +34,7 @@ function authResponse(overrides = {}) {
   };
 }
 
-function renderShell(ui, { user = authResponse() } = {}) {
+function renderShell(ui, { user = authResponse(), initialPath = "/dashboard" } = {}) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(
     new Response(JSON.stringify({ data: user }), {
       status: 200,
@@ -47,7 +47,7 @@ function renderShell(ui, { user = authResponse() } = {}) {
 
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/dashboard"]}>
+      <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route element={ui} path="*" />
         </Routes>
@@ -61,6 +61,30 @@ function hrefsIn(scope) {
 }
 
 describe("the public header", () => {
+  it("keeps the landing navigation focused on the free product path", () => {
+    renderShell(
+      <FoundationLayout>
+        <p>content</p>
+      </FoundationLayout>,
+      {
+        initialPath: "/",
+        user: { authenticated: false, session_state: "anonymous", user: null },
+      },
+    );
+
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(hrefsIn(nav)).toEqual([
+      "/cli",
+      "/docs",
+      "https://github.com/itsmangooo/weedout",
+    ]);
+    expect(screen.getByRole("link", { name: "Start scanning free" })).toHaveAttribute(
+      "href",
+      "/signup",
+    );
+    expect(within(nav).queryByRole("link", { name: "Pricing" })).not.toBeInTheDocument();
+  });
+
   it("offers the CLI, docs and pricing at full width", () => {
     renderShell(
       <FoundationLayout>

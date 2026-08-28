@@ -106,12 +106,12 @@ describe("frontend routes", () => {
     await user.click(screen.getByRole("link", { name: "Return to the foundation" }));
     expect(
       await screen.findByRole("heading", {
-        name: "See the security issues that actually deserve attention.",
+        name: "Security findings with the context to fix them.",
       }),
     ).toBeInTheDocument();
   });
 
-  it("renders the current product and clearly labels future security modules", async () => {
+  it("renders only current product capabilities and grounded project context", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       response({ status: "ok", version: "0.1.0" }),
     );
@@ -120,27 +120,28 @@ describe("frontend routes", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "See the security issues that actually deserve attention.",
+        name: "Security findings with the context to fix them.",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "A calm workspace for dependency risk." }),
+      screen.getByRole("heading", { name: "From a CVE to actual project context." }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Ready to expand. Honest about what exists." }),
+      screen.getByRole("heading", { name: "From manifest to decision, in three steps." }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Built with a point of view")).toBeInTheDocument();
-    expect(screen.getAllByText("Planned")).toHaveLength(3);
+    expect(screen.getByText(/does not pretend to map a CVE to a source line/)).toBeInTheDocument();
+    expect(screen.getByText("Eight manifest and lockfile formats")).toBeInTheDocument();
+    expect(screen.getByText("$ weedout scan --ci")).toBeInTheDocument();
+    expect(screen.queryByText("Planned")).not.toBeInTheDocument();
+    expect(screen.queryByText("Source-code analysis")).not.toBeInTheDocument();
     expect(screen.getByAltText("Emanuel RM")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Featured on Votekicker" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("votekicker.com/weedout"),
-    );
-    expect(screen.getByRole("link", { name: "LinkedIn", exact: true })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Founder · LinkedIn" })).toHaveAttribute(
       "href",
       expect.stringContaining("linkedin.com/in/emanuel-rm"),
     );
-    expect(screen.getAllByText("Product preview")).toHaveLength(2);
+    expect(screen.getByText("Product preview")).toBeInTheDocument();
+    const mainNav = screen.getByRole("navigation", { name: "Main" });
+    expect(mainNav).not.toHaveTextContent("Pricing");
   });
 
   it("keeps the global error boundary recoverable", async () => {

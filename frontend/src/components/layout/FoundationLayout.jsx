@@ -16,6 +16,31 @@ const SECTIONS = [
   { to: "/pricing", label: "Pricing" },
 ];
 
+const LANDING_SECTIONS = [
+  { to: "/cli", label: "CLI" },
+  { to: "/docs", label: "Docs" },
+  { href: SOURCE_URL, label: "GitHub" },
+];
+
+function NavigationLink({ section }) {
+  if (section.href) {
+    return (
+      <a href={section.href} rel="noopener" target="_blank">
+        {section.label}
+      </a>
+    );
+  }
+
+  return (
+    <NavLink
+      className={({ isActive }) => (isActive ? "is-active" : undefined)}
+      to={section.to}
+    >
+      {section.label}
+    </NavLink>
+  );
+}
+
 /**
  * The public header.
  *
@@ -28,6 +53,8 @@ export function FoundationLayout({ children }) {
   const location = useLocation();
   const { data } = useCurrentUser();
   const signedIn = data?.authenticated === true;
+  const isLanding = location.pathname === "/";
+  const sections = isLanding ? LANDING_SECTIONS : SECTIONS;
 
   const menuId = useId();
 
@@ -51,7 +78,9 @@ export function FoundationLayout({ children }) {
   }, [menuOpen]);
 
   return (
-    <div className="foundation-shell min-h-screen">
+    <div
+      className={`foundation-shell min-h-screen${isLanding ? " foundation-shell--landing" : ""}`}
+    >
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -63,14 +92,8 @@ export function FoundationLayout({ children }) {
           </Link>
 
           <nav aria-label="Main" className="foundation-header__nav">
-            {SECTIONS.map((section) => (
-              <NavLink
-                className={({ isActive }) => (isActive ? "is-active" : undefined)}
-                key={section.to}
-                to={section.to}
-              >
-                {section.label}
-              </NavLink>
+            {sections.map((section) => (
+              <NavigationLink key={section.to ?? section.href} section={section} />
             ))}
           </nav>
 
@@ -86,7 +109,7 @@ export function FoundationLayout({ children }) {
                   Sign in
                 </Link>
                 <Link className="button button--primary button--sm" to="/signup">
-                  Start free
+                  {isLanding ? "Start scanning free" : "Start free"}
                 </Link>
               </>
             )}
@@ -109,14 +132,8 @@ export function FoundationLayout({ children }) {
         {menuOpen ? (
           <div className="foundation-menu" id={menuId}>
             <nav aria-label="Main, expanded" className="foundation-menu__nav">
-              {SECTIONS.map((section) => (
-                <NavLink
-                  className={({ isActive }) => (isActive ? "is-active" : undefined)}
-                  key={section.to}
-                  to={section.to}
-                >
-                  {section.label}
-                </NavLink>
+              {sections.map((section) => (
+                <NavigationLink key={section.to ?? section.href} section={section} />
               ))}
             </nav>
 
@@ -131,7 +148,7 @@ export function FoundationLayout({ children }) {
                     Sign in
                   </Link>
                   <Link className="button button--primary" to="/signup">
-                    Start free
+                    {isLanding ? "Start scanning free" : "Start free"}
                   </Link>
                 </>
               )}
@@ -146,7 +163,7 @@ export function FoundationLayout({ children }) {
       {/* The landing page brings its own, richer footer -- brand, diagnostics,
           the lot. Two footers on one page is worse than either alone, so the
           utility strip stands down there. */}
-      {location.pathname === "/" ? null : <Footer />}
+      {isLanding ? null : <Footer />}
     </div>
   );
 }
