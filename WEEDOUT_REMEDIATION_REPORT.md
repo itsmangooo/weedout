@@ -20,7 +20,7 @@ The actual CLI was changed and tested in its own repository, not mocked in the w
 | Analysis uncertainty could look safe | Incomplete collection, unsupported files, unsafe paths, decoding failures, non-literal dynamic imports, and unmappable transitive paths prevent a negative conclusion and yield `unknown` | Direct unit cases plus malformed/incomplete API cases |
 | Noise/suppressed findings still appeared OPEN | Added `AlertStatus.FILTERED`, migrated existing suppressed/open rows, and made scan carry-forward preserve dismissal separately | API open/filtered views, dashboard totals, alert rows, email selection, and CLI output tests |
 | CLI docs described commands not in the distributed binary | Aligned real implementations/help/validation for `auth`, `create`, `findings`, `rules`, `scan`, `init`, and `version`; removed plan announcement/gating code | Go suite and opt-in test against the built executable, including success/failure paths |
-| Windows installer was advertised at a missing URL | Added public `/install.ps1`, dual-installer syncing, route inventory and drift tests | PowerShell installer downloaded v0.2.0, verified SHA-256, installed, and ran `weedout version`; web route tests pass |
+| Windows installer was advertised at a missing URL | Added public `/install.ps1`, dual-installer syncing, route inventory and drift tests | Production returned HTTP 200/plain text; the exact public PowerShell pipeline verified SHA-256, installed v0.3.1, and ran `weedout version` |
 | Pro remained visible and affected capability gates | Normalized all accounts to one Free product contract, removed paid gates/UI/CTAs and the normal billing route | Backend tier/gate suites and React navigation/settings/pricing tests |
 | Landing claims exceeded the real product | Replaced stale/fabricated modules and screenshots with actual dependency, evidence, filtering, OSV/CISA, CLI, and CI behavior; future modules are visibly Planned | Landing/backend contract tests and production React build |
 | Admin used a separate top navigation | Rebuilt it as a responsive Weedout sidebar with only Overview, Users, Billing history, Inbox, Compose, Docs, and Audit log | 13 navigation tests cover real sections, disclosure, Escape, theme, and Back to app |
@@ -99,7 +99,7 @@ Canonical `install.sh` and `install.ps1` live in the CLI repository. `scripts/sy
 - Web: `/install.sh` and `/install.ps1` are public plain-text, short-cache routes; both have content and canonical-copy tests.
 - Latest release: after v0.3.1 publication, both installers resolved latest without a `VERSION` override, verified SHA-256, installed the Windows/Linux amd64 assets, and printed `weedout 0.3.1`.
 
-Before this change, live checks returned HTTP 200 for `/install.sh` and HTTP 404 for `/install.ps1`. The PowerShell endpoint therefore requires the normal Weedout web deployment before the public URL can change to 200.
+Before this change, live checks returned HTTP 200 for `/install.sh` and HTTP 404 for `/install.ps1`. After web commit `c31a5d6` deployed, `/install.ps1` returned HTTP 200 with `text/plain; charset=utf-8`. The exact public `irm https://weedout.dev/install.ps1 | iex` pipeline resolved v0.3.1, printed `checksum ok`, installed the 5,722,624-byte Windows executable, and printed `weedout 0.3.1`; the isolated test confirmed the persistent user PATH was unchanged. The exact public `curl -sSL https://weedout.dev/install.sh | sh` pipeline also resolved v0.3.1 in a clean Alpine container, verified its checksum, installed, and ran successfully.
 
 ## Free-only migration
 
@@ -184,9 +184,8 @@ The first `v0.3.0` workflow attempt exposed an existing Linux permission test fa
 
 ## Remaining manual verification and operational notes
 
-1. After the Weedout web deployment completes, verify `https://weedout.dev/install.ps1` returns HTTP 200/plain text and run the exact public `irm ... | iex` command in a disposable Windows environment. Local pipeline semantics and the real release download were already tested.
-2. A live rendered desktop/mobile inspection could not be completed because the installed in-app Browser plugin referenced a removed older `browser-service.mjs`. Responsive DOM behavior and breakpoints are covered, but a human visual pass at desktop and phone widths remains advisable after deployment.
-3. No live Dodo, SMTP, Discord, or customer webhook credentials were used. Automated signature, authorization, payload, and delivery-selection tests passed; production provider dashboards/logs should be checked during rollout.
-4. The migration was rehearsed on a clean disposable PostgreSQL database. Production rollout still requires the normal backup, migration window, and post-deploy metrics/log review.
+1. A live rendered desktop/mobile inspection could not be completed because the installed in-app Browser plugin referenced a removed older `browser-service.mjs`. Responsive DOM behavior and breakpoints are covered, but a human visual pass at desktop and phone widths remains advisable after deployment.
+2. No live Dodo, SMTP, Discord, or customer webhook credentials were used. Automated signature, authorization, payload, and delivery-selection tests passed; production provider dashboards/logs should be checked during rollout.
+3. The migration was rehearsed on a clean disposable PostgreSQL database. Production rollout still requires the normal backup, migration window, and post-deploy metrics/log review.
 
 These are deployment/environment verification items, not hidden product implementations. No untested source-code, secrets, or CI/config analyser is advertised as available.

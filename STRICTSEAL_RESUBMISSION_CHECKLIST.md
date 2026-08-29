@@ -46,7 +46,7 @@ API/storage regression: `tests/test_api.py::TestReachabilityScanContract`
 - [x] Release tag `v0.3.1` completed verify, all five builds, and release publication successfully.
 - [x] Unix installer exists, is publicly served, and passed a clean Alpine install with SHA-256 verification.
 - [x] PowerShell installer exists, is routed by the web app, and passed pipeline-style installation with SHA-256 verification.
-- [ ] After web deployment: verify public `https://weedout.dev/install.ps1` returns 200 and run exact `irm ... | iex` in a disposable environment.
+- [x] Public `https://weedout.dev/install.ps1` returns HTTP 200/plain text; the exact `irm ... | iex` pipeline installed checksummed v0.3.1 and ran successfully.
 - [x] Latest installer resolution selects v0.3.1; both Windows/Linux downloads verified published checksums and ran successfully.
 
 ## Free-only product
@@ -97,6 +97,7 @@ API/storage regression: `tests/test_api.py::TestReachabilityScanContract`
 - [x] Go format, vet, and all package tests passed.
 - [x] Actual packaged Windows binary command/exit/secret tests passed.
 - [x] Unix and PowerShell installers downloaded, checksummed, installed, and executed a released binary.
+- [x] Exact production `irm ... | iex` and `curl ... | sh` pipelines both resolved and ran v0.3.1.
 
 ## Resubmission notes
 
