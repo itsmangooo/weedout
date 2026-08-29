@@ -22,7 +22,7 @@ globalThis.IntersectionObserver = IntersectionObserverMock;
 // second is tight enough to make a healthy route fail only under full-suite
 // load, so assertions get a small deterministic window without changing any
 // production timing.
-configure({ asyncUtilTimeout: 3000 });
+configure({ asyncUtilTimeout: 5000 });
 
 afterEach(() => {
   cleanup();

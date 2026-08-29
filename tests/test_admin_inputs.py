@@ -14,8 +14,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.core.types import Tier
-from app.schemas import SignupChartQuery, SuspendForm, TierChangeForm, UserListQuery
+from app.schemas import SignupChartQuery, SuspendForm, UserListQuery
 from tests.conftest import set_csrf, sign_in
 
 
@@ -25,7 +24,6 @@ class TestUserListQuery:
         assert query.page == 1
         assert query.per_page == 25
         assert query.search_filter is None
-        assert query.tier_filter is None
 
     @pytest.mark.parametrize("page", [0, -1, -999])
     def test_page_below_one_is_rejected(self, page):
@@ -46,38 +44,23 @@ class TestUserListQuery:
     def test_control_characters_are_stripped_from_search(self):
         assert UserListQuery(search="  ab\x00cd \n").search == "abcd"
 
-    def test_unknown_tier_filter_is_rejected(self):
-        with pytest.raises(ValidationError):
-            UserListQuery(tier="enterprise")
-
     def test_unknown_status_filter_is_rejected(self):
         with pytest.raises(ValidationError):
             UserListQuery(status="deleted")
 
     def test_blank_filters_mean_any(self):
         # The <select> has a valueless "Any" option, so blank must be legal.
-        query = UserListQuery(tier="", status="", search="")
-        assert query.tier_filter is None
+        query = UserListQuery(status="", search="")
         assert query.status_filter is None
         assert query.search_filter is None
 
     def test_valid_filters_are_converted(self):
-        query = UserListQuery(tier="pro", status="suspended", search="a@b")
-        assert query.tier_filter is Tier.PRO
+        query = UserListQuery(status="suspended", search="a@b")
         assert query.status_filter == "suspended"
         assert query.search_filter == "a@b"
 
 
 class TestActionForms:
-    def test_tier_change_requires_a_known_tier(self):
-        assert TierChangeForm(tier="pro").tier is Tier.PRO
-        with pytest.raises(ValidationError):
-            TierChangeForm(tier="platinum")
-
-    def test_note_is_length_bounded(self):
-        with pytest.raises(ValidationError):
-            TierChangeForm(tier="pro", note="x" * 501)
-
     def test_suspend_reason_is_optional(self):
         assert SuspendForm().reason == ""
 
@@ -159,24 +142,10 @@ class TestQueryParamsAtTheRoute:
         await db.refresh(user)
         assert user.is_suspended is False
 
-    async def test_an_invalid_tier_value_is_refused(self, admin_client, db, user):
+    async def test_retired_tier_mutation_endpoint_is_absent(self, admin_client, user):
         response = await admin_client.post(
             f"/api/internal/admin/users/{user.id}/tier",
-            json={"tier": "platinum"},
+            json={"tier": "pro"},
             headers={"X-CSRF-Token": set_csrf(admin_client)},
         )
-        assert response.status_code == 400
-        assert "valid plan" in response.json()["error"]["message"]
-
-        await db.refresh(user)
-        assert user.tier is Tier.FREE
-
-    async def test_a_rejected_action_says_why(self, admin_client, db, user):
-        """Same tier as current -> AdminActionError -> a stated reason, not a 500."""
-        response = await admin_client.post(
-            f"/api/internal/admin/users/{user.id}/tier",
-            json={"tier": "free"},
-            headers={"X-CSRF-Token": set_csrf(admin_client)},
-        )
-        assert response.status_code == 400
-        assert "already on the free plan" in response.json()["error"]["message"]
+        assert response.status_code == 404

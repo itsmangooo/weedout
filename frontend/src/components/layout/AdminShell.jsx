@@ -1,72 +1,112 @@
-import { NavLink, Outlet } from "react-router";
+import {
+  ArrowLeft,
+  BookOpen,
+  ClipboardList,
+  CreditCard,
+  FileText,
+  LayoutDashboard,
+  Mail,
+  Menu,
+  Send,
+  ShieldCheck,
+  Users,
+  X,
+} from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router";
 
-import { useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
 import { useUnreadCount } from "../../features/admin/hooks/useAdmin";
+import { useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
 import { ThemeControl } from "../../features/theme/ThemeControl";
-
-/**
- * Chrome for the admin panel.
- *
- * Deliberately the same visual language as the rest of the app — same tokens,
- * same type, same spacing. The only distinguishing mark is a small "Admin" tag
- * beside the account, so it is obvious which side of the product you are
- * looking at without the panel becoming a different-looking application.
- */
+import { WeedoutLogo } from "../brand/WeedoutLogo";
 
 const SECTIONS = [
-  { to: "/admin", label: "Overview", end: true },
-  { to: "/admin/users", label: "Users" },
-  { to: "/admin/billing", label: "Billing" },
-  { to: "/admin/inbox", label: "Inbox", badge: "unread" },
-  { to: "/admin/email", label: "Compose" },
-  { to: "/admin/docs", label: "Docs" },
-  { to: "/admin/audit", label: "Audit log" },
+  { to: "/admin", label: "Overview", Icon: LayoutDashboard, end: true },
+  { to: "/admin/users", label: "Users", Icon: Users },
+  { to: "/admin/billing", label: "Billing", Icon: CreditCard },
+  { to: "/admin/inbox", label: "Inbox", Icon: Mail, badge: "unread" },
+  { to: "/admin/email", label: "Compose", Icon: Send },
+  { to: "/admin/docs", label: "Docs", Icon: BookOpen },
+  { to: "/admin/audit", label: "Audit log", Icon: ClipboardList },
 ];
 
 export function AdminShell() {
   const { data } = useCurrentUser();
   const unread = useUnreadCount();
+  const location = useLocation();
+  const navigationId = useId();
+  const [openedAt, setOpenedAt] = useState(null);
+  const navigationOpen = openedAt === location.pathname;
+
+  useEffect(() => {
+    if (!navigationOpen) return undefined;
+    const close = (event) => {
+      if (event.key === "Escape") setOpenedAt(null);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [navigationOpen]);
 
   return (
-    <div className="admin-shell">
-      <a className="skip-link" href="#main">
+    <div className={`admin-shell${navigationOpen ? " is-nav-open" : ""}`}>
+      <a className="skip-link" href="#admin-main">
         Skip to content
       </a>
 
-      <div className="admin-head">
-        <div>
-          <p className="eyebrow">
-            <span className="admin-tag">Admin</span>
-            Signed in as {data?.user?.email}
-          </p>
-        </div>
-        <div className="admin-head__end">
-          <ThemeControl />
-          <NavLink className="admin-head__exit" to="/dashboard">
-            Back to the app
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar__top">
+          <NavLink aria-label="Weedout admin overview" className="admin-sidebar__brand" to="/admin">
+            <WeedoutLogo compact />
+            <span className="admin-tag">
+              <ShieldCheck aria-hidden="true" size={12} /> Admin
+            </span>
           </NavLink>
-        </div>
-      </div>
-
-      <nav aria-label="Admin sections" className="tabs">
-        {SECTIONS.map((section) => (
-          <NavLink
-            className={({ isActive }) => `tab${isActive ? " is-active" : ""}`}
-            end={section.end}
-            key={section.to}
-            to={section.to}
+          <button
+            aria-controls={navigationId}
+            aria-expanded={navigationOpen}
+            aria-label={navigationOpen ? "Close admin navigation" : "Open admin navigation"}
+            className="admin-sidebar__menu"
+            onClick={() => setOpenedAt(navigationOpen ? null : location.pathname)}
+            type="button"
           >
-            {section.label}
-            {/* Only rendered when there is something waiting. A badge showing
-                zero is a permanent decoration that stops meaning anything. */}
-            {section.badge === "unread" && unread > 0 ? (
-              <span className="pill pill--sm pill--high">{unread}</span>
-            ) : null}
-          </NavLink>
-        ))}
-      </nav>
+            {navigationOpen ? <X aria-hidden="true" size={18} /> : <Menu aria-hidden="true" size={18} />}
+          </button>
+        </div>
 
-      <main id="main">
+        <div className="admin-sidebar__panel" id={navigationId}>
+          <nav aria-label="Admin sections" className="admin-sidebar__nav">
+            <p>Administration</p>
+            {SECTIONS.map(({ to, label, Icon, end, badge }) => (
+              <NavLink
+                className={({ isActive }) =>
+                  `admin-sidebar__link${isActive ? " is-active" : ""}`
+                }
+                end={end}
+                key={to}
+                to={to}
+              >
+                <Icon aria-hidden="true" size={16} />
+                <span>{label}</span>
+                {badge === "unread" && unread > 0 ? (
+                  <strong aria-label={`${unread} unread`}>{unread}</strong>
+                ) : null}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="admin-sidebar__foot">
+            <ThemeControl />
+            <NavLink className="admin-sidebar__back" to="/dashboard">
+              <ArrowLeft aria-hidden="true" size={15} /> Back to app
+            </NavLink>
+            <p title={data?.user?.email}>
+              <FileText aria-hidden="true" size={13} /> {data?.user?.email}
+            </p>
+          </div>
+        </div>
+      </aside>
+
+      <main className="admin-shell__main" id="admin-main">
         <Outlet />
       </main>
     </div>

@@ -9,18 +9,158 @@
  * nothing else defines. */
 
 .admin-shell {
-  max-width: var(--wo-app-max);
+  display: grid;
+  grid-template-columns: 17rem minmax(0, 1fr);
+  gap: var(--wo-space-3);
+  max-width: none;
   min-height: 100vh;
-  margin: 0 auto;
-  padding: var(--wo-space-6) var(--wo-space-5) var(--wo-space-9);
+  margin: 0;
+  padding: 0 var(--wo-space-3) 0 0;
   background: var(--wo-bg);
   color: var(--wo-text);
 }
 
-@media (min-width: 60rem) {
-  .admin-shell {
-    padding-inline: var(--wo-space-7);
-  }
+.admin-sidebar {
+  position: sticky;
+  top: var(--wo-space-3);
+  display: flex;
+  width: 17rem;
+  height: calc(100vh - (var(--wo-space-3) * 2));
+  flex-direction: column;
+  margin: var(--wo-space-3) 0 var(--wo-space-3) var(--wo-space-3);
+  padding: var(--wo-space-4);
+  overflow: hidden;
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-xl);
+  background: var(--wo-surface);
+  box-shadow: var(--wo-shadow-soft);
+}
+
+.admin-sidebar__top,
+.admin-sidebar__brand,
+.admin-sidebar__link,
+.admin-sidebar__back,
+.admin-sidebar__foot > p {
+  display: flex;
+  align-items: center;
+}
+
+.admin-sidebar__top {
+  justify-content: space-between;
+  gap: var(--wo-space-3);
+}
+
+.admin-sidebar__brand {
+  min-width: 0;
+  gap: var(--wo-space-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.admin-sidebar__menu {
+  display: none;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border: 1px solid var(--wo-border);
+  border-radius: var(--wo-radius-sm);
+  background: var(--wo-surface-low);
+  color: var(--wo-text);
+}
+
+.admin-sidebar__panel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.admin-sidebar__nav {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: var(--wo-space-7);
+}
+
+.admin-sidebar__nav > p {
+  margin: 0 0 var(--wo-space-2);
+  padding-inline: 0.65rem;
+  color: var(--wo-text-dim);
+  font-size: 0.6rem;
+  font-weight: 690;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-sidebar__link {
+  min-height: 2.6rem;
+  gap: var(--wo-space-3);
+  padding: 0.65rem;
+  border-radius: var(--wo-radius-sm);
+  color: var(--wo-text-muted);
+  font-size: 0.78rem;
+  font-weight: 620;
+  text-decoration: none;
+}
+
+.admin-sidebar__link > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-sidebar__link > strong {
+  min-width: 1.35rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: var(--wo-warning-quiet);
+  color: var(--wo-warning);
+  font-size: 0.62rem;
+  text-align: center;
+}
+
+.admin-sidebar__link:hover {
+  background: var(--wo-surface-low);
+  color: var(--wo-text);
+}
+
+.admin-sidebar__link.is-active {
+  background: var(--wo-accent-quiet);
+  color: var(--wo-accent-strong);
+}
+
+.admin-sidebar__foot {
+  display: grid;
+  gap: var(--wo-space-3);
+  margin-top: auto;
+  padding-top: var(--wo-space-4);
+  border-top: 1px solid var(--wo-border);
+}
+
+.admin-sidebar__back,
+.admin-sidebar__foot > p {
+  gap: var(--wo-space-2);
+  color: var(--wo-text-muted);
+  font-size: 0.74rem;
+  text-decoration: none;
+}
+
+.admin-sidebar__back:hover {
+  color: var(--wo-text);
+}
+
+.admin-sidebar__foot > p {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wo-text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-shell__main {
+  width: min(100% - clamp(2rem, 5vw, 5rem), var(--wo-app-max));
+  min-width: 0;
+  margin: 0 auto;
+  padding: clamp(2rem, 4vw, 3.75rem) 0 var(--wo-space-9);
 }
 
 .admin-head {
@@ -65,6 +205,9 @@
 }
 
 .admin-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0.1rem 0.42rem;
   border-radius: var(--wo-radius-xs);
   background: var(--wo-accent-quiet);
@@ -73,6 +216,56 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+@media (max-width: 64rem) {
+  .admin-shell {
+    display: block;
+    padding: 0;
+  }
+
+  .admin-sidebar {
+    top: 0;
+    z-index: 30;
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 0.7rem 1rem;
+    overflow: visible;
+    border-width: 0 0 1px;
+    border-radius: 0;
+    background: var(--wo-veil);
+    box-shadow: none;
+    backdrop-filter: blur(16px);
+  }
+
+  .admin-sidebar__menu {
+    display: grid;
+  }
+
+  .admin-sidebar__panel {
+    display: none;
+  }
+
+  .is-nav-open .admin-sidebar__panel {
+    display: flex;
+    max-height: calc(100vh - 5rem);
+    padding-top: var(--wo-space-4);
+    overflow-y: auto;
+  }
+
+  .admin-sidebar__nav {
+    margin-top: 0;
+  }
+
+  .admin-sidebar__foot {
+    margin-top: var(--wo-space-4);
+  }
+
+  .admin-shell__main {
+    width: min(100% - 2rem, var(--wo-app-max));
+  }
 }
 
 /* --- Section navigation --------------------------------------------------- */

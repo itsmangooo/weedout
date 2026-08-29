@@ -34,7 +34,7 @@ const CAPABILITIES = [
     index: "02",
     title: "Read the evidence",
     description:
-      "Keep severity, known exploitation, fixed versions and manifest-level reachability together instead of chasing context across tools.",
+      "Keep severity, known exploitation, fixed versions and source-derived reachability evidence together instead of chasing context across tools.",
   },
   {
     Icon: ShieldCheck,
@@ -54,7 +54,8 @@ const WORKFLOW = [
   {
     index: "02",
     title: "Classify what was found",
-    description: "Advisory, dependency and exploit signals are evaluated against the project context.",
+    description:
+      "Advisory, dependency, source-import and exploit signals are evaluated against the project context.",
   },
   {
     index: "03",
@@ -74,8 +75,9 @@ export function FoundationPage() {
             </span>
             <h1 id="landing-title">Security findings with the context to fix them.</h1>
             <p className="landing-hero__lede">
-              Find vulnerable dependencies, understand how they entered your project, inspect the
-              evidence, and focus on what is worth fixing.
+              Match dependency vulnerabilities against OSV and CISA context, trace direct and
+              transitive paths, inspect conservative Node reachability evidence, and focus on the
+              findings that still require attention.
             </p>
             <div className="landing-actions">
               <Link className="button button--primary landing-action" to="/signup">
@@ -116,8 +118,10 @@ export function FoundationPage() {
                 better decision.
               </p>
               <p className="landing-honesty">
-                Reachability is based on dependency manifests. Weedout does not pretend to map a CVE
-                to a source line or prove that a vulnerable function executes.
+                Node reachability comes from static import and require observations. Evidence names
+                the source line and dependency path; dynamic or incomplete analysis stays Unknown.
+                Weedout does not claim that observing a package import proves a vulnerable function
+                executes.
               </p>
             </div>
             <FindingContext />
@@ -147,7 +151,8 @@ export function FoundationPage() {
             </div>
             <p>
               One focused workflow for the web app, local development and CI—without inventing a
-              second set of security results.
+              second set of security results. CLI scans add bounded JavaScript and TypeScript source
+              evidence; a manifest-only web scan reports reachability as Unknown.
             </p>
           </div>
 
@@ -169,8 +174,8 @@ export function FoundationPage() {
               <p className="section-label">CLI + CI</p>
               <h2>Run the same check where you build.</h2>
               <p>
-                Authenticate once, scan a supported project and use CI mode when critical or known
-                exploited findings should fail the job.
+                Authenticate once, scan a supported project and use CI mode when critical, malicious
+                or known-exploited findings should fail the job with a documented exit code.
               </p>
               <Link className="text-link" to="/cli">
                 Read the CLI guide <ArrowRight aria-hidden="true" size={15} />
@@ -179,7 +184,7 @@ export function FoundationPage() {
 
             <div className="landing-cli__terminal" aria-label="Example Weedout CLI session">
               <div className="landing-cli__bar" aria-hidden="true"><span /><span /><span /></div>
-              <pre><code><span>$ weedout scan --ci</span>{"\n"}{"\n"}demo-app ./package-lock.json{"\n"}412 dependencies scanned · 33 filtered out as noise{"\n"}<em>1 exploited · 1 critical</em>{"\n"}{"\n"}<strong>! systeminformation@5.0.0 CVE-2021-21315 → 5.3.1</strong></code></pre>
+              <pre><code><span>$ weedout scan --ci</span>{"\n"}{"\n"}demo-app ./package-lock.json{"\n"}412 dependencies scanned · 33 filtered out as noise{"\n"}<em>1 exploited · 1 critical</em>{"\n"}{"\n"}<strong>! axios@0.21.1 CVE-2021-3749 → 0.21.2</strong>{"\n"}  reachability: reachable{"\n"}  evidence: src/api.js:1 imports axios</code></pre>
             </div>
           </div>
         </div>

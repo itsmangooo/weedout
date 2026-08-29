@@ -36,20 +36,6 @@ const STARTER = `severity:
 export function RuleProfiles({ profiles, meta }) {
   const [editing, setEditing] = useState(null);
 
-  if (!meta.can_use_profiles) {
-    return (
-      <section aria-labelledby="profiles-title" className="settings-section">
-        <h2 id="profiles-title">
-          <SlidersHorizontal aria-hidden="true" size={17} /> Rule profiles
-        </h2>
-        <InlineNotice tone="neutral">
-          One set of scan rules, shared across projects. Part of the Pro plan.{" "}
-          <Link to="/billing">See the plans</Link>.
-        </InlineNotice>
-      </section>
-    );
-  }
-
   return (
     <section aria-labelledby="profiles-title" className="settings-section">
       <h2 id="profiles-title">

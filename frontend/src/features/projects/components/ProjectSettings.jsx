@@ -309,18 +309,6 @@ function RulesSection({ page, projectId }) {
     setThresholds(projectId, { direct, transitive, epss: page.thresholds.epss }),
   );
 
-  if (!page.can_use_rules) {
-    return (
-      <section aria-labelledby="rules-title">
-        <h2 id="rules-title">Scan rules</h2>
-        <InlineNotice tone="neutral">
-          Custom thresholds and ignore rules are part of the Pro plan.{" "}
-          <Link to="/billing">See the plans</Link>.
-        </InlineNotice>
-      </section>
-    );
-  }
-
   return (
     <section aria-labelledby="rules-title">
       <h2 id="rules-title">Scan rules</h2>

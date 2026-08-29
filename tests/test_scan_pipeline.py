@@ -261,8 +261,8 @@ class TestScanPipeline:
         await scan_target(db, pro_target)
 
         now = utcnow()
-        assert free_target.next_scan_at - now > timedelta(hours=20)  # daily
-        assert pro_target.next_scan_at - now < timedelta(hours=5)  # every 4h
+        assert free_target.next_scan_at - now < timedelta(hours=5)
+        assert pro_target.next_scan_at - now < timedelta(hours=5)
 
     async def test_an_empty_mirror_fails_the_run_rather_than_reporting_clean(self, db, user):
         """The most dangerous wrong answer this system can give is "no findings".

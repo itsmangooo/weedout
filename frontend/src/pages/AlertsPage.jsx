@@ -35,7 +35,7 @@ const EMPTY = {
 function historyNote(days) {
   if (days === null) return null;
   if (days >= 365) return "Showing the past year.";
-  return `Showing the past ${days} days. Pro keeps a year.`;
+  return `Showing the past ${days} days.`;
 }
 
 export function AlertsPage() {

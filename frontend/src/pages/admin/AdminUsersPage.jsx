@@ -5,7 +5,6 @@ import { Button } from "../../components/ui/Button";
 import { useUsers } from "../../features/admin/hooks/useAdmin";
 import { relativeTime } from "../../lib/time";
 
-const TIERS = ["free", "pro"];
 const STATUSES = ["active", "suspended", "admin"];
 
 export function AdminUsersPage() {
@@ -14,7 +13,6 @@ export function AdminUsersPage() {
   const filters = {
     page: Number(params.get("page")) || 1,
     search: params.get("search") || "",
-    tier: params.get("tier") || "",
     status: params.get("status") || "",
   };
 
@@ -24,7 +22,7 @@ export function AdminUsersPage() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const next = new URLSearchParams();
-    for (const field of ["search", "tier", "status"]) {
+    for (const field of ["search", "status"]) {
       const value = String(form.get(field) || "").trim();
       if (value) next.set(field, value);
     }
@@ -37,7 +35,7 @@ export function AdminUsersPage() {
   if (query.isError) return <AsyncError error={query.error} onRetry={() => query.refetch()} />;
 
   const { data, query: applied } = query.data;
-  const filtered = Boolean(applied.search || applied.tier || applied.status);
+  const filtered = Boolean(applied.search || applied.status);
 
   return (
     <>
@@ -63,20 +61,6 @@ export function AdminUsersPage() {
             placeholder="Email contains…"
             type="search"
           />
-        </div>
-
-        <div>
-          <label className="label" htmlFor="tier">
-            Plan
-          </label>
-          <select className="select" defaultValue={applied.tier} id="tier" name="tier">
-            <option value="">Any</option>
-            {TIERS.map((value) => (
-              <option key={value} value={value}>
-                {value === "pro" ? "Pro" : "Free"}
-              </option>
-            ))}
-          </select>
         </div>
 
         <div>
@@ -110,7 +94,6 @@ export function AdminUsersPage() {
               <thead>
                 <tr>
                   <th scope="col">Email</th>
-                  <th scope="col">Plan</th>
                   <th scope="col">Status</th>
                   <th scope="col">Projects</th>
                   <th scope="col">Open alerts</th>
@@ -164,11 +147,6 @@ function UserRow({ row }) {
           {account.email}
         </Link>
         {account.is_admin ? <span className="pill pill--digest">Admin</span> : null}
-      </td>
-      <td>
-        <span className={`pill ${account.tier === "pro" ? "pill--calm" : "pill--plain"}`}>
-          {account.tier_label}
-        </span>
       </td>
       <td>
         {account.is_suspended ? (

@@ -31,7 +31,6 @@ from app.models import (
     User,
     utcnow,
 )
-from app.services.plan_service import apply_tier_change
 
 log = get_logger(__name__)
 
@@ -41,7 +40,6 @@ __all__ = [
     "PlatformMetrics",
     "RevenueSnapshot",
     "UserPage",
-    "change_user_tier",
     "delete_user",
     "is_last_admin",
     "list_users",
@@ -138,9 +136,7 @@ class UserPage:
         return min(self.page * self.per_page, self.total)
 
 
-def _apply_user_filters(
-    query: Select, search: str | None, tier: Tier | None, status: str | None
-) -> Select:
+def _apply_user_filters(query: Select, search: str | None, status: str | None) -> Select:
     """Filters shared by the page query and its count query.
 
     Sharing them is what keeps the pagination total honest — a count computed
@@ -152,9 +148,6 @@ def _apply_user_filters(
         # every address with any character between "a" and "b".
         escaped = search.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         query = query.where(User.email.ilike(f"%{escaped}%", escape="\\"))
-
-    if tier is not None:
-        query = query.where(User.tier == tier)
 
     if status == "suspended":
         query = query.where(User.is_suspended.is_(True))
@@ -171,7 +164,6 @@ async def list_users(
     page: int = 1,
     per_page: int = 25,
     search: str | None = None,
-    tier: Tier | None = None,
     status: str | None = None,
 ) -> UserPage:
     """A page of users with their target and open-alert counts.
@@ -182,11 +174,11 @@ async def list_users(
     """
     total = (
         await db.scalar(
-            _apply_user_filters(select(func.count(User.id)).select_from(User), search, tier, status)
+            _apply_user_filters(select(func.count(User.id)).select_from(User), search, status)
         )
     ) or 0
 
-    query = _apply_user_filters(select(User), search, tier, status)
+    query = _apply_user_filters(select(User), search, status)
     users = list(
         (
             await db.scalars(
@@ -298,7 +290,10 @@ async def user_detail(db: AsyncSession, user_id: int) -> UserDetail | None:
                     CVEMatch.verdict == Verdict.ACTIONABLE,
                     CVEMatch.status == AlertStatus.OPEN,
                 ),
-                func.count(CVEMatch.id).filter(CVEMatch.verdict == Verdict.SUPPRESSED),
+                func.count(CVEMatch.id).filter(
+                    CVEMatch.verdict == Verdict.SUPPRESSED,
+                    CVEMatch.status == AlertStatus.FILTERED,
+                ),
             )
             .select_from(CVEMatch)
             .join(TrackedTarget, TrackedTarget.id == CVEMatch.target_id)
@@ -322,47 +317,6 @@ async def user_detail(db: AsyncSession, user_id: int) -> UserDetail | None:
         open_alert_count=counts[0] or 0,
         suppressed_count=counts[1] or 0,
         scan_count=scan_count,
-    )
-
-
-async def change_user_tier(
-    db: AsyncSession,
-    actor: User,
-    target: User,
-    new_tier: Tier,
-    note: str = "",
-    ip_address: str | None = None,
-) -> None:
-    """Set a user's tier by hand — for comps, support credits and refunds.
-
-    Deliberately does **not** touch the Dodo subscription fields. Those are
-    owned by the webhook, and overwriting them here would make the billing view
-    disagree with Dodo's own records. A manual tier is an override layered on
-    top, and the audit entry records that it was manual so a later billing
-    discrepancy is explicable.
-    """
-    if target.tier is new_tier:
-        raise AdminActionError(f"{target.email} is already on the {new_tier.value} plan.")
-
-    previous = target.tier
-    # Through the service, so the account's scan cadence moves with the plan.
-    # Setting `tier` here would leave every project on the schedule of the plan
-    # they are no longer on, for up to a day.
-    await apply_tier_change(db, target, new_tier)
-
-    record_audit(
-        db,
-        actor,
-        action="user.tier_changed",
-        target=target,
-        details={
-            "from": previous.value,
-            "to": new_tier.value,
-            "note": note,
-            "manual_override": True,
-            "dodo_subscription_id": target.dodo_subscription_id,
-        },
-        ip_address=ip_address,
     )
 
 
@@ -479,7 +433,7 @@ async def delete_user(
         target=target,
         details={
             "email": target.email,
-            "tier": target.tier.value,
+            "tier": "free",
             "was_suspended": target.is_suspended,
             "dodo_subscription_id": target.dodo_subscription_id,
             "removed": removed,
@@ -639,8 +593,6 @@ async def feed_health(db: AsyncSession) -> list[FeedHealth]:
 @dataclass(slots=True)
 class PlatformMetrics:
     total_users: int = 0
-    free_users: int = 0
-    paid_users: int = 0
     suspended_users: int = 0
     new_users_7d: int = 0
 
@@ -655,13 +607,6 @@ class PlatformMetrics:
     open_alerts: int = 0
     suppressed_alerts: int = 0
     alerts_emailed_7d: int = 0
-
-    @property
-    def paid_share(self) -> int:
-        """Conversion, as a whole percentage."""
-        if self.total_users == 0:
-            return 0
-        return round(self.paid_users / self.total_users * 100)
 
     @property
     def noise_filtered_share(self) -> int:
@@ -685,8 +630,6 @@ async def platform_metrics(db: AsyncSession) -> PlatformMetrics:
         await db.execute(
             select(
                 func.count(User.id),
-                func.count(User.id).filter(User.tier == Tier.FREE),
-                func.count(User.id).filter(User.tier == Tier.PRO),
                 func.count(User.id).filter(User.is_suspended.is_(True)),
                 func.count(User.id).filter(User.created_at >= week_ago),
             )
@@ -722,7 +665,10 @@ async def platform_metrics(db: AsyncSession) -> PlatformMetrics:
                     CVEMatch.verdict == Verdict.ACTIONABLE,
                     CVEMatch.status == AlertStatus.OPEN,
                 ),
-                func.count(CVEMatch.id).filter(CVEMatch.verdict == Verdict.SUPPRESSED),
+                func.count(CVEMatch.id).filter(
+                    CVEMatch.verdict == Verdict.SUPPRESSED,
+                    CVEMatch.status == AlertStatus.FILTERED,
+                ),
             )
         )
     ).one()
@@ -735,10 +681,8 @@ async def platform_metrics(db: AsyncSession) -> PlatformMetrics:
 
     return PlatformMetrics(
         total_users=user_row[0] or 0,
-        free_users=user_row[1] or 0,
-        paid_users=user_row[2] or 0,
-        suspended_users=user_row[3] or 0,
-        new_users_7d=user_row[4] or 0,
+        suspended_users=user_row[1] or 0,
+        new_users_7d=user_row[2] or 0,
         total_targets=target_row[0] or 0,
         total_dependencies=target_row[1] or 0,
         scans_today=scan_row[0] or 0,
@@ -824,7 +768,7 @@ class RevenueSnapshot:
     trialing_count: int = 0
     mrr_cents: int = 0
     currency: str = "USD"
-    #: Paid accounts with no recorded subscription — comps, or a webhook that
+    #: Legacy tier rows with no recorded subscription — overrides, or a webhook that
     #: arrived before the amount fields existed. Surfaced rather than hidden,
     #: because a silent gap here understates revenue.
     untracked_paid_count: int = 0

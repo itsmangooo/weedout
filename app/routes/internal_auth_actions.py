@@ -24,6 +24,7 @@ from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ValidationError
 
+from app.core.types import Tier
 from app.deps import (
     AppSettings,
     CsrfProtected,
@@ -166,7 +167,7 @@ def _user_view(user) -> CurrentUserView:
         id=user.id,
         email=user.email,
         is_admin=user.is_admin,
-        tier=user.tier,
+        tier=Tier.FREE,
         account_state="active",
     )
 

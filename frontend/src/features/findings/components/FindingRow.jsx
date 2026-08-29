@@ -5,9 +5,10 @@ import { Link } from "react-router";
 import { EntityContextMenu } from "../../../components/ui/EntityContextMenu";
 
 const REACHABILITY_LABELS = {
-  runtime_direct: "Direct runtime",
-  runtime_transitive: "Transitive runtime",
-  dev_only: "Development only",
+  reachable: "Reachable",
+  potentially_reachable: "Potentially reachable",
+  not_observed: "Not observed",
+  unknown: "Unknown",
 };
 
 function detectedLabel(value) {
@@ -60,7 +61,7 @@ export function FindingRow({ finding }) {
           </span>
           <span className="finding-signal">
             <RadioTower aria-hidden="true" size={13} />
-            {REACHABILITY_LABELS[finding.reachability]}
+            {REACHABILITY_LABELS[finding.reachability] ?? "Unknown"}
           </span>
         </div>
 

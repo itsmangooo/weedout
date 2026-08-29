@@ -26,6 +26,7 @@ from app.core.policy import MATCHES_EVERYTHING, MAX_PATTERN_LENGTH
 from app.core.types import (
     AlertStatus,
     AudienceKind,
+    AutomatedReachability,
     ContactCategory,
     Ecosystem,
     IgnoreKind,
@@ -141,7 +142,9 @@ class FindingAttentionView(BaseModel):
     installed_version: str
     severity: Severity
     is_exploited: bool
-    reachability: Reachability
+    reachability: AutomatedReachability
+    reachability_evidence: list[dict[str, object]] = Field(default_factory=list)
+    dependency_relationship: Reachability
     status: AlertStatus
     detected_at: datetime
 
@@ -338,8 +341,8 @@ class MatchActionForm(BaseModel):
         Allowing it here would let a user mark something resolved that is still
         present, and the next scan would silently contradict them.
         """
-        if value is AlertStatus.RESOLVED:
-            raise ValueError("A finding is marked resolved by a scan, not manually.")
+        if value not in (AlertStatus.OPEN, AlertStatus.DISMISSED):
+            raise ValueError("Only open and dismissed are manual finding states.")
         return value
 
 
@@ -593,22 +596,12 @@ class UserListQuery(BaseModel):
     page: Annotated[int, Field(default=1, ge=1, le=100_000)]
     per_page: Annotated[int, Field(default=25, ge=5, le=100)]
     search: Annotated[str, Field(default="", max_length=320)]
-    #: Empty string means "any" — these arrive from a <select> whose first
-    #: option has no value, so blank has to be a legal input, not an error.
-    tier: Annotated[str, Field(default="")]
     status: Annotated[str, Field(default="")]
 
     @field_validator("search")
     @classmethod
     def clean_search(cls, value: str) -> str:
         return "".join(ch for ch in value if ch.isprintable()).strip()
-
-    @field_validator("tier")
-    @classmethod
-    def known_tier(cls, value: str) -> str:
-        if value and value not in {t.value for t in Tier}:
-            raise ValueError("Unknown tier filter.")
-        return value
 
     @field_validator("status")
     @classmethod
@@ -618,30 +611,12 @@ class UserListQuery(BaseModel):
         return value
 
     @property
-    def tier_filter(self) -> Tier | None:
-        return Tier(self.tier) if self.tier else None
-
-    @property
     def status_filter(self) -> str | None:
         return self.status or None
 
     @property
     def search_filter(self) -> str | None:
         return self.search or None
-
-
-class TierChangeForm(BaseModel):
-    """Manual tier override, for comps and support."""
-
-    model_config = ConfigDict(str_strip_whitespace=True)
-
-    tier: Tier
-    note: Annotated[str, Field(default="", max_length=500)]
-
-    @field_validator("note")
-    @classmethod
-    def printable(cls, value: str) -> str:
-        return "".join(ch for ch in value if ch.isprintable() or ch == "\n").strip()
 
 
 class SuspendForm(BaseModel):
@@ -717,6 +692,9 @@ class ProjectDependencyView(BaseModel):
     version: str
     depth: int
     is_direct: bool
+    dependency_relationship: Reachability
+    reachability: AutomatedReachability
+    reachability_evidence: list[dict[str, object]] = Field(default_factory=list)
 
 
 class ProjectRunView(BaseModel):
@@ -866,6 +844,10 @@ class ProjectDetailView(BaseModel):
     next_scan_at: datetime | None
     last_scan_error: str | None
     unreached_by_depth: int
+    reachability_analyzed_at: datetime | None
+    reachability_source_count: int
+    reachability_analysis_complete: bool
+    reachability_analysis_notes: list[str]
     counts: dict[str, int]
     tab_counts: dict[str, int]
 

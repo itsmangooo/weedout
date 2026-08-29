@@ -35,7 +35,6 @@ from app.routes import (
     internal_alerts,
     internal_auth,
     internal_auth_actions,
-    internal_billing,
     internal_cli_auth,
     internal_dashboard,
     internal_findings,
@@ -166,7 +165,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(internal_admin.router)
     app.include_router(internal_alerts.router)
-    app.include_router(internal_billing.router)
     app.include_router(internal_auth.router)
     app.include_router(internal_auth_actions.router)
     app.include_router(internal_auth_actions.form_router)
@@ -235,10 +233,8 @@ def _register_middleware(app: FastAPI) -> None:
         # 'unsafe-inline' for styles covers the few inline style attributes used
         # for progress bars and chart segments.
         #
-        # Dodo uses a hosted checkout on its own domain rather than an embedded
-        # SDK, so unlike the previous provider this needs no third-party script
-        # or frame source at all — the policy stays strict even when billing is
-        # switched on, and `form-action` allows the redirect out to checkout.
+        # No payment or analytics SDK runs in the browser, so script and frame
+        # sources stay first-party only.
         script_src = "'self'"
         frame_src = "'none'"
         connect_src = "'self'"

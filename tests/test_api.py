@@ -12,12 +12,13 @@ that found nothing. A pipeline reads a green build as "checked and clean".
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
 
-from app.core.types import KeyScope, ManifestKind
-from app.models import ApiKey, TrackedTarget
+from app.core.types import AlertStatus, AutomatedReachability, KeyScope, ManifestKind
+from app.models import ApiKey, CVEMatch, DependencyRecord, TrackedTarget
 from app.security import content_hash, hash_api_key
 from app.services.api_key_service import (
     MAX_ACTIVE_KEYS_PER_TARGET,
@@ -51,6 +52,8 @@ MEDIUM_LODASH = dict(
     aliases=["CVE-2099-0002"],
     severity=[{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:L/A:N"}],
 )
+
+STRICTSEAL = Path(__file__).parent / "fixtures" / "strictseal" / "node-project"
 
 
 async def make_target(db, owner, name="demo-app") -> TrackedTarget:
@@ -575,3 +578,101 @@ class TestKeyScopes:
 
         assert body["project"] not in {theirs.name}
         assert body["project"] != mine.name
+
+
+class TestReachabilityScanContract:
+    async def _manage_key(self, db, user) -> tuple[str, ApiKey]:
+        target = await make_target(db, user, name="strictseal")
+        issued = await issue_api_key(db, user, target, name="strictseal", scope=KeyScope.MANAGE)
+        await db.flush()
+        return issued.token, issued.record
+
+    async def test_source_evidence_and_filtered_state_agree_across_storage_and_api(
+        self, client, db, user
+    ):
+        await seed_mirror(db, MEDIUM_LODASH)
+        token, key = await self._manage_key(db, user)
+        lockfile = (STRICTSEAL / "package-lock.json").read_text(encoding="utf-8")
+        source = (STRICTSEAL / "src" / "api.js").read_text(encoding="utf-8")
+        context = json.dumps({"files": ["src/api.js"], "complete": True, "notes": []})
+
+        response = await client.post(
+            "/api/v1/scan",
+            headers={"Authorization": f"Bearer {token}"},
+            data={"source_context": context},
+            files=[
+                ("manifest", ("package-lock.json", lockfile, "application/json")),
+                ("sources", ("api.js", source, "text/javascript")),
+            ],
+        )
+
+        assert response.status_code == 200, response.text
+        reachability = response.json()["reachability"]
+        assert reachability["analysis_complete"] is True
+        assert reachability["source_files"] == 1
+
+        rows = (
+            await db.scalars(
+                select(DependencyRecord).where(DependencyRecord.target_id == key.target_id)
+            )
+        ).all()
+        by_name = {row.name: row for row in rows}
+        assert by_name["axios"].automated_reachability is AutomatedReachability.REACHABLE
+        assert by_name["axios"].reachability_evidence[0]["source_file"] == "src/api.js"
+        assert by_name["axios"].reachability_evidence[0]["line"] == 1
+        assert by_name["lodash"].automated_reachability is AutomatedReachability.NOT_OBSERVED
+        assert by_name["qs"].automated_reachability is AutomatedReachability.POTENTIALLY_REACHABLE
+        assert by_name["qs"].reachability_evidence[0]["dependency_path"][-1] == "qs"
+
+        match = await db.scalar(
+            select(CVEMatch).where(
+                CVEMatch.target_id == key.target_id,
+                CVEMatch.package_name == "lodash",
+            )
+        )
+        assert match is not None
+        assert match.status is AlertStatus.FILTERED
+
+        headers = {"Authorization": f"Bearer {token}"}
+        filtered = (await client.get("/api/v1/findings?show=filtered", headers=headers)).json()
+        opened = (await client.get("/api/v1/findings?show=open", headers=headers)).json()
+        assert filtered["findings"][0]["status"] == "filtered"
+        assert filtered["findings"][0]["reachability"] == "not_observed"
+        assert all(item["advisory"] != MEDIUM_LODASH["id"] for item in opened["findings"])
+
+    async def test_source_labels_reject_path_traversal(self, client, db, user):
+        await seed_mirror(db, MEDIUM_LODASH)
+        token, _ = await self._manage_key(db, user)
+        lockfile = (STRICTSEAL / "package-lock.json").read_text(encoding="utf-8")
+
+        response = await client.post(
+            "/api/v1/scan",
+            headers={"Authorization": f"Bearer {token}"},
+            data={"source_context": json.dumps({"files": ["../secret.js"], "complete": True})},
+            files=[
+                ("manifest", ("package-lock.json", lockfile, "application/json")),
+                ("sources", ("secret.js", "require('axios')", "text/javascript")),
+            ],
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"] == "invalid_source_path"
+
+    async def test_source_inventory_rejects_duplicate_labels(self, client, db, user):
+        token, _ = await self._manage_key(db, user)
+        lockfile = (STRICTSEAL / "package-lock.json").read_text(encoding="utf-8")
+        context = json.dumps({"files": ["src/api.js", "src/api.js"], "complete": True})
+
+        response = await client.post(
+            "/api/v1/scan",
+            headers={"Authorization": f"Bearer {token}"},
+            data={"source_context": context},
+            files=[
+                ("manifest", ("package-lock.json", lockfile, "application/json")),
+                ("sources", ("api.js", "require('axios')", "text/javascript")),
+                ("sources", ("copy.js", "require('axios')", "text/javascript")),
+            ],
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"] == "invalid_source_context"

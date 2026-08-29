@@ -87,7 +87,7 @@ def _database_name() -> str:
     return TEST_DATABASE_URL.rsplit("/", maxsplit=1)[-1]
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def ensure_test_database() -> None:
     """Create the test database if it does not exist.
 
@@ -116,7 +116,14 @@ async def engine(ensure_test_database):
     """
     eng = create_async_engine(TEST_DATABASE_URL, poolclass=None)
     async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # A historical migration created a deferred cross-table constraint
+        # that SQLAlchemy's metadata cannot order reliably during ``drop_all``.
+        # This database is dedicated to tests, so reset its public schema as a
+        # unit and then rebuild from the current model truth.
+        if not _database_name().endswith("_test"):
+            raise RuntimeError("Refusing to reset a database whose name does not end in '_test'.")
+        await conn.exec_driver_sql("DROP SCHEMA public CASCADE")
+        await conn.exec_driver_sql("CREATE SCHEMA public")
         await conn.run_sync(Base.metadata.create_all)
     yield eng
     await eng.dispose()

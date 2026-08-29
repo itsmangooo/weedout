@@ -19,11 +19,10 @@ export function PricingPage() {
     <div className="page-narrow">
       <header className="page-head">
         <p className="section-label">Pricing</p>
-        <h1>One free project. Everything else on one plan.</h1>
+        <h1>Everything Weedout ships is Free.</h1>
         <p className="page-head__lede">
-          Both plans use the same matching and the same filtering. Paying does not
-          change which vulnerabilities you are shown — it changes how many projects
-          you can watch, how often, and how deep.
+          Dependency analysis, Node reachability evidence, custom rules, alerts, CLI,
+          and CI behavior are included at no charge in the single Free product.
         </p>
       </header>
 
@@ -46,7 +45,7 @@ export function PricingPage() {
                 ))}
               </ul>
               <Link className="button button--primary" to="/signup">
-                Start with {plan.name}
+                Create a free account
               </Link>
             </section>
           ))}

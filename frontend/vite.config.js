@@ -18,6 +18,7 @@ export default defineConfig({
       "/events": { target: backend },
       "/webhooks": { target: backend },
       "/install.sh": { target: backend },
+      "/install.ps1": { target: backend },
       // The pre-paint theme script and the favicon live with the backend's
       // static files, and index.html asks for them by absolute path.
       "/static": { target: backend },
@@ -28,5 +29,11 @@ export default defineConfig({
     setupFiles: "./src/test/setup.js",
     css: true,
     restoreMocks: true,
+    // Route modules are intentionally lazy and transform on demand. Running
+    // every jsdom file in parallel made those imports miss assertion timeouts
+    // under ordinary Windows CI load, even though each file passed alone.
+    // Serial files keep the default `npm test -- --run` contract deterministic.
+    fileParallelism: false,
+    testTimeout: 10_000,
   },
 });

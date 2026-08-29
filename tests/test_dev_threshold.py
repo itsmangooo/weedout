@@ -163,10 +163,8 @@ class TestFromThePolicyFile:
         assert parsed.is_empty is False
 
 
-class TestItIsPro:
-    async def test_a_free_project_does_not_get_a_dev_floor(self, db, user):
-        """Server-side, as with every other rule: the row may exist from a
-        lapsed subscription and simply stops applying."""
+class TestItIsFree:
+    async def test_a_free_project_gets_a_dev_floor(self, db, user):
         from app.services.rules_service import build_policy
         from app.services.target_service import create_target
 
@@ -178,8 +176,8 @@ class TestItIsPro:
 
         effective = await build_policy(db, target, user)
 
-        assert effective.policy.dev_threshold is None
-        assert any("Pro plan" in note for note in effective.notes)
+        assert effective.policy.dev_threshold is Severity.CRITICAL
+        assert not any("plan" in note.lower() for note in effective.notes)
 
     async def test_a_pro_project_does(self, db, pro_user):
         from app.services.rules_service import build_policy

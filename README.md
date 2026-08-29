@@ -112,10 +112,13 @@ Everything else is suppressed with a recorded reason: dev-only dependency,
 transitive and not exploited, below the severity threshold, or advisory
 withdrawn.
 
-Weedout reads manifests — it does **not** analyse your source code and will
-never claim to know whether you call the vulnerable function.
-[`docs/reachability.md`](docs/reachability.md) states exactly what "reachable"
-means here and where the limits are.
+For Node projects scanned by the CLI, Weedout performs conservative static
+import analysis and reports `reachable`, `potentially_reachable`,
+`not_observed`, or `unknown` with source-line and dependency-path evidence.
+This automated state is separate from direct/transitive relationship and from
+the alert policy; severity is never used as reachability. Raw source is analysed
+in memory and is not persisted. [`docs/reachability.md`](docs/reachability.md)
+defines the states, limits, upload bounds and privacy behavior.
 
 ### A manifest range is not an installed version
 
@@ -500,51 +503,33 @@ thing it describes records nothing worth having.
 MRR is summed from what the Dodo webhooks stored, not from a live API call:
 this page is checked often and shouldn't hang because Dodo is slow. Annual
 plans are divided by twelve, and a multi-period cadence ("every 3 months") is
-folded into its interval unit. Comped Pro accounts with no subscription are
+folded into its interval unit. Legacy paid records with no subscription are
 counted and reported separately, so the headline is an explicit floor rather
-than a quietly wrong number. Anything with financial consequence — refunds,
+than a quietly wrong number. Anything with financial consequence — refunds or
 disputes — links out to Dodo rather than being reimplemented here.
 
-## Billing
+## Retired subscriptions
 
-[Dodo Payments](https://dodopayments.com), chosen because it acts as merchant of
-record and handles VAT and sales tax globally — which matters when the seller is
-outside the usual merchant jurisdictions. The alternative is registering for tax
-in every market you sell into.
+Weedout now has one product entitlement: Free. It includes unlimited projects,
+four-hour checks, the full dependency tree, custom rules and profiles, email and
+webhook alerts, one year of history, and the CLI/CI workflow. There is no
+checkout, upgrade route, paid capability, or normal-user billing screen.
 
-| | Free | Pro |
-|---|---|---|
-| Projects | 1 | Unlimited |
-| Check frequency | Daily | Every 4 hours |
-| Email alerts | Yes | Yes |
-| Slack / Discord webhooks | — | Planned |
-| History | 30 days | 365 days |
+The database still accepts historical `tier='pro'` rows and Dodo subscription
+events so administrators can reconcile invoices, refunds, disputes and tax
+records. Every such account is served the same Free entitlement, and a payment
+event cannot recreate a user-facing paid plan.
 
-Plan limits live in one place, `app/tiers.py`. Nothing else in the codebase
-branches on `user.tier` directly, so changing pricing means editing one table.
+Entitlements live in one place, `app/tiers.py`. Both legacy database values map
+to the immutable Free limits.
 
-To enable checkout, set `DODO_ENABLED=true` plus the API key, webhook secret and
-product ID. The app refuses to start if any are missing rather than silently
-running with billing half-configured.
-
-Checkout is a plain link to Dodo's hosted page — no embedded SDK, so no
-third-party script runs on the site and the Content-Security-Policy stays strict
-even with billing switched on. The account is identified by a `reference_id`
-passed at checkout and echoed back on every webhook, so a payment ties to the
-right account even when the customer pays with a different email.
-
-Point a Dodo webhook at `POST /webhooks/dodo`. **The webhook is the only thing
-that grants paid access** — the browser is never trusted to report that a payment
-succeeded. Signatures follow the [Standard Webhooks](https://www.standardwebhooks.com)
+Point a Dodo webhook at `POST /webhooks/dodo`. **The webhook only records a
+legacy subscription event; it never grants product access.** The browser is
+never trusted to report that a payment succeeded. Signatures follow the
+[Standard Webhooks](https://www.standardwebhooks.com)
 spec: HMAC-SHA256 over `{id}.{timestamp}.{raw body}` with the base64-decoded
 signing secret, plus a timestamp check so a captured webhook cannot be replayed
-to keep resetting a cancelled subscription to active.
-
-`on_hold` is Dodo's dunning state and **keeps** paid access — locking someone out
-while their bank retries is how you lose a customer who was about to pay.
-
-Cancellations honour time already paid for: the webhook records an end date and
-an hourly job applies the downgrade once that date passes.
+to keep changing a historical record.
 
 ## Email
 
@@ -717,10 +702,12 @@ than assumed.
 
 ## What is deliberately not built yet
 
-- **No source-code scanning.** This is dependency-manifest matching. See
+- **No full source-code vulnerability scanner.** For Node projects, bounded
+  JavaScript/TypeScript source is used only to derive conservative dependency
+  import evidence; it does not prove that a vulnerable function executes. See
   `docs/reachability.md`.
-- **No Slack/Discord webhooks.** The email path works end to end first; the tier
-  flag exists so adding them touches one table.
+- **No Slack integration.** Email, Discord, and validated custom webhook alerts
+  work end to end; Slack-specific payloads and OAuth do not exist.
 - **No GitHub sign-in.** It was started and removed rather than left
   half-finished. Re-adding it means re-answering the question that stopped it:
   linking a GitHub identity to an existing password account by matching email

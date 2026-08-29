@@ -93,8 +93,8 @@ class MatchPolicy:
     #: not nothing either, and switching dev findings off entirely hides a
     #: genuinely compromised build tool.
     #:
-    #: Only reachable on Pro, and only meaningful where the manifest says
-    #: which dependencies are dev-only — npm's devDependencies, Maven's
+    #: Only meaningful where the manifest says which dependencies are
+    #: dev-only — npm's devDependencies, Maven's
     #: `test` and `provided` scopes, Gradle's test classpaths. Cargo.lock does
     #: not record it, so nothing there is ever classified dev-only.
     dev_threshold: Severity | None = None

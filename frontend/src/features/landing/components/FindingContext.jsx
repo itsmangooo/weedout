@@ -6,7 +6,7 @@ export function FindingContext() {
       <header className="finding-context__head">
         <div>
           <span className="finding-context__eyebrow">Illustrative finding</span>
-          <h3>CVE-2021-44906</h3>
+          <h3>CVE-2021-3749</h3>
         </div>
         <span className="finding-context__severity">High severity</span>
       </header>
@@ -15,12 +15,12 @@ export function FindingContext() {
         <PackageSearch aria-hidden="true" size={18} />
         <div>
           <span>Affected package</span>
-          <strong>minimist@1.2.5</strong>
+          <strong>axios@0.21.1</strong>
         </div>
         <ArrowRight aria-hidden="true" size={16} />
         <div>
           <span>Fixed version</span>
-          <strong>1.2.6</strong>
+          <strong>0.21.2</strong>
         </div>
       </div>
 
@@ -30,27 +30,26 @@ export function FindingContext() {
         </div>
         <ol aria-label="Example dependency path">
           <li>demo-app</li>
-          <li>mkdirp</li>
-          <li>minimist</li>
+          <li>axios</li>
         </ol>
       </div>
 
       <dl className="finding-context__facts">
         <div>
           <dt>Reachability</dt>
-          <dd>Runtime transitive</dd>
+          <dd>Reachable</dd>
           <small>
-            Manifest-level context: it ships with the application. Weedout does not claim the
+            src/api.js:1 imports axios. This observes a package import; it does not claim the
             vulnerable function executes.
           </small>
         </div>
         <div>
           <dt>Why it surfaced</dt>
-          <dd><CheckCircle2 aria-hidden="true" size={14} /> Runtime dependency · high severity</dd>
+          <dd><CheckCircle2 aria-hidden="true" size={14} /> Source evidence · high severity</dd>
         </div>
         <div>
           <dt>Suggested action</dt>
-          <dd><Wrench aria-hidden="true" size={14} /> Update to 1.2.6 or later</dd>
+          <dd><Wrench aria-hidden="true" size={14} /> Update to 0.21.2 or later</dd>
         </div>
       </dl>
     </article>

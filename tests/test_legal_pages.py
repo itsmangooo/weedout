@@ -168,15 +168,14 @@ class TestThePrivacyPolicyIsNotLying:
         assert "weedout_mfa" in PRIVACY
 
     def test_the_retention_windows_match_the_plan_table(self):
-        """The policy quotes 30 days and a year for the findings archive.
-        Those numbers live in `app/tiers.py`, and two copies of a number is one
-        copy too many."""
+        """The policy matches the single Free archive window."""
         from app.core.types import Tier
         from app.tiers import history_cutoff_days
 
-        assert f"{history_cutoff_days(Tier.FREE)} days on Free" in flat(PRIVACY)
+        assert "available for one year" in flat(PRIVACY)
         assert history_cutoff_days(Tier.PRO) == 365
-        assert "a year on Pro" in flat(PRIVACY)
+        assert "on Pro" not in flat(PRIVACY)
+        assert "Pro plan" not in flat(PRIVACY)
 
     def test_the_password_hashing_claim_is_true(self):
         assert "Argon2" in PRIVACY

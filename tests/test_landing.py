@@ -45,7 +45,7 @@ async def make_finding(
     severity=Severity.CRITICAL,
     is_kev=False,
     verdict=Verdict.ACTIONABLE,
-    status=AlertStatus.OPEN,
+    status=None,
     project_name="super-secret-project",
     vuln_id=None,
 ) -> CVEMatch:
@@ -87,7 +87,8 @@ async def make_finding(
         fixed_version="9.9.9",
         actionable_reason="critical_in_production" if verdict is Verdict.ACTIONABLE else None,
         suppression_reason=None if verdict is Verdict.ACTIONABLE else "below_severity_threshold",
-        status=status,
+        status=status
+        or (AlertStatus.FILTERED if verdict is Verdict.SUPPRESSED else AlertStatus.OPEN),
     )
     db.add(match)
     await db.flush()
@@ -417,13 +418,7 @@ class TestLandingContent:
 
 
 class TestPricingCopyMatchesTheProduct:
-    """The pricing footnote went stale once and nothing caught it.
-
-    It said Pro "does not show you a different set of vulnerabilities" while
-    sitting directly under a column advertising deeper dependency scanning.
-    Pro reaches packages Free never looks at, so that was not a shade of
-    emphasis -- it was the opposite of what the pipeline does.
-    """
+    """The public pricing contract stays aligned with the single Free plan."""
 
     async def test_it_does_not_claim_the_plans_see_the_same_things(self, client):
         for path in ("/", "/pricing"):
@@ -431,9 +426,7 @@ class TestPricingCopyMatchesTheProduct:
             assert "does not show you a different set of vulnerabilities" not in body
             assert "same filtering rules" not in body
 
-    async def test_the_pro_column_and_the_footnote_agree(self, client):
-        """Both are rendered from tiers.py, so if the table says Pro goes
-        deeper, the prose beside it has to as well."""
+    async def test_the_free_card_matches_the_full_tree_capability(self, client):
         from app.core.types import Tier
         from app.tiers import PLANS
 
@@ -441,7 +434,7 @@ class TestPricingCopyMatchesTheProduct:
         # the endpoint that serves the table is where the agreement is
         # checkable. The prose lives in the React page and is covered there.
         body = (await client.get("/api/internal/pricing")).text
-        assert "The whole dependency tree, however deep" in body
+        assert "Full dependency tree analysis" in body
         # And the claim is still true of the plan table it describes.
-        assert PLANS[Tier.PRO].scan_depth is None
-        assert PLANS[Tier.FREE].scan_depth == 1
+        assert PLANS[Tier.FREE].scan_depth is None
+        assert PLANS[Tier.PRO] is PLANS[Tier.FREE]

@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import JSONResponse
 
+from app.core.types import Tier
 from app.deps import AppSettings, OptionalUser, set_csrf_cookie
 from app.schemas import CurrentAuthResponse, CurrentAuthState, CurrentUserView
 
@@ -81,7 +82,7 @@ async def current_user(
         id=user.id,
         email=user.email,
         is_admin=user.is_admin,
-        tier=user.tier,
+        tier=Tier.FREE,
         account_state="active",
     )
     return CurrentAuthResponse(

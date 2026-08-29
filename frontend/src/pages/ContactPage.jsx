@@ -7,13 +7,11 @@ import { Button } from "../components/ui/Button";
 import { InlineNotice } from "../components/ui/InlineNotice";
 import { useCurrentUser } from "../features/auth/hooks/useCurrentUser";
 
-// These values are the ContactCategory enum the API accepts, not a wish list.
-// An option the server does not know is rejected as a validation error, so the
-// person sees "invalid request" for having picked the choice we offered them.
+// This is the active product-facing subset of ContactCategory. The API keeps a
+// legacy payment value only so old stored messages remain readable.
 const CATEGORIES = [
   { value: "bug", label: "Something is broken" },
   { value: "feedback", label: "Feedback or a feature request" },
-  { value: "billing", label: "Billing or my subscription" },
   { value: "other", label: "Something else" },
 ];
 

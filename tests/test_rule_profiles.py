@@ -367,10 +367,8 @@ class TestTheLayering:
         assert effective.policy.epss_threshold == 0.0
 
 
-class TestItIsPro:
-    async def test_a_free_account_gets_no_profile(self, db, user):
-        """Enforced where the rules are used, like every other gate, so a
-        lapsed subscription stops applying them without deleting anything."""
+class TestItIsFree:
+    async def test_a_free_account_gets_its_profile(self, db, user):
         profile = await create_profile(db, user, name="Strict", document=STRICT)
         target = await a_project(db, user)
         target.profile_id = profile.id
@@ -378,25 +376,24 @@ class TestItIsPro:
 
         effective = await build_policy(db, target, user)
 
-        assert effective.policy.direct_threshold is not Severity.LOW
-        assert effective.profile_name is None
-        assert any("Pro plan" in note for note in effective.notes)
+        assert effective.policy.direct_threshold is Severity.LOW
+        assert effective.profile_name == "Strict"
+        assert not any("plan" in note.lower() for note in effective.notes)
 
-    async def test_a_free_account_asking_for_one_is_told_it_did_not_apply(self, db, user):
+    async def test_a_free_account_asking_for_an_unknown_profile_gets_a_clear_error(self, db, user):
         target = await a_project(db, user)
 
-        effective = await build_policy(db, target, user, requested_profile="anything")
+        with pytest.raises(NoSuchProfile):
+            await build_policy(db, target, user, requested_profile="anything")
 
-        assert any("Pro plan" in note for note in effective.notes)
-
-    async def test_the_endpoint_refuses_a_free_account(self, auth_client):
+    async def test_the_endpoint_accepts_a_free_account(self, auth_client):
         response = await auth_client.post(
             "/api/internal/profiles",
             json={"name": "Production", "document": STRICT},
             headers={"X-CSRF-Token": set_csrf(auth_client)},
         )
 
-        assert response.status_code == 402
+        assert response.status_code == 200
 
 
 class TestDeleting:

@@ -83,14 +83,19 @@ const MANAGE_COMMANDS = [
   ["weedout rules unignore ID", "Report it again."],
 ];
 
-/** Setting a machine up. Needs no key — `auth` is what produces one. */
+/** Setup and diagnostic commands, including the credential each one consumes. */
 const SETUP_COMMANDS = [
-  ["weedout auth", "Sign this machine in, by confirming a code in your browser."],
-  ["weedout create", "Make a project from this directory and save a key for it."],
-  ["weedout link", "Connect this directory to a project you already have."],
+  ["weedout auth", "Sign this machine in by browser confirmation; no credential is printed."],
+  ["weedout create [name]", "Use the machine credential to create a project and save its key."],
+  ["weedout link", "Use the machine credential to connect this directory to an existing project."],
+  [
+    "weedout init [path]",
+    "Write .weedout from WEEDOUT_API_KEY (recommended) or --api-key; never prompts or echoes it.",
+  ],
   ["weedout whoami", "Which account, and what this directory is linked to."],
   ["weedout key regenerate", "Replace this directory's key. The old one keeps working."],
   ["weedout logout", "Forget the credential here. --all drops project keys too."],
+  ["weedout version", "Print the version embedded in this packaged binary."],
 ];
 
 export function CliPage() {
@@ -103,8 +108,9 @@ export function CliPage() {
           <p className="eyebrow">Command line</p>
           <h1>The same answer, in your pipeline.</h1>
           <p className="cli-hero__lede">
-            One binary, no runtime to install, and nothing in its own dependency tree. It fails the
-            build on findings that are reachable or exploited, and stays quiet about the rest.
+            One binary, no runtime to install, and nothing in its own dependency tree. It reports
+            source-derived reachability evidence and, with --ci, fails only on the configured
+            blocking threshold or known exploitation.
           </p>
         </div>
 
@@ -156,33 +162,36 @@ function Transcript() {
         <pre className="transcript__body">
           <span className="transcript__prompt">$</span> weedout scan --ci{"\n"}
           {"\n"}
-          <b>acme-storefront</b> <span className="dim">package-lock.json</span>
+          <b>strictseal-node</b> <span className="dim">package-lock.json</span>
           {"\n"}
-          <span className="dim">1,284 dependencies scanned · 44 filtered out as noise</span>
+          <span className="dim">4 dependencies scanned · 2 filtered out as noise</span>
+          {"\n"}
+          <span className="dim">Reachability: 2 source file(s) · complete</span>
+          {"\n"}
+          <span className="dim">{"  "}reachable 1 · potentially reachable 1 · not observed 2</span>
           {"\n\n"}
-          <span className="transcript__bad">1 exploited</span>
+          <span className="transcript__bad">1 critical</span>
           <span className="dim"> · </span>
-          <span className="transcript__bad">2 critical</span>
-          <span className="dim"> · </span>
-          <span className="transcript__warn">3 high</span>
+          <span className="transcript__warn">1 high</span>
           {"\n\n"}
           <span className="transcript__bad">▲</span> minimist@1.2.5{"  "}
-          <span className="dim">CVE-2026-5001</span>
+          <span className="dim">CVE-2021-44906</span>
           {"  "}
           <span className="transcript__good">→ 1.2.6</span>
           {"\n"}
-          <span className="transcript__warn">•</span> express@4.18.1{"  "}
-          <span className="dim">CVE-2026-4912</span>
-          {"  "}
-          <span className="dim">no fix yet</span>
+          <span className="dim">{"  "}reachability: not observed</span>
           {"\n"}
-          <span className="transcript__warn">•</span> axios@1.3.2{"    "}
-          <span className="dim">CVE-2026-9821</span>
+          <span className="transcript__warn">•</span> axios@0.21.1{"    "}
+          <span className="dim">CVE-2021-3749</span>
           {"  "}
-          <span className="transcript__good">→ 1.6.8</span>
+          <span className="transcript__good">→ 0.21.2</span>
+          {"\n"}
+          <span className="dim">{"  "}reachability: reachable</span>
+          {"\n"}
+          <span className="dim">{"  "}src/api.js:1 imports axios</span>
           {"\n\n"}
           <span className="transcript__bad">
-            Failing: 3 finding(s) at critical severity or confirmed exploitation.
+            Failing: 1 finding(s) at critical severity or confirmed exploitation.
           </span>
           {"\n\n"}
           <span className="transcript__prompt">$</span> echo $?{"\n"}
@@ -191,8 +200,8 @@ function Transcript() {
       </div>
 
       <figcaption className="transcript__caption">
-        A scan of 1,284 dependencies reports six findings and filters out 44. Three of them are at
-        or above the threshold, so the run exits 1 and the build stops.
+        The StrictSeal regression lockfile is checked with bounded source evidence. One finding is
+        critical, so the CI run exits 1; the reachability state remains a separate scanner result.
       </figcaption>
     </figure>
   );
@@ -327,7 +336,7 @@ Signed in as dev@example.com.`}</code>
       <div className="command-grid">
         <div>
           <p className="command-grid__label">
-            Set up <span className="dim">— no key needed; this is what makes one</span>
+            Set up and inspect <span className="dim">— each credential boundary is explicit</span>
           </p>
           <dl className="command-list">
             {SETUP_COMMANDS.map(([command, detail]) => (

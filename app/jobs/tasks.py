@@ -16,17 +16,15 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.core.types import Tier
 from app.db import session_scope
 from app.feeds.epss import EpssFeedError
 from app.feeds.kev import KevFeedError
 from app.logging_config import get_logger
-from app.models import User, utcnow
-from app.services.admin_service import PAYING_STATUSES
+from app.models import User
 from app.services.alert_service import send_new_match_digest
 from app.services.auth_service import purge_expired_sessions
 from app.services.backup_service import BackupError, record_outcome, run_backup
@@ -34,7 +32,6 @@ from app.services.feed_service import refresh_epss_scores, refresh_kev_catalog
 from app.services.mirror_service import sync_all_ecosystems
 from app.services.package_metadata_service import refresh_package_metadata
 from app.services.password_reset_service import purge_expired_reset_tokens
-from app.services.plan_service import apply_tier_change
 from app.services.rate_limit_service import purge_expired_rate_limits
 from app.services.scan_service import due_targets, scan_target
 
@@ -42,7 +39,6 @@ log = get_logger(__name__)
 
 __all__ = [
     "backup_task",
-    "expire_subscriptions_task",
     "refresh_feeds_task",
     "run_scan_cycle",
     "sweep_sessions_task",
@@ -278,44 +274,6 @@ async def run_scan_cycle(limit: int | None = None) -> dict[str, int]:
 
     log.info("scan_cycle.finished", **stats)
     return stats
-
-
-async def expire_subscriptions_task() -> int:
-    """Downgrade users whose paid period has now ended.
-
-    Cancellation is recorded by the Dodo webhook with an effective date in the
-    future, so that paid-for time is honoured. This job is what actually applies
-    the downgrade once that date passes — without it, a cancelled subscriber
-    would keep Pro limits indefinitely.
-    """
-    try:
-        async with session_scope() as db:
-            now = utcnow()
-            stale = (
-                await db.scalars(
-                    select(User).where(
-                        User.tier == Tier.PRO,
-                        User.subscription_ends_at.is_not(None),
-                        User.subscription_ends_at <= now,
-                        # Shared with the billing view so "still paying" means
-                        # the same thing in both places.
-                        User.subscription_status.not_in(PAYING_STATUSES),
-                    )
-                )
-            ).all()
-
-            for user in stale:
-                # A downgrade nobody clicked, and the one most likely to be
-                # forgotten. Through the service like the other two, so a
-                # cancelled account stops being scanned four-hourly at the
-                # moment the paid period ends.
-                await apply_tier_change(db, user, Tier.FREE)
-                log.info("billing.downgrade_applied", user_id=user.id)
-
-            return len(stale)
-    except Exception as exc:
-        log.exception("job.expire_subscriptions_failed", error=str(exc))
-        return 0
 
 
 async def sweep_sessions_task() -> int:

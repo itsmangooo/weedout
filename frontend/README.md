@@ -232,7 +232,7 @@ FastAPI serves:
 - `/assets/*` — hashed JS, CSS, images, fonts, and lazy chunks with a one-year immutable cache;
 - `/dashboard/legacy` — the protected Jinja rollback implementation.
 
-There is no SPA catch-all. `/api`, `/webhooks`, `/static`, `/install.sh`, `/healthz`, `/readyz`,
+There is no SPA catch-all. `/api`, `/webhooks`, `/static`, `/install.sh`, `/install.ps1`, `/healthz`, `/readyz`,
 `/events`, and every legacy product route retain their existing handlers. A missing frontend entry
 returns `503`; missing assets and unknown routes return `404` rather than receiving the SPA shell.
 

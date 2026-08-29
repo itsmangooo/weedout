@@ -256,7 +256,7 @@ class TestSavingAWebhook:
         await db.refresh(pro_target)
         assert pro_target.discord_webhook_url is None
 
-    async def test_a_free_user_cannot_save_one(self, auth_client, db, user):
+    async def test_a_free_user_can_save_one(self, auth_client, db, user):
         target = TrackedTarget(
             user_id=user.id, name="free-project", ecosystem=Ecosystem.NPM, is_active=True
         )
@@ -268,10 +268,9 @@ class TestSavingAWebhook:
             json={"url": VALID},
             headers={"X-CSRF-Token": set_csrf(auth_client)},
         )
-        assert response.status_code == 402
-        assert "Pro" in response.text
+        assert response.status_code == 200
         await db.refresh(target)
-        assert target.discord_webhook_url is None
+        assert target.discord_webhook_url == VALID
 
     async def test_somebody_elses_project_is_a_404(self, pro_client, db, user):
         theirs = TrackedTarget(
@@ -371,9 +370,7 @@ class TestTheDispatcher:
         for alert in alerts:
             assert "abcdefghijklmnopqrstuvwxyz012345" not in alert.destination
 
-    async def test_a_free_project_never_posts_even_with_a_url_saved(self, db, user, monkeypatch):
-        """Tier is checked at send time, not only when the URL is saved, so a
-        lapsed subscription stops the posts without anybody clearing a field."""
+    async def test_a_free_project_posts_when_a_url_is_saved(self, db, user, monkeypatch):
         from app.services.alert_service import send_new_match_digest
         from app.services.discord_service import DeliveryResult
 
@@ -389,9 +386,9 @@ class TestTheDispatcher:
         target, outcome = await self._scanned_project(db, user, webhook=VALID)
         assert await send_new_match_digest(db, user, target, outcome.new_matches) == 1
 
-        assert called is False, "a free-tier project posted to Discord"
+        assert called is True
         alerts = (await db.scalars(select(Alert).where(Alert.user_id == user.id))).all()
-        assert [alert.channel for alert in alerts] == ["email"]
+        assert sorted(alert.channel for alert in alerts) == ["discord", "email"]
 
     async def test_a_broken_webhook_does_not_stop_the_email(self, db, pro_user, monkeypatch):
         from app.services.alert_service import send_new_match_digest

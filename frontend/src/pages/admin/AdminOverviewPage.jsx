@@ -212,14 +212,8 @@ function Platform({ metrics }) {
       <div className="stat-grid">
         <Stat
           label="Users"
-          note={`${metrics.free_users} free · ${metrics.paid_users} paid`}
-          value={metrics.total_users}
-        />
-        <Stat
-          label="Paid share"
           note={`${metrics.new_users_7d} new this week`}
-          unit="%"
-          value={metrics.paid_share}
+          value={metrics.total_users}
         />
         <Stat
           label="Projects"

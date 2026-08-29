@@ -25,11 +25,10 @@ export async function getOverview({ days = 30, signal } = {}) {
 
 // --- Users ------------------------------------------------------------------
 
-export async function getUsers({ page = 1, search = "", tier = "", status = "", signal } = {}) {
+export async function getUsers({ page = 1, search = "", status = "", signal } = {}) {
   const query = new URLSearchParams();
   query.set("page", String(page));
   if (search) query.set("search", search);
-  if (tier) query.set("tier", tier);
   if (status) query.set("status", status);
 
   return await api(`${ADMIN}/users?${query}`, { signal });
@@ -37,15 +36,6 @@ export async function getUsers({ page = 1, search = "", tier = "", status = "", 
 
 export async function getUser(id, { signal } = {}) {
   return unwrap(await api(`${ADMIN}/users/${encodeURIComponent(id)}`, { signal }));
-}
-
-export async function changeTier(id, { tier, note = "" }) {
-  return unwrap(
-    await api(`${ADMIN}/users/${encodeURIComponent(id)}/tier`, {
-      method: "POST",
-      body: { tier, note },
-    }),
-  );
 }
 
 export async function suspendUser(id, { reason = "" } = {}) {

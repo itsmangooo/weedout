@@ -87,20 +87,11 @@ several people is your decision and your risk.
 You must be old enough to enter a contract where you live, and you must not use
 Weedout to scan software you have no right to scan.
 
-## Payment
+## Price
 
-The free plan costs nothing and needs no card. The Pro plan is billed in
-advance through our payment provider, [[PAYMENT PROVIDER]], who handles the
-card details — we never see or store them.
-
-- Prices are shown on the [pricing page](/pricing) and may change with
-  [[NOTICE PERIOD]] notice. A change never applies to a period you have already
-  paid for.
-- Cancel at any time from your billing page. Your plan stays active until the
-  end of the period you have paid for, and then drops to the free plan. Your
-  data is not deleted.
-- Refunds: [[REFUND POLICY]].
-- Taxes are your responsibility unless we are required to collect them.
+Weedout has one Free plan. It costs nothing and requires no payment card.
+Historical subscription and invoice records may be retained where financial
+recordkeeping law requires it, but they do not change product access.
 
 ## Acceptable use
 
@@ -241,10 +232,12 @@ consent banner. There is nothing to consent to.
 
 ## What we do not collect
 
-- Payment card details. Checkout happens at [[PAYMENT PROVIDER]] and we receive
-  only a customer reference, the plan, and its status.
-- The contents of your source code. We read manifests and lockfiles — names and
-  versions of dependencies — not the code itself.
+- Payment card details. Historical checkout happened at [[PAYMENT PROVIDER]];
+  we received only a customer reference and subscription status.
+- Raw source code after a scan. The CLI sends a bounded set of supported
+  JavaScript and TypeScript files for reachability analysis. The server analyses
+  them in memory and stores only reachability states, evidence snippets,
+  completeness, and analysis notes. Browser-only manifest scans send no source.
 - Anything about who you are beyond your email address and, if you enter it,
   your company name.
 
@@ -268,8 +261,8 @@ or your dependencies goes with those requests.
 
 - **Your account and its data:** until you delete it.
 - **Findings and scan history:** while the project exists. The archive of
-  resolved and dismissed findings is limited by plan — 30 days on Free, a year
-  on Pro. Open findings are never aged out.
+  resolved and dismissed findings is available for one year. Open findings are
+  never aged out.
 - **Sessions:** until they expire or you revoke them; purged 30 days after.
 - **Password reset tokens:** an hour, then purged within 7 days.
 - **Invoices and billing records:** as long as tax law requires, which is

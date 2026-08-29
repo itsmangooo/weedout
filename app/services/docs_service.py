@@ -403,8 +403,9 @@ interrupt you about. The second number is usually much larger than the list
 above it — that is the product working, and every filtered advisory is one click
 away with its reason.
 
-`weedout init` writes the key to a `.weedout` file so you can stop exporting it.
-**Add that file to `.gitignore`** — it holds a credential.
+`weedout init` writes the key from `WEEDOUT_API_KEY` (recommended), or an
+explicit `--api-key`, to a `.weedout` file. It never prompts for or echoes the
+credential. **Add that file to `.gitignore`** — it holds a credential.
 
 ## 5. Wire it into CI
 
@@ -419,9 +420,8 @@ add the step today and decide about gating later. See
 
 ## What happens after that
 
-Your stored manifest is re-checked on a schedule — daily on Free, every four
-hours on Pro — so you get alerted about advisories published *after* your last
-scan without doing anything.
+Your stored manifest is re-checked every four hours, so you get alerted about
+advisories published *after* your last scan without doing anything.
 
 You get **one digest email per scan**, covering only findings that are new. A
 finding you have already seen is never emailed twice, a finding you dismiss
@@ -514,6 +514,12 @@ A finding derived from one is a statement about your real dependency tree.
 
 `weedout scan` prefers a lockfile automatically when it finds one, so running
 it after your install step gets you the exact answer without thinking about it.
+
+For Node projects, the CLI also uploads a bounded inventory of supported
+JavaScript and TypeScript source. The server analyses static imports and
+`require` calls in memory, stores only the resulting reachability state and
+evidence, and discards the raw text. Browser manifest uploads contain no source,
+so their automated reachability is `unknown` until a CLI scan supplies evidence.
 
 ### A manifest states a range
 
@@ -631,17 +637,18 @@ a deploy at 6pm, and a gate that fires often is a gate people learn to route
 around. If your team wants those blocking too, fail on the count yourself — the
 scan API returns severity counts as JSON.
 
-## What "reachable" means here
+## What automated reachability means here
 
-Weedout reads manifests. It does **not** analyse your source code, and it
-will never claim to know whether you call the vulnerable function. What it does
-know is whether a package ships to production or only builds and tests your
-project, and whether you declared it yourself or inherited it. Those two facts
-remove most of the noise on their own.
+Node CLI scans observe static package imports and report one of four states:
+`reachable`, `potentially_reachable`, `not_observed`, or `unknown`. A positive
+result includes the source file, line, import kind and dependency path. A
+non-literal dynamic import, incomplete source inventory, or missing dependency
+path keeps a negative conclusion `unknown`.
 
-This is also why a lockfile is worth more than a manifest here: the same two
-facts are only as good as the versions they are applied to. See
-*Scanning your project*.
+This is conservative package-import evidence, not vulnerable-function
+call-graph proof. Direct/transitive relationship and dev/production scope remain
+separate manifest facts, and severity never stands in for reachability. See
+*Scanning your project* for upload limits and privacy behavior.
 """,
     },
     {
@@ -1012,9 +1019,10 @@ Create that key on the project's settings page, or with `weedout key regenerate`
 from a linked directory. Use a **scan**-scoped key: it is the narrowest thing
 that works, and it is the one that will end up in a build log.
 
-`weedout init` writes the same key to a `.weedout` file, which is the local
-equivalent for a machine where an environment variable is awkward. **Do not
-commit it.**
+`weedout init` reads that key from `WEEDOUT_API_KEY` (recommended), or from an
+explicit `--api-key`, and writes it to a `.weedout` file. It never prompts for
+or echoes the credential. This is the local equivalent for a machine where an
+environment variable is awkward. **Do not commit it.**
 
 `.weedout` is not `.weedout.yml`. The first holds a credential and stays out of
 the repository; the second holds your scan rules and belongs in it. See
@@ -1056,9 +1064,10 @@ directories above it — the scan uploads it along with the manifest. A
 monorepo keeping its rules at the root and its lockfiles in `services/*` works
 without configuration. `.weedout.yaml` is accepted too.
 
-The server never sees your repository, only what is uploaded, so the rules have
-to travel with the scan. That is also what makes CI the source of truth: the
-file that ran in the pipeline is the file that applied.
+The server only receives the manifest, optional rules file, and the CLI's
+bounded supported-source inventory. Rules travel with the scan so the file that
+ran in CI is the file that applied. Raw source is analysed in memory and is not
+stored.
 
 A `.weedout.yml` that cannot be read is not fatal. The scan runs on the
 defaults and reports the parse error, which can only ever produce *more* alerts
@@ -1283,55 +1292,12 @@ weedout --interactive     # turn the menu on for this installation
 `--interactive` is a preference, saved next to the binary, not a flag you pass
 every time.
 
-## When your plan changes
+## One Free product
 
-Upgrades and downgrades take effect on your **next command**. There is no cache
-to wait out, nothing to sign out of, and no need to run `weedout auth` again:
-the tier is read fresh on every request, so a scan started a second after an
-upgrade is served under the new plan.
-
-The CLI notices and says so, once:
-
-```
-$ weedout scan
-
-Your plan is now Pro. Scans reach the whole dependency tree, and your custom
-rules apply.
-
-  acme-storefront  package-lock.json
-  1,284 dependencies scanned · 44 filtered out as noise
-```
-
-A downgrade is announced just as plainly, because it is the one you need to
-read before you trust the result underneath it:
-
-```
-Your plan is now Free. Scans stop after direct dependencies and theirs, and
-your custom rules no longer apply — they are kept, not deleted.
-```
-
-Nothing is destroyed by a downgrade. Severity floors, ignore rules, rule
-profiles and your `.weedout.yml` all stay exactly as they are and simply stop
-applying, so re-subscribing puts everything back without you reconstructing it.
-
-The notice appears once per change per machine, and never under `--quiet` or
-`--json` — those two promise that the output is only what you asked for, and a
-sentence appearing in a JSON stream would break whatever is parsing it. The
-plan is in the JSON either way, under `plan`.
-
-### Scheduled scans move too
-
-The cadence changes at the moment the plan does, not at the next scan. Upgrade
-and the four-hourly checks start within four hours rather than after your next
-daily one; downgrade and the schedule relaxes immediately. Otherwise an upgrade
-could take a full day to produce the thing it was bought for.
-
-### What the CLI does not do
-
-It does not decide anything from the plan. Every limit — scan depth, custom
-rules, the project count — is enforced on the server, and the block the CLI
-reads is for saying what changed rather than for gating. A client that decided
-for itself what a plan allows would be a client somebody could edit.
+The CLI, full dependency tree, source reachability evidence, custom rules,
+profiles, alerts and four-hour scheduled checks are all included in Free. There
+is no paid tier or client-side feature gate. Legacy plan fields can still appear
+in older API payloads for database compatibility; they do not change access.
 
 ## Every command
 
@@ -1344,7 +1310,7 @@ for itself what a plan allows would be a client somebody could edit.
 | `weedout link` | machine credential | Connects this directory to an existing project |
 | `weedout unlink` | nothing | Forgets the association. Does not revoke the key |
 | `weedout key regenerate` | machine credential | Replaces this directory's key |
-| `weedout scan [path]` | **scan** key | Scans, and sends `.weedout.yml` if there is one |
+| `weedout scan [path]` | **scan** key | Scans and sends `.weedout.yml` plus bounded Node source evidence when present |
 | `weedout status` | **read** key | Counts, last check, next check |
 | `weedout findings` | **read** key | What is open, with fixes and how it got in |
 | `weedout history` | **read** key | Recent scans, and how the count has moved |
@@ -1418,9 +1384,8 @@ Weedout's defaults are deliberate, and most projects should leave them alone.
 Scan rules exist for the cases where your codebase knows something the advisory
 feed does not.
 
-Rules are part of the **Pro** plan. They are enforced when a scan runs, not when
-they are saved, so a subscription that lapses stops applying them without
-deleting anything you configured.
+Rules are included in Free. They are validated when saved and rebuilt when a
+scan runs, so the recorded policy and the scan result cannot drift.
 
 ## Four places a rule can live
 

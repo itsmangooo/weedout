@@ -4,8 +4,13 @@ export const FINDINGS_PATH = "/api/internal/findings";
 
 const FINDING_SHOWS = new Set(["open", "filtered", "dismissed", "resolved"]);
 const SEVERITIES = new Set(["unknown", "low", "medium", "high", "critical"]);
-const REACHABILITY = new Set(["runtime_direct", "runtime_transitive", "dev_only"]);
-const STATUSES = new Set(["open", "dismissed", "resolved"]);
+const REACHABILITY = new Set([
+  "reachable",
+  "potentially_reachable",
+  "not_observed",
+  "unknown",
+]);
+const STATUSES = new Set(["open", "filtered", "dismissed", "resolved"]);
 
 function isFinding(value) {
   return (

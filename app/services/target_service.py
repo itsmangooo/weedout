@@ -17,13 +17,11 @@ from app.core.types import AlertStatus, Ecosystem, ManifestKind, Severity, Verdi
 from app.logging_config import get_logger
 from app.models import CVEMatch, ProjectManifest, TrackedTarget, User, utcnow
 from app.security import content_hash
-from app.tiers import can_add_target, target_limit_message
 
 log = get_logger(__name__)
 
 __all__ = [
     "TargetError",
-    "TargetLimitReached",
     "UnsupportedManifest",
     "create_empty_target",
     "create_target",
@@ -35,10 +33,6 @@ __all__ = [
 
 class TargetError(Exception):
     """Base class for target-management failures."""
-
-
-class TargetLimitReached(TargetError):
-    pass
 
 
 class UnsupportedManifest(TargetError):
@@ -54,14 +48,6 @@ class TargetSummary:
     exploited: int = 0
     suppressed: int = 0
     dismissed: int = 0
-
-
-async def count_targets(db: AsyncSession, user_id: int) -> int:
-    return (
-        await db.scalar(
-            select(func.count(TrackedTarget.id)).where(TrackedTarget.user_id == user_id)
-        )
-    ) or 0
 
 
 async def create_empty_target(
@@ -81,10 +67,6 @@ async def create_empty_target(
     no `manifest_content` and no `last_scanned_at`, so it reads as "no manifest
     yet" everywhere rather than as a clean bill of health.
     """
-    current = await count_targets(db, user.id)
-    if not can_add_target(user.tier, current):
-        raise TargetLimitReached(target_limit_message(user.tier))
-
     clean = name.strip()
     if not clean:
         raise UnsupportedManifest("Give the project a name.")
@@ -268,10 +250,6 @@ async def create_target(
     a file we cannot read is rejected while the user is still looking at the
     upload form instead of failing silently hours later.
     """
-    current = await count_targets(db, user.id)
-    if not can_add_target(user.tier, current):
-        raise TargetLimitReached(target_limit_message(user.tier))
-
     kind = _detect_or_refuse(filename, content)
     parsed = _parse_or_refuse(kind, content)
 
@@ -443,7 +421,10 @@ async def list_targets(db: AsyncSession, user_id: int) -> list[TargetSummary]:
                 CVEMatch.status == AlertStatus.OPEN,
                 CVEMatch.is_kev.is_(True),
             ),
-            func.count(CVEMatch.id).filter(CVEMatch.verdict == Verdict.SUPPRESSED),
+            func.count(CVEMatch.id).filter(
+                CVEMatch.verdict == Verdict.SUPPRESSED,
+                CVEMatch.status == AlertStatus.FILTERED,
+            ),
             func.count(CVEMatch.id).filter(CVEMatch.status == AlertStatus.DISMISSED),
         )
         .where(CVEMatch.target_id.in_([t.id for t in targets]))
@@ -520,7 +501,10 @@ async def dashboard_stats(db: AsyncSession, user_id: int) -> DashboardStats:
                     CVEMatch.status == AlertStatus.OPEN,
                     CVEMatch.severity == Severity.CRITICAL,
                 ),
-                func.count(CVEMatch.id).filter(CVEMatch.verdict == Verdict.SUPPRESSED),
+                func.count(CVEMatch.id).filter(
+                    CVEMatch.verdict == Verdict.SUPPRESSED,
+                    CVEMatch.status == AlertStatus.FILTERED,
+                ),
                 func.count(CVEMatch.id).filter(CVEMatch.status == AlertStatus.DISMISSED),
                 func.count(CVEMatch.id).filter(CVEMatch.status == AlertStatus.RESOLVED),
             )

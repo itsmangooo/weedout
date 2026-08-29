@@ -286,7 +286,7 @@ class TestKeys:
 
 
 class TestRulesAndThresholds:
-    async def test_a_free_account_cannot_add_a_rule(self, auth_client, db, user):
+    async def test_a_free_account_can_add_a_rule(self, auth_client, db, user):
         target = await make_project(db, user)
         await db.commit()
 
@@ -296,7 +296,8 @@ class TestRulesAndThresholds:
             {"identifier": "CVE-2020-1", "reason": "not reachable"},
         )
 
-        assert response.status_code == 402
+        assert response.status_code == 200
+        assert await db.scalar(select(IgnoreRule).where(IgnoreRule.target_id == target.id))
 
     async def test_a_pro_account_can(self, client, db, pro_user):
         target = await make_project(db, pro_user)

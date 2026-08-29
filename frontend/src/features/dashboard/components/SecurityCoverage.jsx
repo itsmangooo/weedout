@@ -5,7 +5,7 @@ const PLANNED_MODULES = [
   {
     Icon: Code2,
     title: "Source code",
-    note: "Code-level analysis will appear here when the scanner exists.",
+    note: "Planned full code analysis. Dependency import evidence already lives under Dependencies.",
   },
   {
     Icon: FileKey2,

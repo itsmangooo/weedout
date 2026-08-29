@@ -222,8 +222,8 @@ class TestTheLimitIsEnforced:
 
 
 class TestThePlanOwnsTheNumber:
-    def test_free_stops_after_the_first_level(self):
-        assert scan_depth_for(Tier.FREE) == 1
+    def test_free_goes_all_the_way(self):
+        assert scan_depth_for(Tier.FREE) is None
 
     def test_pro_goes_all_the_way(self):
         assert scan_depth_for(Tier.PRO) is None
@@ -231,23 +231,18 @@ class TestThePlanOwnsTheNumber:
     def test_an_unknown_tier_gets_the_free_limit(self):
         """`limits_for` falls back rather than raising, so a subscription row
         written by a future version degrades instead of failing the scan."""
-        assert scan_depth_for("enterprise-plus") == 1
+        assert scan_depth_for("enterprise-plus") is None
 
     @pytest.mark.parametrize(
         ("tier", "phrase"),
-        [(Tier.FREE, "direct dependencies and theirs"), (Tier.PRO, "the whole tree")],
+        [(Tier.FREE, "the whole tree"), (Tier.PRO, "the whole tree")],
     )
     def test_the_reach_has_a_phrase_the_interface_can_say(self, tier, phrase):
         assert depth_label(tier) == phrase
 
 
 class TestEndToEnd:
-    async def test_a_free_project_does_not_report_a_deep_finding(self, db, user):
-        """Through the real pipeline, not the pure core.
-
-        The advisory is in the mirror and the package is in the tree; the only
-        thing standing between them is the plan.
-        """
+    async def test_a_free_project_analyzes_a_deep_finding(self, db, user):
         from app.services.scan_service import scan_target
         from tests.test_scan_pipeline import LODASH_ADVISORY, make_target, seed_mirror
 
@@ -268,8 +263,8 @@ class TestEndToEnd:
 
         outcome = await scan_target(db, target)
 
-        assert outcome.actionable_count == 0
-        assert outcome.unreached_by_depth >= 1
+        assert outcome.unreached_by_depth == 0
+        assert outcome.actionable_count + outcome.suppressed_count >= 1
 
     async def test_the_same_project_on_pro_does_report_it(self, db, pro_user):
         from app.services.scan_service import scan_target
@@ -292,7 +287,7 @@ class TestEndToEnd:
 
         assert outcome.unreached_by_depth == 0
         found = outcome.actionable_count + outcome.suppressed_count
-        assert found >= 1, "Pro should reach a finding three levels down"
+        assert found >= 1
 
     async def test_the_route_is_stored_on_the_finding(self, db, pro_user):
         """So it survives the dependency rows being replaced next parse."""

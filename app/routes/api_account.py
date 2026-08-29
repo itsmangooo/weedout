@@ -35,7 +35,6 @@ from app.schemas import NewProjectForm, TargetCreateForm, first_error
 from app.services.api_key_service import ApiKeyError, issue_api_key, revoke_api_key
 from app.services.cli_auth_service import authenticate_cli_token
 from app.services.target_service import (
-    TargetLimitReached,
     UnsupportedManifest,
     create_empty_target,
     create_target,
@@ -212,8 +211,6 @@ async def create_project(response: Response, db: DbSession, key: CliKey, body: C
 
     try:
         target = await _make_target(db, owner, body)
-    except TargetLimitReached as exc:
-        raise _fail(status.HTTP_402_PAYMENT_REQUIRED, "plan_limit", str(exc)) from None
     except UnsupportedManifest as exc:
         raise _fail(HTTP_UNPROCESSABLE_CONTENT, "unsupported_manifest", str(exc)) from exc
     except ValidationError as exc:
@@ -330,7 +327,7 @@ async def whoami(response: Response, db: DbSession, key: CliKey) -> dict:
     owner = await _owner(db, key)
     return {
         "email": owner.email,
-        "tier": str(owner.tier),
+        "tier": "free",
         "device_label": key.device_label,
         "expires_at": key.expires_at.isoformat(),
     }

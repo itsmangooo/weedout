@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { currentUserQueryKey } from "../../features/auth/hooks/useCurrentUser";
 import { createQueryClient } from "../../app/queryClient";
+import { AdminShell } from "./AdminShell";
 import { AppShell } from "./AppShell";
 import { FoundationLayout } from "./FoundationLayout";
 
@@ -170,7 +171,6 @@ describe("the application sidebar", () => {
       "/dashboard",
       "/alerts",
       "/targets/new",
-      "/billing",
       "/cli",
       "/settings",
     ]);
@@ -228,5 +228,49 @@ describe("the application sidebar", () => {
     expect(within(panel).getByRole("navigation", { name: "Application" })).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: /Sign out/ })).toBeInTheDocument();
     expect(within(panel).getByRole("radiogroup", { name: "Colour theme" })).toBeInTheDocument();
+  });
+});
+
+describe("the admin sidebar", () => {
+  it("contains every real administration section and a route back to the product", () => {
+    renderShell(<AdminShell />, {
+      initialPath: "/admin",
+      user: authResponse({ is_admin: true }),
+    });
+
+    const nav = screen.getByRole("navigation", { name: "Admin sections" });
+    expect(hrefsIn(nav)).toEqual([
+      "/admin",
+      "/admin/users",
+      "/admin/billing",
+      "/admin/inbox",
+      "/admin/email",
+      "/admin/docs",
+      "/admin/audit",
+    ]);
+    expect(screen.getByRole("link", { name: /Back to app/ })).toHaveAttribute(
+      "href",
+      "/dashboard",
+    );
+  });
+
+  it("keeps the complete admin navigation, theme control and back action in the mobile panel", async () => {
+    const user = userEvent.setup();
+    const { container } = renderShell(<AdminShell />, {
+      initialPath: "/admin",
+      user: authResponse({ is_admin: true }),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Open admin navigation" }));
+
+    const shell = container.querySelector(".admin-shell");
+    const panel = container.querySelector(".admin-sidebar__panel");
+    expect(shell).toHaveClass("is-nav-open");
+    expect(within(panel).getByRole("navigation", { name: "Admin sections" })).toBeInTheDocument();
+    expect(within(panel).getByRole("radiogroup", { name: "Colour theme" })).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: /Back to app/ })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(shell).not.toHaveClass("is-nav-open"));
   });
 });

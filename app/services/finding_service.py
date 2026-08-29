@@ -23,7 +23,10 @@ _FILTERS = {
         CVEMatch.verdict == Verdict.ACTIONABLE,
         CVEMatch.status == AlertStatus.OPEN,
     ),
-    "filtered": (CVEMatch.verdict == Verdict.SUPPRESSED,),
+    "filtered": (
+        CVEMatch.verdict == Verdict.SUPPRESSED,
+        CVEMatch.status == AlertStatus.FILTERED,
+    ),
     "dismissed": (CVEMatch.status == AlertStatus.DISMISSED,),
     "resolved": (CVEMatch.status == AlertStatus.RESOLVED,),
 }

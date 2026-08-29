@@ -49,6 +49,7 @@ from app.core.types import (
     ActionableReason,
     AlertStatus,
     AudienceKind,
+    AutomatedReachability,
     ContactCategory,
     Ecosystem,
     EmailStatus,
@@ -507,6 +508,20 @@ class TrackedTarget(TimestampMixin, Base):
         JSONB, nullable=False, default=list, server_default="[]"
     )
 
+    #: Status of the most recent source reachability pass. Raw source is never
+    #: retained; only bounded evidence on dependency/finding rows and these
+    #: audit facts are stored.
+    reachability_analyzed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    reachability_source_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    reachability_analysis_complete: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    reachability_analysis_notes: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+
     last_scanned_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     next_scan_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True, index=True)
     last_scan_error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -765,6 +780,16 @@ class DependencyRecord(Base):
     version_spec: Mapped[str] = mapped_column(String(200), nullable=False)
     reachability: Mapped[Reachability] = mapped_column(
         enum_column(Reachability, "reachability"), nullable=False
+    )
+    automated_reachability: Mapped[AutomatedReachability] = mapped_column(
+        enum_column(AutomatedReachability, "automated_reachability"),
+        nullable=False,
+        default=AutomatedReachability.UNKNOWN,
+        server_default=AutomatedReachability.UNKNOWN.value,
+        index=True,
+    )
+    reachability_evidence: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
     )
     #: False when `version` was inferred from a range rather than observed.
     version_exact: Mapped[bool] = mapped_column(
@@ -1050,6 +1075,16 @@ class CVEMatch(TimestampMixin, Base):
     )
     reachability: Mapped[Reachability] = mapped_column(
         enum_column(Reachability, "reachability"), nullable=False
+    )
+    automated_reachability: Mapped[AutomatedReachability] = mapped_column(
+        enum_column(AutomatedReachability, "automated_reachability"),
+        nullable=False,
+        default=AutomatedReachability.UNKNOWN,
+        server_default=AutomatedReachability.UNKNOWN.value,
+        index=True,
+    )
+    reachability_evidence: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
     )
 
     #: EPSS at the time of the scan, for the CVE this advisory carries.

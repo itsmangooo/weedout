@@ -34,13 +34,12 @@ class TestPublicPages:
         assert response.status_code == 303
         assert response.headers["location"] == "/dashboard"
 
-    async def test_pricing_page_lists_both_plans(self, client):
+    async def test_pricing_page_lists_only_free(self, client):
         response = await client.get("/api/internal/pricing")
 
         assert response.status_code == 200
         names = [plan["name"] for plan in response.json()["data"]["plans"]]
-        assert "Free" in names
-        assert "Pro" in names
+        assert names == ["Free"]
 
     async def test_healthz_is_public(self, client):
         response = await client.get("/healthz")
@@ -101,17 +100,16 @@ class TestTargetRoutes:
         assert response.status_code == 201
         assert await db.scalar(select(TrackedTarget).where(TrackedTarget.user_id == user.id))
 
-    async def test_free_tier_is_capped_at_one_project(self, auth_client, db, user):
+    async def test_free_tier_can_create_multiple_projects(self, auth_client, db, user):
         await seed_mirror(db)
         first = await create_project(auth_client, filename="package.json", content=MANIFEST)
         assert first.status_code == 201
 
         second = await create_project(auth_client, filename="package.json", content=MANIFEST)
 
-        assert second.status_code == 402
-        assert "pro" in second.json()["error"]["message"].lower()
+        assert second.status_code == 201
         count = len((await db.scalars(select(TrackedTarget))).all())
-        assert count == 1
+        assert count == 2
 
     async def test_unrecognisable_file_is_rejected_with_an_explanation(self, auth_client):
         response = await create_project(

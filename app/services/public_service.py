@@ -367,7 +367,10 @@ async def _public_stats(db: AsyncSession) -> PublicStats:
         await db.execute(
             select(
                 func.count(CVEMatch.id),
-                func.count(CVEMatch.id).filter(CVEMatch.verdict == Verdict.SUPPRESSED),
+                func.count(CVEMatch.id).filter(
+                    CVEMatch.verdict == Verdict.SUPPRESSED,
+                    CVEMatch.status == AlertStatus.FILTERED,
+                ),
             )
         )
     ).one()

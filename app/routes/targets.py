@@ -61,7 +61,10 @@ async def export_findings(
 
     filters = {
         "open": (CVEMatch.verdict == Verdict.ACTIONABLE, CVEMatch.status == AlertStatus.OPEN),
-        "filtered": (CVEMatch.verdict == Verdict.SUPPRESSED,),
+        "filtered": (
+            CVEMatch.verdict == Verdict.SUPPRESSED,
+            CVEMatch.status == AlertStatus.FILTERED,
+        ),
         "dismissed": (CVEMatch.status == AlertStatus.DISMISSED,),
         "resolved": (CVEMatch.status == AlertStatus.RESOLVED,),
         "all": (),
@@ -173,7 +176,10 @@ async def _tab_counts(db: DbSession, target_id: int) -> dict[str, int]:
                     CVEMatch.verdict == Verdict.ACTIONABLE,
                     CVEMatch.status == AlertStatus.OPEN,
                 ),
-                func.count(CVEMatch.id).filter(CVEMatch.verdict == Verdict.SUPPRESSED),
+                func.count(CVEMatch.id).filter(
+                    CVEMatch.verdict == Verdict.SUPPRESSED,
+                    CVEMatch.status == AlertStatus.FILTERED,
+                ),
                 func.count(CVEMatch.id).filter(CVEMatch.status == AlertStatus.DISMISSED),
                 func.count(CVEMatch.id).filter(CVEMatch.status == AlertStatus.RESOLVED),
             ).where(CVEMatch.target_id == target_id)
@@ -194,9 +200,4 @@ async def _tab_counts(db: DbSession, target_id: int) -> dict[str, int]:
 
 # ---------------------------------------------------------------------------
 # Scan rules
-#
-# Pro only, and checked here as well as at scan time. Two checks rather than
-# one because they answer different questions: this one stops a Free account
-# creating a rule, and the one in rules_service stops a rule created while the
-# subscription was live from continuing to apply after it lapses.
 # ---------------------------------------------------------------------------

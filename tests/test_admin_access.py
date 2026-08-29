@@ -197,14 +197,14 @@ class TestNonAdminIsRefusedByTheApi:
         assert response.status_code == 403
         assert pro_user.email not in response.text
 
-    async def test_non_admin_cannot_change_another_users_tier(self, auth_client, db, pro_user):
+    async def test_retired_tier_mutation_is_absent(self, auth_client, db, pro_user):
         csrf = set_csrf(auth_client)
         response = await auth_client.post(
             f"/api/internal/admin/users/{pro_user.id}/tier",
             json={"tier": "free"},
             headers={"X-CSRF-Token": csrf},
         )
-        assert response.status_code == 403
+        assert response.status_code == 404
 
         await db.refresh(pro_user)
         assert pro_user.tier is Tier.PRO, "the tier must be untouched"

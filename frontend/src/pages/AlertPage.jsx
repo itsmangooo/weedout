@@ -71,6 +71,9 @@ export function AlertPage() {
             </span>
           ) : null}
           <span className="finding-signal">{finding.status}</span>
+          <span className="finding-signal">
+            Reachability: {finding.reachability?.replaceAll("_", " ") ?? "unknown"}
+          </span>
         </div>
       </header>
 
@@ -102,6 +105,28 @@ export function AlertPage() {
           <p className="mono">{[...finding.via, finding.package_name].join(" › ")}</p>
         </section>
       ) : null}
+
+      <section className="alert-section">
+        <h2>Automated reachability</h2>
+        <p>
+          {finding.reachability === "not_observed"
+            ? "A complete supported-source pass did not observe an import of this dependency. This is not proof that the vulnerable function cannot run."
+            : finding.reachability === "unknown"
+              ? "The scanner could not make a reliable source-reachability determination. It did not convert missing or incomplete analysis into a safe result."
+              : finding.reachability === "potentially_reachable"
+                ? "Source or dependency-path evidence shows a route that may reach this package."
+                : "Supported source contains a direct import of this package."}
+        </p>
+        {finding.reachability_evidence?.length ? (
+          <ul className="run-list u-mt-3">
+            {finding.reachability_evidence.map((evidence, index) => (
+              <li className="run-row" key={`${evidence.source_file}-${evidence.line}-${index}`}>
+                <code>{evidence.explanation}</code>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
 
       {kev ? (
         <section className="alert-section">
@@ -159,6 +184,18 @@ function StatusControls({ finding }) {
         <p>
           A later scan did not find this any more, so it closed itself. Nobody marked
           it fixed by hand — that is not something this product lets you claim.
+        </p>
+      </section>
+    );
+  }
+
+  if (finding.status === "filtered") {
+    return (
+      <section className="alert-section">
+        <h2>Filtered automatically</h2>
+        <p>
+          This matched advisory is not active work under the current scan rules. Its
+          automated reachability evidence is separate from any manual dismissal.
         </p>
       </section>
     );

@@ -11,19 +11,19 @@ import {
 
 const FINDINGS = [
   {
-    identifier: "CVE-2021-21315",
-    packageName: "systeminformation@5.0.0",
+    identifier: "CVE-2021-3749",
+    packageName: "axios@0.21.1",
     project: "demo-app",
-    severity: "Critical",
-    signal: "Review now",
-    tone: "critical",
+    severity: "High",
+    signal: "Reachable · src/api.js:1",
+    tone: "high",
   },
   {
     identifier: "CVE-2021-44906",
     packageName: "minimist@1.2.5",
     project: "demo-app",
     severity: "High",
-    signal: "Runtime transitive",
+    signal: "Not observed",
     tone: "high",
   },
 ];

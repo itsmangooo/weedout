@@ -929,28 +929,6 @@
   }
 }
 
-/* --- Billing -------------------------------------------------------------- */
-
-.billing-facts {
-  display: grid;
-  gap: var(--wo-space-3);
-  margin: 0;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-}
-
-.billing-facts dt {
-  color: var(--wo-text-dim);
-  font-size: 0.78rem;
-  letter-spacing: 0.03em;
-}
-
-.billing-facts dd {
-  margin: var(--wo-space-1) 0 0;
-  font-size: 1.05rem;
-  font-weight: 620;
-  text-transform: capitalize;
-}
-
 /* Rule profiles
    -------------------------------------------------------------------------
    A profile is a policy document under a name, so the row has to carry three

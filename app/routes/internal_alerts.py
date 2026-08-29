@@ -17,7 +17,7 @@ from sqlalchemy import desc, select
 
 from app.core.explain import explain_decision
 from app.core.matching import DEFAULT_POLICY
-from app.core.types import AlertStatus, Dependency, KevEntry, MatchDecision
+from app.core.types import AlertStatus, Dependency, KevEntry, MatchDecision, ReachabilityEvidence
 from app.deps import CsrfProtected, CurrentInternalUser, DbSession
 from app.logging_config import get_logger
 from app.models import Alert, CVEMatch, KevRecord, TrackedTarget, utcnow
@@ -83,6 +83,19 @@ async def alert_detail(
             version_spec=match.version_spec,
             reachability=match.reachability,
             version_exact=match.version_exact,
+            automated_reachability=match.automated_reachability,
+            reachability_evidence=tuple(
+                ReachabilityEvidence(
+                    source_file=str(item.get("source_file") or ""),
+                    line=item.get("line") if isinstance(item.get("line"), int) else None,
+                    import_kind=str(item.get("import_kind") or "import"),
+                    imported_package=str(item.get("imported_package") or ""),
+                    dependency_path=tuple(str(part) for part in item.get("dependency_path") or []),
+                    explanation=str(item.get("explanation") or ""),
+                )
+                for item in (match.reachability_evidence or [])
+                if isinstance(item, dict)
+            ),
         ),
         vulnerability=record_to_vulnerability(record) if record else None,  # type: ignore[arg-type]
         verdict=match.verdict,
@@ -133,7 +146,9 @@ async def alert_detail(
             "severity": str(match.severity),
             "is_exploited": bool(match.is_kev),
             "epss_score": match.epss_score,
-            "reachability": str(match.reachability),
+            "reachability": str(match.automated_reachability),
+            "reachability_evidence": list(match.reachability_evidence or []),
+            "dependency_relationship": str(match.reachability),
             "verdict": str(match.verdict),
             "status": str(match.status),
             "depth": match.depth,

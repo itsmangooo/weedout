@@ -1,7 +1,6 @@
 import {
   Bell,
   Code2,
-  CreditCard,
   FileKey2,
   FolderKanban,
   GitBranch,
@@ -43,7 +42,6 @@ const NAV_GROUPS = [
     label: "Manage",
     items: [
       { to: "/targets/new", label: "Add a project", Icon: FolderKanban },
-      { to: "/billing", label: "Billing", Icon: CreditCard },
       { to: "/cli", label: "CLI", Icon: Terminal },
       { to: "/settings", label: "Settings", Icon: Settings },
     ],

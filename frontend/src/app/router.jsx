@@ -192,22 +192,6 @@ export const appRoutes = [
                 },
               },
               {
-                path: "billing",
-                handle: { title: "Billing" },
-                lazy: async () => {
-                  const { BillingPage } = await import("../pages/BillingPage");
-                  return { Component: BillingPage };
-                },
-              },
-              {
-                path: "billing/success",
-                handle: { title: "Billing" },
-                lazy: async () => {
-                  const { BillingPage } = await import("../pages/BillingPage");
-                  return { Component: BillingPage };
-                },
-              },
-              {
                 // Approving a machine that ran `weedout auth`. Inside the
                 // signed-in boundary because the whole point is that a person
                 // with the account grants this deliberately; a stranger

@@ -1,10 +1,4 @@
-"""Plan limits, in one place.
-
-Every tier question in the application routes through `limits_for()` or one of
-the `can_*` helpers. No route, template or job may branch on
-`user.tier == Tier.PRO` directly — when pricing changes (and it will), the
-change should be confined to the `PLANS` table below.
-"""
+"""The single Free entitlement, with legacy tier-value compatibility."""
 
 from __future__ import annotations
 
@@ -13,7 +7,7 @@ from datetime import timedelta
 
 from app.core.types import Tier
 
-__all__ = ["PLANS", "PlanLimits", "can_add_target", "limits_for", "scan_interval_for"]
+__all__ = ["PLANS", "PlanLimits", "limits_for", "scan_interval_for"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,9 +25,7 @@ class PlanLimits:
     #: 1 means direct dependencies and theirs, and no further.
     scan_depth: int | None
     #: Whether per-project severity overrides, ignore rules and `.weedout.yml`
-    #: apply. Checked when a scan runs, not only when a rule is saved, so a
-    #: lapsed subscription stops honouring them without deleting anybody's
-    #: configuration.
+    #: apply.
     custom_rules: bool
     features: tuple[str, ...]
 
@@ -52,48 +44,31 @@ class PlanLimits:
         return "1 project" if self.max_targets == 1 else f"Up to {self.max_targets} projects"
 
 
-PLANS: dict[Tier, PlanLimits] = {
-    Tier.FREE: PlanLimits(
-        tier=Tier.FREE,
-        display_name="Free",
-        price_label="$0",
-        max_targets=1,
-        scan_interval=timedelta(hours=24),
-        email_alerts=True,
-        webhook_alerts=False,
-        history_days=30,
-        scan_depth=1,
-        custom_rules=False,
-        features=(
-            "1 project",
-            "Checked once daily",
-            "Direct dependencies and theirs",
-            "Email alerts",
-            "KEV + reachability filtering",
-        ),
+FREE_PLAN = PlanLimits(
+    tier=Tier.FREE,
+    display_name="Free",
+    price_label="$0",
+    max_targets=None,
+    scan_interval=timedelta(hours=4),
+    email_alerts=True,
+    webhook_alerts=True,
+    history_days=365,
+    scan_depth=None,
+    custom_rules=True,
+    features=(
+        "Unlimited projects",
+        "Full dependency tree analysis",
+        "Automated Node reachability with evidence",
+        "Custom scan rules and .weedout.yml",
+        "Email, Discord and custom webhook alerts",
+        "One year of alert history",
+        "CLI and CI-compatible exit behavior",
     ),
-    Tier.PRO: PlanLimits(
-        tier=Tier.PRO,
-        display_name="Pro",
-        price_label="$12",
-        max_targets=None,
-        scan_interval=timedelta(hours=4),
-        email_alerts=True,
-        webhook_alerts=True,
-        history_days=365,
-        scan_depth=None,
-        custom_rules=True,
-        features=(
-            "Unlimited projects",
-            "Checked every 4 hours",
-            "The whole dependency tree, however deep",
-            "Custom scan rules and .weedout.yml",
-            "Email alerts",
-            "Discord and custom webhooks",
-            "A year of alert history",
-        ),
-    ),
-}
+)
+
+# Kept only so legacy ``tier='pro'`` rows remain readable. There is one
+# entitlement and both database values resolve to it.
+PLANS: dict[Tier, PlanLimits] = {Tier.FREE: FREE_PLAN, Tier.PRO: FREE_PLAN}
 
 
 def limits_for(tier: Tier | str) -> PlanLimits:
@@ -103,34 +78,7 @@ def limits_for(tier: Tier | str) -> PlanLimits:
     future version of the app must degrade a user to the free plan, never take
     the whole request down.
     """
-    if isinstance(tier, str):
-        try:
-            tier = Tier(tier)
-        except ValueError:
-            return PLANS[Tier.FREE]
-    return PLANS.get(tier, PLANS[Tier.FREE])
-
-
-def can_add_target(tier: Tier | str, current_count: int) -> bool:
-    limits = limits_for(tier)
-    if limits.max_targets is None:
-        return True
-    return current_count < limits.max_targets
-
-
-def target_limit_message(tier: Tier | str) -> str:
-    limits = limits_for(tier)
-    if limits.max_targets is None:
-        return ""
-    noun = "project" if limits.max_targets == 1 else "projects"
-    return (
-        f"The {limits.display_name} plan tracks {limits.max_targets} {noun}. "
-        "Upgrade to Pro for unlimited projects."
-    )
-
-
-def can_use_custom_rules(tier: Tier | str) -> bool:
-    return limits_for(tier).custom_rules
+    return FREE_PLAN
 
 
 def scan_depth_for(tier: Tier | str) -> int | None:
@@ -152,10 +100,6 @@ def depth_label(tier: Tier | str) -> str:
 
 def scan_interval_for(tier: Tier | str) -> timedelta:
     return limits_for(tier).scan_interval
-
-
-def can_use_webhooks(tier: Tier | str) -> bool:
-    return limits_for(tier).webhook_alerts
 
 
 def history_cutoff_days(tier: Tier | str) -> int:

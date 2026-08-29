@@ -129,7 +129,12 @@ describe("frontend routes", () => {
     expect(
       screen.getByRole("heading", { name: "From manifest to decision, in three steps." }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/does not pretend to map a CVE to a source line/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/dynamic or incomplete analysis stays Unknown/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/does not claim that observing a package import proves a vulnerable function/),
+    ).toBeInTheDocument();
     expect(screen.getByText("Eight manifest and lockfile formats")).toBeInTheDocument();
     expect(screen.getByText("$ weedout scan --ci")).toBeInTheDocument();
     expect(screen.queryByText("Planned")).not.toBeInTheDocument();

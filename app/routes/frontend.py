@@ -64,8 +64,6 @@ SHELL_ROUTES = (
     "/alerts",
     "/cli-auth",
     "/settings",
-    "/billing",
-    "/billing/success",
     "/pricing",
     "/status",
     "/terms",
@@ -195,12 +193,12 @@ async def docs_article_entry(slug: str) -> FileResponse:
 
 
 @router.get("/billing", include_in_schema=False)
-async def billing_entry() -> FileResponse:
-    return _shell()
+async def billing_entry():
+    return redirect("/settings")
 
 
 @router.get("/billing/success", include_in_schema=False)
-async def billing_success_entry() -> FileResponse:
+async def billing_success_entry():
     """Where Dodo returns somebody after checkout.
 
     The address is kept rather than folded into /billing with a query
@@ -208,7 +206,7 @@ async def billing_success_entry() -> FileResponse:
     including any open in a browser tab right now. Changing it would turn a
     payment that has just succeeded into a 404.
     """
-    return _shell()
+    return redirect("/settings")
 
 
 @router.get("/terms", include_in_schema=False)

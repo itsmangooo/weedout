@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from app.config import get_settings
 from app.content.legal import PRIVACY, TERMS
+from app.core.types import Tier
 from app.deps import CsrfProtected, DbSession, OptionalUser
 from app.logging_config import get_logger
 from app.schemas import ContactForm
@@ -65,7 +66,7 @@ async def pricing(response: Response) -> dict:
                     "price": plan.price_label,
                     "features": list(plan.features),
                 }
-                for key, plan in PLANS.items()
+                for key, plan in (("free", PLANS[Tier.FREE]),)
             ]
         }
     }

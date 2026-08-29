@@ -1,4 +1,4 @@
-"""Administrative actions: tier changes, suspension, audit trail and metrics.
+"""Administrative actions: suspension, audit trail and metrics.
 
 Suspension is the action with the widest blast radius — it touches login,
 session validation and the scan queue — so each of those consequences is
@@ -17,7 +17,6 @@ from app.models import AdminAuditLog, TrackedTarget, User, utcnow
 from app.security import hash_password
 from app.services.admin_service import (
     AdminActionError,
-    change_user_tier,
     feed_health,
     list_users,
     platform_metrics,
@@ -56,58 +55,6 @@ async def make_target(db, user, name="proj") -> TrackedTarget:
     await db.flush()
     await attach_manifest(db, target)
     return target
-
-
-class TestTierChange:
-    async def test_changes_the_tier(self, db, admin, user):
-        await change_user_tier(db, admin, user, Tier.PRO, note="comped")
-        assert user.tier is Tier.PRO
-
-    async def test_writes_an_audit_entry_with_before_and_after(self, db, admin, user):
-        await change_user_tier(db, admin, user, Tier.PRO, note="beta feedback")
-        await db.flush()
-
-        entry = await db.scalar(
-            select(AdminAuditLog).where(AdminAuditLog.action == "user.tier_changed")
-        )
-        assert entry is not None
-        assert entry.actor_email == admin.email
-        assert entry.target_email == user.email
-        assert entry.details["from"] == "free"
-        assert entry.details["to"] == "pro"
-        assert entry.details["note"] == "beta feedback"
-        assert entry.details["manual_override"] is True
-
-    async def test_a_no_op_change_is_rejected(self, db, admin, user):
-        with pytest.raises(AdminActionError, match="already on the free plan"):
-            await change_user_tier(db, admin, user, Tier.FREE)
-
-    async def test_rejected_change_writes_no_audit_entry(self, db, admin, user):
-        with pytest.raises(AdminActionError):
-            await change_user_tier(db, admin, user, Tier.FREE)
-        await db.flush()
-        assert (await db.scalars(select(AdminAuditLog))).all() == []
-
-    async def test_does_not_touch_dodo_fields(self, db, admin, user):
-        # The webhook owns these. Overwriting them here would make the billing
-        # page disagree with dodo's own records.
-        user.dodo_subscription_id = "sub_123"
-        user.subscription_status = "active"
-        user.subscription_amount_cents = 1200
-        await db.flush()
-
-        await change_user_tier(db, admin, user, Tier.PRO)
-
-        assert user.dodo_subscription_id == "sub_123"
-        assert user.subscription_status == "active"
-        assert user.subscription_amount_cents == 1200
-
-    async def test_a_manual_change_immediately_changes_plan_limits(self, db, admin, user):
-        from app.tiers import can_add_target
-
-        assert can_add_target(user.tier, 1) is False
-        await change_user_tier(db, admin, user, Tier.PRO)
-        assert can_add_target(user.tier, 1) is True
 
 
 class TestSuspension:
@@ -278,11 +225,7 @@ class TestUserListing:
         assert result.total == 1
         assert result.pages == 1
 
-    async def test_filters_by_tier_and_status(self, db, admin, user, pro_user):
-        assert [r.user.email for r in (await list_users(db, tier=Tier.PRO)).rows] == [
-            pro_user.email
-        ]
-
+    async def test_filters_by_status(self, db, admin, user, pro_user):
         await suspend_user(db, admin, user)
         await db.flush()
 
@@ -309,17 +252,15 @@ class TestUserListing:
 
 
 class TestMetrics:
-    async def test_counts_users_by_tier(self, db, user, pro_user):
+    async def test_counts_users_without_exposing_legacy_tiers(self, db, user, pro_user):
         metrics = await platform_metrics(db)
         assert metrics.total_users == 2
-        assert metrics.free_users == 1
-        assert metrics.paid_users == 1
-        assert metrics.paid_share == 50
+        assert not hasattr(metrics, "free_users")
+        assert not hasattr(metrics, "paid_users")
 
     async def test_handles_an_empty_platform_without_dividing_by_zero(self, db):
         metrics = await platform_metrics(db)
         assert metrics.total_users == 0
-        assert metrics.paid_share == 0
         assert metrics.noise_filtered_share == 0
 
     async def test_counts_targets_and_dependencies(self, db, user):

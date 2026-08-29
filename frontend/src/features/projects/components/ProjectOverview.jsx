@@ -97,12 +97,21 @@ export function ProjectOverview({ page }) {
           <p className="empty-state">Nothing resolved yet.</p>
         ) : (
           <div className="table-scroll">
+            <p className="section-footnote u-mb-3">
+              Reachability analysed from {project.reachability_source_count} source
+              {project.reachability_source_count === 1 ? " file" : " files"}
+              {project.reachability_analysis_complete
+                ? ". The supplied inventory was complete."
+                : ". Incomplete analysis stays unknown."}
+            </p>
             <table className="data-table">
               <thead>
                 <tr>
                   <th scope="col">Package</th>
                   <th scope="col">Version</th>
                   <th scope="col">Depth</th>
+                  <th scope="col">Reachability</th>
+                  <th scope="col">Evidence</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,6 +120,10 @@ export function ProjectOverview({ page }) {
                     <td>{dependency.name}</td>
                     <td className="mono">{dependency.version}</td>
                     <td>{dependency.is_direct ? "Direct" : `Depth ${dependency.depth}`}</td>
+                    <td>{dependency.reachability.replaceAll("_", " ")}</td>
+                    <td className="cell-wrap">
+                      {dependency.reachability_evidence?.[0]?.explanation ?? "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -126,7 +139,8 @@ const PLANNED_PROJECT_MODULES = [
   {
     Icon: Code2,
     title: "Source code",
-    description: "Reserved for code-level analysis when that scanner is available.",
+    description:
+      "Planned full code analysis. Dependency import evidence is already shown above.",
   },
   {
     Icon: FileKey2,

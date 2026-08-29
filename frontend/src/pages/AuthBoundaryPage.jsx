@@ -16,7 +16,7 @@ export function AuthBoundaryPage() {
         <h1>Session boundary confirmed.</h1>
         <p className="auth-boundary-page__lede">
           React knows only the safe identity fields returned by Weedout&apos;s existing server-side
-          session. Passwords, keys, billing identifiers, and authorization decisions remain in
+          session. Passwords, keys, private identifiers, and authorization decisions remain in
           Python.
         </p>
 

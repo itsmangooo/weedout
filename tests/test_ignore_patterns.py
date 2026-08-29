@@ -322,7 +322,7 @@ class TestThroughTheService:
         assert effective.policy.ignored_packages == frozenset({"@acme/*", "karma-*"})
         assert effective.packages_from_file == ("karma-*",)
 
-    async def test_a_free_project_gets_neither(self, db, user):
+    async def test_a_free_project_gets_stored_package_rules(self, db, user):
         from app.services.rules_service import build_policy
 
         target = await a_project(db, user)
@@ -331,7 +331,7 @@ class TestThroughTheService:
 
         effective = await build_policy(db, target, user)
 
-        assert effective.policy.ignored_packages == frozenset()
+        assert effective.policy.ignored_packages == frozenset({"@acme/*"})
 
     async def test_a_kev_override_does_not_mark_a_package_rule_as_set_aside(self, db, pro_user):
         """An advisory rule that KEV overrides is finished -- the one thing it
@@ -439,7 +439,7 @@ class TestThroughTheInterface:
         assert first.status_code == 200, first.text
         assert second.status_code == 200, second.text
 
-    async def test_a_free_project_cannot_add_one(self, auth_client):
+    async def test_a_free_project_can_add_one(self, auth_client):
         project_id = await self._project_id(auth_client)
 
         response = await auth_client.post(
@@ -452,4 +452,4 @@ class TestThroughTheInterface:
             headers={"X-CSRF-Token": set_csrf(auth_client)},
         )
 
-        assert response.status_code == 402
+        assert response.status_code == 200

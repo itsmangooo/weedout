@@ -18,7 +18,6 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.config import Settings
 from app.jobs.tasks import (
     backup_task,
-    expire_subscriptions_task,
     refresh_feeds_task,
     refresh_package_metadata_task,
     run_scan_cycle,
@@ -95,14 +94,6 @@ def build_scheduler(settings: Settings) -> AsyncIOScheduler:
             name="Back up the database",
             replace_existing=True,
         )
-
-    scheduler.add_job(
-        expire_subscriptions_task,
-        trigger=IntervalTrigger(hours=1),
-        id="expire_subscriptions",
-        name="Apply scheduled subscription downgrades",
-        replace_existing=True,
-    )
 
     log.info(
         "scheduler.configured",
