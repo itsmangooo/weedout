@@ -1,102 +1,64 @@
-import {
-  ChevronRight,
-  CircleAlert,
-  CircleDot,
-  FolderKanban,
-  LayoutDashboard,
-  PackageSearch,
-  Settings,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowUpRight, CircleDot } from "lucide-react";
+import { useId, useState } from "react";
 
-const FINDINGS = [
-  {
-    identifier: "CVE-2021-3749",
-    packageName: "axios@0.21.1",
-    project: "demo-app",
-    severity: "High",
-    signal: "Reachable · src/api.js:1",
-    tone: "high",
-  },
-  {
-    identifier: "CVE-2021-44906",
-    packageName: "minimist@1.2.5",
-    project: "demo-app",
-    severity: "High",
-    signal: "Not observed",
-    tone: "high",
-  },
-];
+import { DEMO_FINDINGS } from "../demo";
+import { FindingContext } from "./FindingContext";
 
 export function ProductScreenshot() {
+  const [selected, setSelected] = useState(DEMO_FINDINGS[0]);
+  const detailId = useId();
   return (
     <figure className="product-shot">
       <figcaption className="product-shot__caption">
-        <span><CircleDot aria-hidden="true" size={13} /> Product preview</span>
-        <span>Example project data</span>
+        <span>
+          <CircleDot aria-hidden="true" size={13} /> Product preview
+        </span>
+        <span>Illustrative demo · not a live scan</span>
       </figcaption>
-
-      <div className="product-shot__window">
-        <aside aria-hidden="true" className="product-shot__sidebar">
-          <div className="product-shot__brand">
-            <ShieldCheck size={17} /> <span>WEEDOUT</span>
+      <div className="product-shot__content">
+        <div className="product-shot__head">
+          <div>
+            <span className="demo-label">demo-app / findings</span>
+            <h2>
+              A shorter list.
+              <br />A clearer next step.
+            </h2>
           </div>
-          <div className="product-shot__nav">
-            <span className="is-active"><LayoutDashboard size={14} /> Overview</span>
-            <span><FolderKanban size={14} /> Projects</span>
-            <span><PackageSearch size={14} /> Findings</span>
-          </div>
-          <span className="product-shot__settings"><Settings size={14} /> Settings</span>
-        </aside>
-
-        <div className="product-shot__content">
-          <header className="product-shot__head">
-            <div>
-              <span className="product-shot__eyebrow">What needs attention</span>
-              <strong className="product-shot__title">Security overview</strong>
-              <p>Open dependency findings across your projects.</p>
-            </div>
-            <span className="product-shot__button" aria-hidden="true">Add project</span>
-          </header>
-
-          <div className="product-shot__summary" aria-label="Example project summary">
-            <div>
-              <span>Needs attention</span>
-              <strong>2</strong>
-            </div>
-            <dl>
-              <div><dt>Project</dt><dd>demo-app</dd></div>
-              <div><dt>Dependencies scanned</dt><dd>412</dd></div>
-              <div><dt>Filtered as noise</dt><dd>33</dd></div>
-            </dl>
-          </div>
-
-          <section className="product-shot__panel">
-            <div className="product-shot__panel-head">
-              <div>
-                <span>Open findings</span>
-                <strong>Start with the signal</strong>
-              </div>
-              <span>View all <ChevronRight size={12} /></span>
-            </div>
-            <div className="product-shot__rows">
-              {FINDINGS.map((finding) => (
-                <div className="product-shot__row" key={finding.identifier}>
-                  <span className={`product-shot__severity is-${finding.tone}`} />
-                  <div>
-                    <strong>{finding.identifier}</strong>
-                    <span>{finding.packageName}</span>
-                  </div>
-                  <span className="product-shot__project">{finding.project}</span>
-                  <span className="product-shot__signal">
-                    {finding.tone === "critical" ? <CircleAlert aria-hidden="true" size={12} /> : null}
-                    {finding.signal}
-                  </span>
-                  <em className={`is-${finding.tone}`}>{finding.severity}</em>
-                </div>
-              ))}
-            </div>
-          </section>
+          <span className="product-shot__count">
+            03<span>need attention</span>
+          </span>
+        </div>
+        <p className="product-shot__hint">
+          Select a finding to inspect its context{" "}
+          <ArrowUpRight size={13} aria-hidden="true" />
+        </p>
+        <div className="demo-findings" aria-label="Preview findings">
+          {DEMO_FINDINGS.map((finding, index) => (
+            <button
+              className={`demo-finding ${selected.id === finding.id ? "is-selected" : ""}`}
+              key={finding.id}
+              type="button"
+              aria-label={`0${index + 1} ${finding.packageName}, ${finding.id}, ${finding.severity} severity`}
+              aria-pressed={selected.id === finding.id}
+              aria-controls={detailId}
+              onClick={() => setSelected(finding)}
+            >
+              <span className="demo-finding__index">0{index + 1}</span>
+              <span>
+                <strong>{finding.packageName}</strong>
+                <small>{finding.id}</small>
+              </span>
+              <span
+                className={`demo-severity is-${finding.severity.toLowerCase()}`}
+              >
+                {finding.severity}
+              </span>
+              <ArrowUpRight size={15} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+        <div id={detailId}>
+          <FindingContext key={selected.id} finding={selected} compact />
         </div>
       </div>
     </figure>

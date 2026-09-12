@@ -73,21 +73,21 @@ Reusable tokens live in `src/styles/tokens.css` and theme values in `src/styles/
 Marketing motion is isolated from the app shell and respects the global `reducedMotion="user"`
 policy. Dashboard motion stays limited to small row/status transitions.
 
-The public landing is organized around one Weedout-specific transformation instead of reusable
-SaaS feature cards:
+The public landing is scoped to `FoundationPage`, `features/landing/`, and `landing.css`.
+Its product story moves from a selectable finding preview to an interactive 47-alert / 3-finding
+example, a connected three-step workflow, and a replayable CLI output excerpt. All sample counts,
+source paths and findings are explicitly labeled as illustrative and stay in landing-only fixtures;
+they never enter API responses or authenticated state. Filtering remains separate from source
+reachability, and Unknown evidence is never presented as a safety conclusion.
 
-- the hero keeps advisory/package/path rows visually continuous while a four-beat sequence reduces
-  47 matches to 12 relevant results, 3 reachable paths, and 1 exploited signal;
-- a sticky, scroll-driven scene progressively removes those same kinds of rows so visual density
-  falls with the decision count;
-- the workflow scene draws the path from `package-lock.json` through `weedout scan`, reachability,
-  and a CI decision; and
-- the health check remains available under the collapsed local-preview footer disclosure instead
-  of appearing as product storytelling.
-
-Pointer depth and magnetic CTA movement are disabled on touch and under reduced-motion
-preferences. Reduced motion also removes the sticky scroll duration and renders the final,
-fully-filtered state directly.
+The terminal uses the supported `weedout scan --ci` command and the output format in the sibling
+CLI repository's `internal/cli/cli.go`. Playback starts in view, pauses offscreen, ends after one
+short sequence, and has pause/replay controls. Reduced motion displays the complete transcript
+immediately and disables entry, path, background and navigation animation. Scroll reveals keep
+content visible by default; no pinned scroll scenes or pointer tracking are required. Finding
+selection uses native buttons, and evidence and filtered-result explanations use native disclosures.
+The existing account navigation, signup/docs routes, founder links and service-status disclosure
+remain available.
 
 Finding and project rows expose the same read-only destinations through an accessible ellipsis
 button and a pointer-positioned context menu. The custom menu is scoped to the non-interactive row

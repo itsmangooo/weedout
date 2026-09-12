@@ -1,17 +1,20 @@
 import {
+  ArrowDown,
   ArrowRight,
   Check,
+  FileCode2,
   GitBranch,
-  ScanSearch,
+  ListChecks,
   ShieldCheck,
-  TerminalSquare,
 } from "lucide-react";
 import { Link } from "react-router";
 
 import ownerPhoto from "../assets/emanuel-rm-linkedin.jpg";
 import { WeedoutLogo } from "../components/brand/WeedoutLogo";
-import { FindingContext } from "../features/landing/components/FindingContext";
+import { CliDemo } from "../features/landing/components/CliDemo";
 import { ProductScreenshot } from "../features/landing/components/ProductScreenshot";
+import { Reveal } from "../features/landing/components/Reveal";
+import { SignalDemo } from "../features/landing/components/SignalDemo";
 import { SystemStatus } from "../features/system/components/SystemStatus";
 
 const PRODUCT_PROOF = [
@@ -20,47 +23,30 @@ const PRODUCT_PROOF = [
   "OSV + CISA KEV context",
   "Web, CLI and CI workflows",
 ];
-
-const CAPABILITIES = [
-  {
-    Icon: GitBranch,
-    index: "01",
-    title: "Trace the dependency path",
-    description:
-      "See whether a package is direct or transitive, how deep it sits, and the manifest-derived chain that brought it into the project.",
-  },
-  {
-    Icon: ScanSearch,
-    index: "02",
-    title: "Read the evidence",
-    description:
-      "Keep severity, known exploitation, fixed versions and source-derived reachability evidence together instead of chasing context across tools.",
-  },
-  {
-    Icon: ShieldCheck,
-    index: "03",
-    title: "Work the useful queue",
-    description:
-      "Use alert rules and project context to reduce background noise, then review the findings that still need a decision.",
-  },
-];
-
 const WORKFLOW = [
   {
+    Icon: FileCode2,
     index: "01",
-    title: "Point Weedout at a project",
-    description: "Add a supported manifest in the web app or scan the project from the CLI.",
-  },
-  {
-    index: "02",
-    title: "Classify what was found",
+    artifact: "package-lock.json",
+    title: "Scan a project",
     description:
-      "Advisory, dependency, source-import and exploit signals are evaluated against the project context.",
+      "Upload a supported manifest in the web app, or scan from your terminal. CLI scans can include bounded JavaScript and TypeScript source evidence.",
   },
   {
+    Icon: GitBranch,
+    index: "02",
+    artifact: "advisory → path → evidence",
+    title: "Put each match in context",
+    description:
+      "Weedout adds advisory and dependency context, applies your project rules, and prioritizes the findings that need attention.",
+  },
+  {
+    Icon: ListChecks,
     index: "03",
-    title: "Fix from a shorter list",
-    description: "Review the path, evidence and available fixed version before choosing the next action.",
+    artifact: "finding → decision → fix",
+    title: "Work the shortlist",
+    description:
+      "Inspect the reason, follow the dependency path, and review the fixed version. Make a decision with the evidence in front of you.",
   },
 ];
 
@@ -68,128 +54,165 @@ export function FoundationPage() {
   return (
     <div className="landing-page">
       <section className="landing-hero" aria-labelledby="landing-title">
+        <div className="landing-hero__line" aria-hidden="true" />
         <div className="landing-wrap landing-hero__grid">
           <div className="landing-hero__copy">
             <span className="landing-eyebrow">
-              <ShieldCheck aria-hidden="true" size={15} /> Dependency vulnerability intelligence
+              <ShieldCheck aria-hidden="true" size={15} /> Dependency
+              vulnerability intelligence
             </span>
-            <h1 id="landing-title">Security findings with the context to fix them.</h1>
+            <h1 id="landing-title">
+              Security findings with the <span>context to fix them.</span>
+            </h1>
             <p className="landing-hero__lede">
-              Match dependency vulnerabilities against OSV and CISA context, trace direct and
-              transitive paths, inspect conservative Node reachability evidence, and focus on the
-              findings that still require attention.
+              The CVE is the starting point. See how a vulnerable dependency got
+              in, what the evidence says, and what to do next.
             </p>
             <div className="landing-actions">
-              <Link className="button button--primary landing-action" to="/signup">
+              <Link
+                className="button button--primary landing-action"
+                to="/signup"
+              >
                 Start scanning free <ArrowRight aria-hidden="true" size={16} />
               </Link>
-              <Link className="button button--ghost landing-action" to="/cli">
-                Explore the CLI
-              </Link>
+              <a
+                className="button button--ghost landing-action"
+                href="#product"
+              >
+                See how it works <ArrowDown aria-hidden="true" size={15} />
+              </a>
             </div>
             <p className="landing-hero__note">
-              <Check aria-hidden="true" size={14} /> No credit card required to start.
+              <Check aria-hidden="true" size={14} /> No credit card required to
+              start.
             </p>
           </div>
-
           <div className="landing-hero__product">
             <ProductScreenshot />
           </div>
+        </div>
+        <div className="landing-wrap landing-hero__foot">
+          <span>LESS TRIAGE. MORE CONTEXT.</span>
+          <a href="#product">
+            Follow the signal <ArrowDown size={14} aria-hidden="true" />
+          </a>
         </div>
       </section>
 
       <div className="landing-proof" aria-label="Product facts">
         <div className="landing-wrap">
           {PRODUCT_PROOF.map((item) => (
-            <span key={item}><Check aria-hidden="true" size={13} /> {item}</span>
+            <span key={item}>
+              <Check aria-hidden="true" size={13} /> {item}
+            </span>
           ))}
         </div>
       </div>
 
-      <section className="landing-context" id="product" aria-labelledby="context-title">
+      <section
+        className="landing-context"
+        id="product"
+        aria-labelledby="context-title"
+      >
         <div className="landing-wrap">
-          <div className="landing-context__grid">
-            <div className="landing-section-copy">
-              <p className="section-label">The useful part starts after the match</p>
-              <h2 id="context-title">From a CVE to actual project context.</h2>
-              <p>
-                A vulnerable package name is only the beginning. Weedout keeps the dependency path,
-                available fix and reason a finding surfaced close to the advisory so you can make a
-                better decision.
-              </p>
-              <p className="landing-honesty">
-                Node reachability comes from static import and require observations. Evidence names
-                the source line and dependency path; dynamic or incomplete analysis stays Unknown.
-                Weedout does not claim that observing a package import proves a vulnerable function
-                executes.
-              </p>
-            </div>
-            <FindingContext />
-          </div>
-
-          <div className="landing-capabilities" aria-label="Current Weedout capabilities">
-            {CAPABILITIES.map(({ Icon, index, title, description }) => (
-              <article key={title}>
-                <div className="landing-capabilities__top">
-                  <span>{index}</span>
-                  <Icon aria-hidden="true" size={18} />
-                </div>
-                <h3>{title}</h3>
-                <p>{description}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="landing-workflow" aria-labelledby="workflow-title">
-        <div className="landing-wrap">
-          <div className="landing-workflow__heading">
+          <Reveal className="landing-problem">
+            <p className="section-label">01 / The problem with another alert</p>
+            <h2>
+              A long list of CVEs.
+              <br />
+              <span>Still no clear next move.</span>
+            </h2>
+            <p>
+              Severity tells you how bad a vulnerability can be. It doesn’t tell
+              you how the package entered your project, what was observed, or
+              which dependency to update.
+            </p>
+          </Reveal>
+          <Reveal className="landing-context__heading">
             <div>
-              <p className="section-label">How it works</p>
-              <h2 id="workflow-title">From manifest to decision, in three steps.</h2>
+              <p className="section-label">02 / Add the missing context</p>
+              <h2 id="context-title">From a CVE to actual project context.</h2>
             </div>
             <p>
-              One focused workflow for the web app, local development and CI—without inventing a
-              second set of security results. CLI scans add bounded JavaScript and TypeScript source
-              evidence; a manifest-only web scan reports reachability as Unknown.
+              Same project. Same matches.
+              <br />A more useful place to start.
+              <br />
+              <span>Try the example below.</span>
             </p>
-          </div>
-
-          <ol className="landing-workflow__steps">
-            {WORKFLOW.map(({ index, title, description }) => (
-              <li key={title}>
-                <span>{index}</span>
-                <div>
-                  <h3>{title}</h3>
-                  <p>{description}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-
-          <div className="landing-cli">
-            <div className="landing-cli__copy">
-              <TerminalSquare aria-hidden="true" size={20} />
-              <p className="section-label">CLI + CI</p>
-              <h2>Run the same check where you build.</h2>
-              <p>
-                Authenticate once, scan a supported project and use CI mode when critical, malicious
-                or known-exploited findings should fail the job with a documented exit code.
-              </p>
-              <Link className="text-link" to="/cli">
-                Read the CLI guide <ArrowRight aria-hidden="true" size={15} />
-              </Link>
-            </div>
-
-            <div className="landing-cli__terminal" aria-label="Example Weedout CLI session">
-              <div className="landing-cli__bar" aria-hidden="true"><span /><span /><span /></div>
-              <pre><code><span>$ weedout scan --ci</span>{"\n"}{"\n"}demo-app ./package-lock.json{"\n"}412 dependencies scanned · 33 filtered out as noise{"\n"}<em>1 exploited · 1 critical</em>{"\n"}{"\n"}<strong>! axios@0.21.1 CVE-2021-3749 → 0.21.2</strong>{"\n"}  reachability: reachable{"\n"}  evidence: src/api.js:1 imports axios</code></pre>
-            </div>
+          </Reveal>
+          <Reveal>
+            <SignalDemo />
+          </Reveal>
+          <div className="landing-honesty">
+            <span className="section-label">Evidence, with its limits.</span>
+            <p>
+              Node reachability comes from static import and require
+              observations; dynamic or incomplete analysis stays Unknown.
+              Weedout does not claim that observing a package import proves a
+              vulnerable function executes. A manifest-only web scan reports
+              reachability as Unknown.
+            </p>
+            <Link to="/docs">
+              Read the docs <ArrowRight size={14} aria-hidden="true" />
+            </Link>
           </div>
         </div>
       </section>
 
+      <section
+        className="landing-workflow"
+        id="workflow"
+        aria-labelledby="workflow-title"
+      >
+        <div className="landing-wrap">
+          <Reveal className="landing-workflow__heading">
+            <p className="section-label">03 / Turn context into action</p>
+            <h2 id="workflow-title">
+              From manifest to decision,{" "}
+              <br />
+              in three steps.
+            </h2>
+          </Reveal>
+          <Reveal>
+            <ol className="landing-workflow__steps">
+              {WORKFLOW.map(({ Icon, index, artifact, title, description }) => (
+                <li key={index}>
+                  <div className="landing-workflow__node">
+                    <span>{index}</span>
+                    <Icon size={21} aria-hidden="true" />
+                  </div>
+                  <code>{artifact}</code>
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                </li>
+              ))}
+            </ol>
+          </Reveal>
+          <div className="landing-cli" id="cli-demo">
+            <Reveal className="landing-cli__copy">
+              <p className="section-label">04 / Where you build</p>
+              <h2>
+                Same context.
+                <br />
+                Your terminal.
+              </h2>
+              <p>
+                Run a scan from your project. Add <code>--ci</code> to fail the
+                job on your configured blocking threshold, malicious packages or
+                known exploitation.
+              </p>
+              <p>
+                A finding’s reachability stays a separate result. A failed scan
+                never passes as a clean one.
+              </p>
+              <Link className="text-link" to="/cli">
+                Explore the CLI <ArrowRight size={15} aria-hidden="true" />
+              </Link>
+            </Reveal>
+            <CliDemo />
+          </div>
+        </div>
+      </section>
       <section className="landing-final" aria-labelledby="landing-close-title">
         <div className="landing-wrap">
           <div className="owner-word">
@@ -200,13 +223,19 @@ export function FoundationPage() {
               rel="noopener noreferrer"
               aria-label="Emanuel RM on LinkedIn"
             >
-              <img src={ownerPhoto} alt="Emanuel RM" width="200" height="200" loading="lazy" />
+              <img
+                src={ownerPhoto}
+                alt="Emanuel RM"
+                width="200"
+                height="200"
+                loading="lazy"
+              />
             </a>
             <div className="owner-word__copy">
               <p className="section-label">Owner&apos;s word</p>
               <blockquote>
-                I built Weedout because security tools should help you decide what to fix—not bury
-                you under another list of CVEs.
+                I built Weedout because security tools should help you decide
+                what to fix—not bury you under another list of CVEs.
               </blockquote>
               <p>
                 <strong>Emanuel RM</strong>
@@ -224,13 +253,17 @@ export function FoundationPage() {
           <div className="landing-close">
             <div>
               <p className="section-label">Start with the signal</p>
-              <h2 id="landing-close-title">Scan a project. See what actually needs attention.</h2>
+              <h2 id="landing-close-title">
+                Scan a project. See what actually needs attention.
+              </h2>
             </div>
             <div className="landing-actions">
               <Link className="button button--primary" to="/signup">
                 Start scanning free <ArrowRight aria-hidden="true" size={16} />
               </Link>
-              <Link className="button button--secondary" to="/docs">Read the docs</Link>
+              <Link className="button button--secondary" to="/docs">
+                Read the docs
+              </Link>
             </div>
           </div>
         </div>
@@ -254,7 +287,13 @@ export function FoundationPage() {
           <nav aria-label="Company">
             <strong>Company</strong>
             <Link to="/contact">Contact</Link>
-            <a href="https://github.com/itsmangooo/weedout" rel="noopener" target="_blank">Source</a>
+            <a
+              href="https://github.com/itsmangooo/weedout"
+              rel="noopener"
+              target="_blank"
+            >
+              Source
+            </a>
             <a
               href="https://www.linkedin.com/in/emanuel-rm?utm_source=share_via&utm_content=profile&utm_medium=member_android"
               rel="noopener noreferrer"
