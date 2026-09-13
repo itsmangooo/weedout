@@ -2,30 +2,64 @@ import { useEffect } from "react";
 
 // Load animation infrastructure only on the public landing. Every observer,
 // ticker, listener and inline animation is owned by this effect and reverted.
-export function useLandingMotion(ref) {
+export function useLandingMotion(ref, reducedMotion = false) {
   useEffect(() => {
-    if (!window.matchMedia || !ref.current) return;
+    if (!window.matchMedia || !ref.current || reducedMotion) return;
     let cancelled = false;
     let dispose = () => {};
     Promise.all([import("gsap"), import("gsap/ScrollTrigger"), import("lenis")]).then(([{ gsap }, { ScrollTrigger }, { default: Lenis }]) => {
       if (cancelled) return;
       gsap.registerPlugin(ScrollTrigger);
       const media = gsap.matchMedia();
-      dispose = () => media.revert();
-      media.add("(prefers-reduced-motion: no-preference)", () => {
+      let removeHeroListeners = () => {};
+      const context = gsap.context(() => {
         const root = ref.current;
+        const intro = root.querySelector(".landing-intro");
+        const heroLayer = root.querySelector("[data-hero-depth]");
+        const heroTimeline = gsap.timeline({ defaults: { ease: "power3.out" } });
+        heroTimeline
+          .fromTo(root.querySelector(".landing-intro__edition"), { y: -12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55 })
+          .fromTo(root.querySelectorAll("[data-text-line]"), { yPercent: 112 }, { yPercent: 0, duration: 1.05, stagger: 0.13 }, "-=.25")
+          .fromTo(root.querySelectorAll("[data-hero-copy]"), { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, stagger: 0.08 }, "-=.55")
+          .fromTo(root.querySelectorAll("[data-hero-signal]"), { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.65, stagger: 0.1, transformOrigin: "left" }, "-=.45");
+
+        root.querySelectorAll("[data-hero-point]").forEach((point, index) => {
+          gsap.to(point, { y: index % 2 ? 12 : -12, x: index % 3 ? 5 : -5, duration: 2.4 + index * 0.13, repeat: -1, yoyo: true, ease: "sine.inOut" });
+        });
+
+        let moveHero;
+        let leaveHero;
+        if (window.matchMedia("(pointer: fine)").matches && intro && heroLayer) {
+          moveHero = (event) => {
+            const bounds = intro.getBoundingClientRect();
+            const x = (event.clientX - bounds.left) / bounds.width - 0.5;
+            const y = (event.clientY - bounds.top) / bounds.height - 0.5;
+            gsap.to(heroLayer, { x: x * 24, y: y * 16, rotateX: y * -2, rotateY: x * 3, duration: 0.7, ease: "power2.out", overwrite: "auto" });
+          };
+          leaveHero = () => gsap.to(heroLayer, { x: 0, y: 0, rotateX: 0, rotateY: 0, duration: 0.9, ease: "power3.out" });
+          intro.addEventListener("pointermove", moveHero);
+          intro.addEventListener("pointerleave", leaveHero);
+          removeHeroListeners = () => {
+            intro.removeEventListener("pointermove", moveHero);
+            intro.removeEventListener("pointerleave", leaveHero);
+          };
+        }
+
         root.querySelectorAll("[data-reveal]").forEach((node) => {
-          gsap.fromTo(node, { y: 28, opacity: 0.25, clipPath: "inset(0 0 12% 0)" }, {
-            y: 0, opacity: 1, clipPath: "inset(0 0 0% 0)", duration: 0.75, ease: "power3.out",
-            scrollTrigger: { trigger: node, start: "top 92%", once: true },
+          gsap.fromTo(node, { y: 38, opacity: 0, clipPath: "inset(0 0 18% 0)" }, {
+            y: 0, opacity: 1, clipPath: "inset(0 0 0% 0)", duration: 0.85, ease: "power3.out",
+            scrollTrigger: { trigger: node, start: "top 88%", once: true },
           });
         });
-        gsap.fromTo(root.querySelectorAll("[data-text-line]"), { yPercent: 105 }, { yPercent: 0, duration: 0.95, stagger: 0.12, ease: "power3.out" });
+
+        gsap.to(root.querySelector("[data-scroll-progress]"), { scaleX: 1, ease: "none", scrollTrigger: { trigger: root, start: "top top", end: "bottom bottom", scrub: 0.15 } });
+        gsap.to(root.querySelector(".landing-conclusion h2"), { backgroundPositionX: "0%", ease: "none", scrollTrigger: { trigger: ".landing-conclusion", start: "top 75%", end: "bottom bottom", scrub: true } });
       }, ref);
-      media.add("(min-width: 960px) and (pointer: fine) and (prefers-reduced-motion: no-preference)", () => {
-        const lenis = new Lenis({ lerp: 0.12, anchors: { offset: -90 }, prevent: (node) => node.hasAttribute("data-native-scroll") });
+      media.add("(min-width: 960px) and (pointer: fine)", () => {
+        const lenis = new Lenis({ duration: 1.05, smoothWheel: true, anchors: { offset: -90 }, prevent: (node) => node.hasAttribute("data-native-scroll") });
         const tick = (time) => lenis.raf(time * 1000);
         lenis.on("scroll", ScrollTrigger.update);
+        gsap.ticker.lagSmoothing(0);
         gsap.ticker.add(tick);
         const scene = ref.current.querySelector("[data-analysis-stage]");
         const story = ref.current.querySelector("[data-analysis-story]");
@@ -34,13 +68,13 @@ export function useLandingMotion(ref) {
         gsap.to(progress, { value: 1, ease: "none", onUpdate: update,
           scrollTrigger: { trigger: story, start: "top 90px", end: "+=950", pin: scene, scrub: 0.7, invalidateOnRefresh: true },
         });
-        gsap.to(ref.current.querySelector(".landing-manifest"), { y: -35, ease: "none", scrollTrigger: { trigger: ".landing-method", start: "top bottom", end: "bottom top", scrub: true } });
+        gsap.to(ref.current.querySelector(".landing-manifest"), { y: -55, rotate: 1.5, ease: "none", scrollTrigger: { trigger: ".landing-method", start: "top bottom", end: "bottom top", scrub: true } });
         return () => { gsap.ticker.remove(tick); lenis.destroy(); };
       }, ref);
       const refresh = () => { if (!cancelled) ScrollTrigger.refresh(); };
       document.fonts?.ready.then(refresh);
-      dispose = () => media.revert();
+      dispose = () => { removeHeroListeners(); context.revert(); media.revert(); };
     }).catch(() => { dispose(); /* The page remains completely usable without enhancement. */ });
     return () => { cancelled = true; dispose(); };
-  }, [ref]);
+  }, [ref, reducedMotion]);
 }

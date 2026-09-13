@@ -1,15 +1,13 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useReducedMotion } from "motion/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CliDemo } from "./components/CliDemo";
 import { FindingExplorer } from "./components/FindingExplorer";
 import { AnalysisStory } from "./components/AnalysisStory";
+import { MotionControl } from "./components/MotionControl";
 
-vi.mock("motion/react", () => ({ useReducedMotion: vi.fn(() => false) }));
-
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); window.localStorage.clear(); document.documentElement.removeAttribute("data-motion"); });
 
 describe("landing product demonstrations", () => {
   it("lets a keyboard user select a finding and inspect its matching path, evidence and fix", async () => {
@@ -107,9 +105,20 @@ describe("landing CLI playback", () => {
   });
 
   it("shows the complete transcript immediately with reduced motion", () => {
-    vi.mocked(useReducedMotion).mockReturnValue(true);
-    render(<CliDemo />);
+    render(<CliDemo reducedMotion />);
     expect(screen.getByText(/Failing: 1 finding/)).toHaveClass("is-visible");
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("lets keyboard users override system motion and persists the choice", async () => {
+    const user = userEvent.setup();
+    render(<MotionControl />);
+    const full = screen.getByRole("radio", { name: "Play full motion" });
+    await user.click(full);
+    expect(full).toHaveAttribute("aria-checked", "true");
+    expect(window.localStorage.getItem("weedout-motion")).toBe("full");
+    expect(document.documentElement).toHaveAttribute("data-motion", "full");
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("radio", { name: "Reduce motion" })).toHaveAttribute("aria-checked", "true");
   });
 });

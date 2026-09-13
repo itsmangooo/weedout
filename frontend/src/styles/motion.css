@@ -1,11 +1,17 @@
-﻿.route-transition { animation: route-enter 230ms ease-out both; }
+.route-transition { animation: route-enter 230ms ease-out backwards; }
 @keyframes route-enter { from { opacity: .65; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes data-enter { from { opacity: .4; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 @keyframes path-enter { from { opacity: .25; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
 @keyframes reveal-line { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+:root[data-motion="reduced"] *, :root[data-motion="reduced"] *::before, :root[data-motion="reduced"] *::after { animation:none !important;transition:none !important;scroll-behavior:auto !important; }
+:root[data-motion="reduced"] .route-transition,:root[data-motion="reduced"] .magnetic,:root[data-motion="reduced"] .button:hover { transform:none !important; }
+:root[data-motion="reduced"] [data-text-line] { transform:none !important; }
+:root[data-motion="reduced"] [data-reveal] { opacity:1 !important;transform:none !important;clip-path:none !important; }
+:root[data-motion="reduced"] .landing-scroll-progress { display:none; }
 @media(prefers-reduced-motion: reduce) {
-  *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-  .route-transition,.magnetic,.button:hover { transform: none !important; }
-  [data-text-line] { transform: none !important; }
-  [data-reveal] { opacity: 1 !important; transform: none !important; clip-path: none !important; }
+  :root:not([data-motion="full"]) *,:root:not([data-motion="full"]) *::before,:root:not([data-motion="full"]) *::after { animation:none !important;transition:none !important;scroll-behavior:auto !important; }
+  :root:not([data-motion="full"]) .route-transition,:root:not([data-motion="full"]) .magnetic,:root:not([data-motion="full"]) .button:hover { transform:none !important; }
+  :root:not([data-motion="full"]) [data-text-line] { transform:none !important; }
+  :root:not([data-motion="full"]) [data-reveal] { opacity:1 !important;transform:none !important;clip-path:none !important; }
+  :root:not([data-motion="full"]) .landing-scroll-progress { display:none; }
 }

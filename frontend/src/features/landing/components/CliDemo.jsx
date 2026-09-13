@@ -1,6 +1,5 @@
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useReducedMotion } from "motion/react";
 
 // Format verified against weedout-cli/internal/cli/cli.go report() and scan().
 // An excerpt of one illustrative scan, not a command executed in the browser.
@@ -19,8 +18,7 @@ const LINES = [
   "Failing: 1 finding(s) at critical severity or confirmed exploitation.",
 ];
 
-export function CliDemo() {
-  const reducedMotion = useReducedMotion();
+export function CliDemo({ reducedMotion = false }) {
   const ref = useRef(null);
   const [inView, setInView] = useState(
     () => typeof IntersectionObserver === "undefined",

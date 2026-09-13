@@ -5,19 +5,27 @@ import { AnalysisStory } from "../features/landing/components/AnalysisStory";
 import { FindingExplorer } from "../features/landing/components/FindingExplorer";
 import { CliDemo } from "../features/landing/components/CliDemo";
 import { MagneticLink } from "../features/landing/components/MagneticLink";
+import { MotionControl } from "../features/landing/components/MotionControl";
 import { useLandingMotion } from "../features/landing/useLandingMotion";
+import { useMotionPreference } from "../features/landing/useMotionPreference";
 import ownerPhoto from "../assets/emanuel-rm-linkedin.jpg";
 
 export function FoundationPage() {
   const root = useRef(null);
-  useLandingMotion(root);
+  const { reduced } = useMotionPreference();
+  useLandingMotion(root, reduced);
   return <div className="landing-page" ref={root}>
+    <span className="landing-scroll-progress" data-scroll-progress aria-hidden="true" />
     <section className="landing-intro" aria-labelledby="landing-title">
-      <div className="landing-intro__edition"><span className="eyebrow">Dependency intelligence / built for the next decision</span><a href="https://github.com/itsmangooo/weedout" target="_blank" rel="noopener noreferrer">Open source <ArrowUpRight size={14} aria-hidden="true" /></a></div>
+      <div className="landing-intro__edition"><span className="eyebrow">Dependency intelligence / built for the next decision</span><div className="landing-intro__tools"><MotionControl /><a href="https://github.com/itsmangooo/weedout" target="_blank" rel="noopener noreferrer">Open source <ArrowUpRight size={14} aria-hidden="true" /></a></div></div>
+      <div className="hero-depth" data-hero-depth aria-hidden="true">
+        {Array.from({ length: 12 }, (_, index) => <i key={index} data-hero-point />)}
+        <div className="hero-signal"><span data-hero-signal><b>47</b> raw alerts</span><span data-hero-signal>dependency + evidence</span><span data-hero-signal><b>03</b> need attention</span></div>
+      </div>
       <h1 id="landing-title"><span className="text-mask"><span data-text-line>Security findings.</span></span>{" "}<span className="text-mask"><span data-text-line>With <em>context.</em></span></span></h1>
-      <div className="landing-intro__baseline"><span className="landing-intro__index" aria-hidden="true">[ W / 01 ]</span><p>Know what matched. See how it got in.<br />Decide what to fix.<span>Weedout brings dependency paths, vulnerability evidence and available fixes into one clear shortlist.</span></p><div><MagneticLink to="/signup">Start scanning free <ArrowRight size={17} aria-hidden="true" /></MagneticLink><a className="text-link" href="#analysis">Explore the analysis ↓</a><small>No credit card required.</small></div></div>
+      <div className="landing-intro__baseline"><span className="landing-intro__index" data-hero-copy aria-hidden="true">[ W / 01 ]</span><p data-hero-copy>Know what matched. See how it got in.<br />Decide what to fix.<span>Weedout brings dependency paths, vulnerability evidence and available fixes into one clear shortlist.</span></p><div data-hero-copy><MagneticLink to="/signup">Start scanning free <ArrowRight size={17} aria-hidden="true" /></MagneticLink><a className="text-link" href="#analysis">Explore the analysis ↓</a><small>No credit card required.</small></div></div>
     </section>
-    <AnalysisStory />
+    <AnalysisStory reducedMotion={reduced} />
     <div className="landing-facts">{["Eight manifest and lockfile formats", "OSV + CISA KEV context", "Web, CLI and CI workflows", "Free to start"].map((fact) => <span key={fact}><Check size={14} aria-hidden="true" />{fact}</span>)}</div>
     <section className="landing-inspect" id="context" aria-labelledby="context-title">
       <header className="landing-section-heading" data-reveal><p className="eyebrow">02 / Context you can inspect</p><h2 id="context-title">The reason.<br />The path.<br /><em>The next step.</em></h2><p>A severity label is useful.<br />A severity label with evidence is a place to start.</p></header>
@@ -35,7 +43,7 @@ export function FoundationPage() {
     </section>
     <section className="landing-terminal" id="terminal" aria-labelledby="terminal-title">
       <header data-reveal><p className="eyebrow">04 / Close to the code</p><h2 id="terminal-title">Your terminal.<br /><em>The same answer.</em></h2><Link className="button button--secondary" to="/cli">Read the CLI guide <ArrowUpRight size={16} aria-hidden="true" /></Link></header>
-      <div className="landing-terminal__body"><CliDemo /><div className="terminal-annotation"><span className="eyebrow">A useful exit code.</span><p><code>weedout scan --ci</code> fails on the configured blocking threshold, malicious packages or known exploitation.</p><p>A failed scan stays a failed scan. Missing evidence stays Unknown.</p></div></div>
+      <div className="landing-terminal__body"><CliDemo reducedMotion={reduced} /><div className="terminal-annotation"><span className="eyebrow">A useful exit code.</span><p><code>weedout scan --ci</code> fails on the configured blocking threshold, malicious packages or known exploitation.</p><p>A failed scan stays a failed scan. Missing evidence stays Unknown.</p></div></div>
     </section>
     <section className="landing-conclusion" aria-labelledby="landing-close-title">
       <div className="founder-note"><img src={ownerPhoto} alt="Emanuel RM" width="64" height="80" loading="lazy" /><blockquote>“Security tools should help you decide what to fix.”<a href="https://www.linkedin.com/in/emanuel-rm" target="_blank" rel="noopener noreferrer">Emanuel RM · Founder <ArrowUpRight size={13} aria-hidden="true" /></a></blockquote></div>
