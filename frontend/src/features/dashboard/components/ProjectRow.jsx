@@ -1,13 +1,11 @@
-import {
-  ArrowUpRight,
-  CircleAlert,
-  CircleCheck,
-  Clock3,
-  FileWarning,
-  FolderOpen,
-  ListFilter,
-  Pause,
-} from "lucide-react";
+import { ArrowUpRight } from "@phosphor-icons/react/ArrowUpRight";
+import { WarningCircle as CircleAlert } from "@phosphor-icons/react/WarningCircle";
+import { CheckCircle as CircleCheck } from "@phosphor-icons/react/CheckCircle";
+import { Clock as Clock3 } from "@phosphor-icons/react/Clock";
+import { FileX as FileWarning } from "@phosphor-icons/react/FileX";
+import { FolderOpen } from "@phosphor-icons/react/FolderOpen";
+import { Funnel as ListFilter } from "@phosphor-icons/react/Funnel";
+import { Pause } from "@phosphor-icons/react/Pause";
 
 import { EntityContextMenu } from "../../../components/ui/EntityContextMenu";
 import { relativeTime } from "../../../lib/time";

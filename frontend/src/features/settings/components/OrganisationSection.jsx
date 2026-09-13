@@ -1,4 +1,4 @@
-import { Building2 } from "lucide-react";
+import { Buildings as Building2 } from "@phosphor-icons/react/Buildings";
 import { useState } from "react";
 
 import { setOrganisation, setShowcase } from "../../../api/settings";

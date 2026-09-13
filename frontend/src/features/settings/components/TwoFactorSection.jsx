@@ -1,4 +1,5 @@
-import { ShieldCheck, ShieldOff } from "lucide-react";
+import { ShieldCheck } from "@phosphor-icons/react/ShieldCheck";
+import { ShieldSlash as ShieldOff } from "@phosphor-icons/react/ShieldSlash";
 import { useState } from "react";
 
 import {

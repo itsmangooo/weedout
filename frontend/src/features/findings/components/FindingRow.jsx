@@ -1,4 +1,8 @@
-import { ArrowUpRight, Flame, FolderOpen, Package, RadioTower } from "lucide-react";
+import { ArrowUpRight } from "@phosphor-icons/react/ArrowUpRight";
+import { Fire as Flame } from "@phosphor-icons/react/Fire";
+import { FolderOpen } from "@phosphor-icons/react/FolderOpen";
+import { Package } from "@phosphor-icons/react/Package";
+import { Broadcast as RadioTower } from "@phosphor-icons/react/Broadcast";
 import { motion } from "motion/react";
 import { Link } from "react-router";
 

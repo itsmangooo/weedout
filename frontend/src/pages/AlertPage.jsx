@@ -1,4 +1,8 @@
-import { ArrowLeft, Flame, RotateCcw, ShieldOff, Terminal } from "lucide-react";
+import { ArrowLeft } from "@phosphor-icons/react/ArrowLeft";
+import { Fire as Flame } from "@phosphor-icons/react/Fire";
+import { ArrowCounterClockwise as RotateCcw } from "@phosphor-icons/react/ArrowCounterClockwise";
+import { ShieldSlash as ShieldOff } from "@phosphor-icons/react/ShieldSlash";
+import { Terminal } from "@phosphor-icons/react/Terminal";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";

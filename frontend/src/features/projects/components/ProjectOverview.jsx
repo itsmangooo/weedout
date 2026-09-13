@@ -1,4 +1,7 @@
-import { CircleAlert, FileUp, Info, TriangleAlert } from "lucide-react";
+import { WarningCircle as CircleAlert } from "@phosphor-icons/react/WarningCircle";
+import { FileArrowUp as FileUp } from "@phosphor-icons/react/FileArrowUp";
+import { Info } from "@phosphor-icons/react/Info";
+import { Warning as TriangleAlert } from "@phosphor-icons/react/Warning";
 import { useState } from "react";
 import { Link } from "react-router";
 import { attachManifest } from "../../../api/projects";

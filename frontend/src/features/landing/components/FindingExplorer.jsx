@@ -1,4 +1,7 @@
-import { ArrowRight, ChevronDown, GitBranch, Wrench } from "lucide-react";
+import { ArrowRight } from "@phosphor-icons/react/ArrowRight";
+import { CaretDown as ChevronDown } from "@phosphor-icons/react/CaretDown";
+import { GitBranch } from "@phosphor-icons/react/GitBranch";
+import { Wrench } from "@phosphor-icons/react/Wrench";
 import { useId, useState } from "react";
 import { DEMO_FINDINGS } from "../demo";
 

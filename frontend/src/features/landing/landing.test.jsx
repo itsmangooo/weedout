@@ -70,6 +70,14 @@ describe("landing product demonstrations", () => {
     await user.tab(); await user.keyboard("{Enter}");
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(graph.querySelector("circle").getAttribute("cx")).not.toBe(original);
+    const findingNodes = [...graph.querySelectorAll("circle")].slice(0, 3);
+    expect(findingNodes.map((node) => node.getAttribute("cx"))).toEqual(["650", "650", "650"]);
+    expect(findingNodes.map((node) => node.getAttribute("cy"))).toEqual(["130", "220", "310"]);
+    expect([...graph.querySelectorAll("path")].slice(0, 3).map((path) => path.getAttribute("d"))).toEqual([
+      "M650,130 L620,130",
+      "M650,220 L620,220",
+      "M650,310 L620,310",
+    ]);
     await user.click(screen.getByRole("button", {name: /Raw alerts/}));
     expect(screen.getByText("47")).toBeInTheDocument();
   });

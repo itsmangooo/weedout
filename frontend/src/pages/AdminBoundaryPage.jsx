@@ -1,4 +1,4 @@
-import { BadgeCheck } from "lucide-react";
+import { SealCheck as BadgeCheck } from "@phosphor-icons/react/SealCheck";
 
 import { PageTransition } from "../components/motion/PageTransition";
 import { InlineNotice } from "../components/ui/InlineNotice";

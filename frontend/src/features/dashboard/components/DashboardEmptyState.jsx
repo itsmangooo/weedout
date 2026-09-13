@@ -1,4 +1,4 @@
-import { FilePlus2 } from "lucide-react";
+import { FilePlus as FilePlus2 } from "@phosphor-icons/react/FilePlus";
 import { Link } from "react-router";
 
 export function DashboardEmptyState() {

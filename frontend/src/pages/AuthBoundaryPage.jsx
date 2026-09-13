@@ -1,4 +1,5 @@
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { Key as KeyRound } from "@phosphor-icons/react/Key";
+import { ShieldCheck } from "@phosphor-icons/react/ShieldCheck";
 import { Link } from "react-router";
 
 import { PageTransition } from "../components/motion/PageTransition";

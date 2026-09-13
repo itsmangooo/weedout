@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDownRight } from "lucide-react";
+import { ArrowDownRight } from "@phosphor-icons/react/ArrowDownRight";
+import { LiquidGlass } from "../../../components/ui/LiquidGlass";
 import { DependencyField } from "./DependencyField";
 
 const STAGES = [
@@ -23,14 +24,14 @@ export function AnalysisStory({ reducedMotion = false }) {
     ref.current.dispatchEvent(new CustomEvent("analysis-progress", { detail: index / 2 }));
   }
   const current = STAGES[stage];
-  return <section className="analysis-story" id="analysis" ref={ref} data-analysis-story aria-labelledby="analysis-heading">
-    <div className="analysis-stage" data-analysis-stage>
+  return <section className="analysis-story" id="analysis" ref={ref} data-analysis-story data-section aria-labelledby="analysis-heading">
+    <LiquidGlass className="analysis-stage" data-analysis-stage interactive>
       <div className="analysis-stage__rail"><span className="eyebrow">01 — From security noise to a decision</span><span className="eyebrow">Interactive example · not a live scan</span></div>
       <div className="analysis-stage__body">
         <div className="analysis-stage__copy" key={stage}><span className="analysis-stage__counter">{current.count ?? <ArrowDownRight size={60} aria-hidden="true" />}</span><p className="eyebrow">{current.unit}</p><h2 id="analysis-heading">{current.title}</h2><p>{current.copy}</p></div>
         <DependencyField storyRef={ref} progress={progress} reducedMotion={reducedMotion} />
       </div>
       <div className="analysis-controls" role="group" aria-label="Analysis stages">{STAGES.map((item, index) => <button key={item.label} type="button" aria-pressed={stage === index} onClick={() => select(index)}><span>0{index + 1}</span>{item.label}<span aria-hidden="true">↗</span></button>)}</div>
-    </div>
+    </LiquidGlass>
   </section>;
 }

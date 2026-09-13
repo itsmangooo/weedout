@@ -1,4 +1,6 @@
-import { Monitor, Pause, Play } from "lucide-react";
+import { Monitor } from "@phosphor-icons/react/Monitor";
+import { Pause } from "@phosphor-icons/react/Pause";
+import { Play } from "@phosphor-icons/react/Play";
 import { useMotionPreference } from "../useMotionPreference";
 
 const OPTIONS = [

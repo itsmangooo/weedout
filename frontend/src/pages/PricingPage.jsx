@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "@phosphor-icons/react/Check";
 
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { usePricing } from "../features/marketing/hooks/useMarketing";

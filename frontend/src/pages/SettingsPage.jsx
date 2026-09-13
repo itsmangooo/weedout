@@ -1,9 +1,10 @@
 import { PageFrame } from "../components/ui/PageFrame";
 import { SectionIndex } from "../components/ui/SectionIndex";
-import { Mail } from "lucide-react";
+import { Envelope as Mail } from "@phosphor-icons/react/Envelope";
 
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { InlineNotice } from "../components/ui/InlineNotice";
+import { AppearanceSection } from "../features/appearance/AppearanceSection";
 import { AccountKeys } from "../features/settings/components/AccountKeys";
 import { OrganisationSection } from "../features/settings/components/OrganisationSection";
 import { PasswordSection } from "../features/settings/components/PasswordSection";
@@ -42,7 +43,8 @@ export function SettingsPage() {
 
   return (
     <PageFrame className="settings-page" eyebrow={page.data.email} title="Account" description="Control your account, alert policy and access from one place.">
-      <div className="settings-layout"><SectionIndex label="Account settings" items={[["account-security","Security"],["account-policy","Alert policy"],["account-access","Access & devices"]]} /><div className="settings-content">
+      <div className="settings-layout"><SectionIndex label="Settings" items={[["appearance","Appearance"],["account-security","Security"],["account-policy","Alert policy"],["account-access","Access & devices"]]} /><div className="settings-content">
+      <div id="appearance"><AppearanceSection /></div>
       <div id="account-security"><TwoFactorSection account={page.data} /><PasswordSection /><OrganisationSection account={page.data} /></div>
       <div id="account-policy"><AlertsSection enabled={page.data.email_alerts} />
       {profiles.isSuccess && <RuleProfiles meta={profiles.data.meta} profiles={profiles.data.data} />}

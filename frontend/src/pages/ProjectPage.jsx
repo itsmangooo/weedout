@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { ArrowsClockwise as RefreshCw } from "@phosphor-icons/react/ArrowsClockwise";
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 

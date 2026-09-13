@@ -1,4 +1,4 @@
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "@phosphor-icons/react/SlidersHorizontal";
 import { useState } from "react";
 import { Link } from "react-router";
 

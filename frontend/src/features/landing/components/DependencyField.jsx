@@ -7,9 +7,9 @@ const POINTS = Array.from({ length: 47 }, (_, index) => ({
 }));
 
 const TARGETS = POINTS.map((_, index) => ({
-  x: (index % 3 - 1) * 2.2,
-  y: index < 3 ? 0.75 : 0.25 - Math.floor(index / 3) * 0.13,
-  z: index < 3 ? 0.5 : Math.sin(index) * 0.24,
+  x: index < 3 ? 2.55 : -2.75 + Math.min(Math.floor(index / 3), 14) * 0.34,
+  y: index < 3 ? 1.25 - index * 1.25 : 1.25 - (index % 3) * 1.25 + Math.sin(index * 1.7) * 0.06,
+  z: index < 3 ? 0.35 : Math.sin(index) * 0.1,
 }));
 
 // One story-specific WebGL scene. No assets or network requests beyond the
@@ -75,7 +75,9 @@ export function DependencyField({ storyRef, progress, reducedMotion = false }) {
           object.updateMatrix(); nodes.setMatrixAt(index, object.matrix);
           color.set(index < 3 ? (index === 1 ? (dark ? "#e9a184" : "#a55734") : (dark ? "#c3d9af" : "#31573a")) : (dark ? "#778f6b" : "#7b8e70"));
           nodes.setColorAt(index, color);
-          vertices.set([object.position.x, object.position.y, object.position.z, target.x * mix, 0.75 * mix, 0], index * 6);
+          const pathEndX = index < 3 ? 2.18 : Math.min(target.x + 0.34, 2.2);
+          const pathEndY = index < 3 ? target.y : 1.25 - (index % 3) * 1.25;
+          vertices.set([object.position.x, object.position.y, object.position.z, pathEndX * mix, pathEndY * mix, 0], index * 6);
         });
         nodes.instanceMatrix.needsUpdate = true;
         nodes.instanceColor.needsUpdate = true;
@@ -136,9 +138,14 @@ export function DependencyField({ storyRef, progress, reducedMotion = false }) {
     <svg viewBox="0 0 800 440" className="dependency-field__fallback">
       {POINTS.map((point, index) => {
         const branch = index % 3;
-        const x = (point.x * 90 + 400) * (1 - progress) + (200 + branch * 200) * progress;
-        const y = (point.y * 80 + 220) * (1 - progress) + (index < 3 ? 140 : 190 + Math.floor(index / 3) * 10) * progress;
-        return <g key={index}><path d={`M${x},${y} L${400 * (1 - progress) + (200 + branch * 200) * progress},180`} /><circle cx={x} cy={y} r={index < 3 ? 5 + progress * 5 : 3} /></g>;
+        const step = Math.floor(index / 3);
+        const targetX = index < 3 ? 650 : 170 + Math.min(step, 14) * 30;
+        const targetY = 130 + branch * 90;
+        const x = (point.x * 90 + 400) * (1 - progress) + targetX * progress;
+        const y = (point.y * 80 + 220) * (1 - progress) + targetY * progress;
+        const endX = 400 * (1 - progress) + (index < 3 ? 620 : Math.min(targetX + 26, 620)) * progress;
+        const endY = 180 * (1 - progress) + targetY * progress;
+        return <g key={index}><path d={`M${x},${y} L${endX},${endY}`} /><circle cx={x} cy={y} r={index < 3 ? 5 + progress * 5 : 3} /></g>;
       })}
     </svg>
     <span className="field-coordinate field-coordinate--top">MANIFEST / DEPENDENCY GRAPH</span>

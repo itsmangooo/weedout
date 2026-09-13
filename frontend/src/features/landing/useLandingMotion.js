@@ -52,6 +52,14 @@ export function useLandingMotion(ref, reducedMotion = false) {
           });
         });
 
+        root.querySelectorAll("[data-section]").forEach((section, index) => {
+          if (index === 0) return;
+          gsap.fromTo(section, { opacity: 0.62, "--section-reveal": 0 }, {
+            opacity: 1, "--section-reveal": 1, duration: 0.9, ease: "power2.out",
+            scrollTrigger: { trigger: section, start: "top 92%", once: true },
+          });
+        });
+
         gsap.to(root.querySelector("[data-scroll-progress]"), { scaleX: 1, ease: "none", scrollTrigger: { trigger: root, start: "top top", end: "bottom bottom", scrub: 0.15 } });
         gsap.to(root.querySelector(".landing-conclusion h2"), { backgroundPositionX: "0%", ease: "none", scrollTrigger: { trigger: ".landing-conclusion", start: "top 75%", end: "bottom bottom", scrub: true } });
       }, ref);

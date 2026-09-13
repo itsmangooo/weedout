@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, CircleAlert, HelpCircle } from "lucide-react";
+import { CheckCircle as CheckCircle2 } from "@phosphor-icons/react/CheckCircle";
+import { WarningCircle as CircleAlert } from "@phosphor-icons/react/WarningCircle";
+import { Question as HelpCircle } from "@phosphor-icons/react/Question";
 
 import { getStatus } from "../api/status";
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";

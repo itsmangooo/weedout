@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, Plus, Radio } from "lucide-react";
+import { ArrowRight } from "@phosphor-icons/react/ArrowRight";
+import { Plus } from "@phosphor-icons/react/Plus";
+import { Radio } from "@phosphor-icons/react/Radio";
 import { ApiError } from "../api/client";
 import { currentUserQueryKey } from "../features/auth/hooks/useCurrentUser";
 import { PageFrame, DataMetric } from "../components/ui/PageFrame";

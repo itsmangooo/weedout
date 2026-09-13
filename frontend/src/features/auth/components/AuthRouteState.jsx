@@ -1,4 +1,8 @@
-import { AlertTriangle, Clock3, LoaderCircle, LogIn, ShieldX } from "lucide-react";
+import { Warning as AlertTriangle } from "@phosphor-icons/react/Warning";
+import { Clock as Clock3 } from "@phosphor-icons/react/Clock";
+import { CircleNotch as LoaderCircle } from "@phosphor-icons/react/CircleNotch";
+import { SignIn as LogIn } from "@phosphor-icons/react/SignIn";
+import { ShieldSlash as ShieldX } from "@phosphor-icons/react/ShieldSlash";
 import { Link } from "react-router";
 
 import { PageTransition } from "../../../components/motion/PageTransition";

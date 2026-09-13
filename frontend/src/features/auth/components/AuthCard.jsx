@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { Warning as AlertTriangle } from "@phosphor-icons/react/Warning";
 
 import { InlineNotice } from "../../../components/ui/InlineNotice";
 

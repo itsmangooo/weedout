@@ -1,4 +1,6 @@
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { Pause } from "@phosphor-icons/react/Pause";
+import { Play } from "@phosphor-icons/react/Play";
+import { ArrowCounterClockwise as RotateCcw } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { useEffect, useRef, useState } from "react";
 
 // Format verified against weedout-cli/internal/cli/cli.go report() and scan().

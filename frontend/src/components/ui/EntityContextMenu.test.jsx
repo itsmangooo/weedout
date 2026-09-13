@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen } from "@phosphor-icons/react/FolderOpen";
 import { describe, expect, it, vi } from "vitest";
 
 import { EntityContextMenu } from "./EntityContextMenu";

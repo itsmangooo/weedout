@@ -1,4 +1,6 @@
-import { FileUp, ClipboardPaste, Terminal } from "lucide-react";
+import { FileArrowUp as FileUp } from "@phosphor-icons/react/FileArrowUp";
+import { ClipboardText as ClipboardPaste } from "@phosphor-icons/react/ClipboardText";
+import { Terminal } from "@phosphor-icons/react/Terminal";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 

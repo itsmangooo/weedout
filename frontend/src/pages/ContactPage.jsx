@@ -1,4 +1,4 @@
-import { MailCheck } from "lucide-react";
+import { EnvelopeSimple as MailCheck } from "@phosphor-icons/react/EnvelopeSimple";
 import { useState } from "react";
 
 import { ApiError } from "../api/client";

@@ -1,4 +1,4 @@
-﻿import { Check } from "lucide-react";
+import { Check } from "@phosphor-icons/react/Check";
 import { AsyncError, AsyncLoading } from "../../../components/feedback/AsyncState";
 import { InlineNotice } from "../../../components/ui/InlineNotice";
 import { useSystemStatus } from "../hooks/useSystemStatus";

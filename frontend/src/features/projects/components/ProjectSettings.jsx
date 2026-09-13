@@ -1,5 +1,7 @@
 import { SectionIndex } from "../../../components/ui/SectionIndex";
-import { KeyRound, ShieldAlert, Trash2 } from "lucide-react";
+import { Key as KeyRound } from "@phosphor-icons/react/Key";
+import { ShieldWarning as ShieldAlert } from "@phosphor-icons/react/ShieldWarning";
+import { Trash as Trash2 } from "@phosphor-icons/react/Trash";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 

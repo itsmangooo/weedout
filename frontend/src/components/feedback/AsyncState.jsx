@@ -1,4 +1,5 @@
-import { LoaderCircle, ServerOff } from "lucide-react";
+import { CircleNotch as LoaderCircle } from "@phosphor-icons/react/CircleNotch";
+import { CloudSlash as ServerOff } from "@phosphor-icons/react/CloudSlash";
 
 import { Button } from "../ui/Button";
 import { InlineNotice } from "../ui/InlineNotice";

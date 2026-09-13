@@ -1,4 +1,6 @@
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Monitor } from "@phosphor-icons/react/Monitor";
+import { Moon } from "@phosphor-icons/react/Moon";
+import { Sun } from "@phosphor-icons/react/Sun";
 
 import { useTheme } from "./useTheme";
 

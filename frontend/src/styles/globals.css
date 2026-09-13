@@ -12,6 +12,8 @@
 @import "./workspace.css";
 @import "./operations.css";
 @import "./context-menu.css";
+@import "./glass.css";
+@import "./appearance.css";
 
 @layer base {
   *,

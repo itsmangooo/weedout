@@ -1,4 +1,4 @@
-import { KeyRound } from "lucide-react";
+import { Key as KeyRound } from "@phosphor-icons/react/Key";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 

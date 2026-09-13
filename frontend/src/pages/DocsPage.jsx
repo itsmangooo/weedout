@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@phosphor-icons/react/ArrowUpRight";
 import { Link, useParams } from "react-router";
 
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";

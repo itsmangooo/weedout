@@ -1,6 +1,7 @@
 import { SectionIndex } from "../components/ui/SectionIndex";
 import { CliDemo } from "../features/landing/components/CliDemo";
-import { Download, PackageX } from "lucide-react";
+import { Download } from "@phosphor-icons/react/Download";
+import { Package as PackageX } from "@phosphor-icons/react/Package";
 import { useState } from "react";
 import { Link } from "react-router";
 
