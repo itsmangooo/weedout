@@ -1,3 +1,5 @@
+import { SectionIndex } from "../components/ui/SectionIndex";
+import { CliDemo } from "../features/landing/components/CliDemo";
 import { Download, PackageX } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -114,18 +116,12 @@ export function CliPage() {
           </p>
         </div>
 
-        <Transcript />
+        <div className="cli-hero__demo"><CliDemo /></div>
       </section>
 
-      {/* The numbered walk-through. Order and numbering live here, together,
-          so inserting a section cannot leave two of them called 04. */}
-      <Install step={1} />
-      <Setup step={2} />
-      <Rules step={3} />
-      <ExitCodes step={4} />
-      <Action step={5} />
-      <WithoutTheDashboard step={6} />
-
+      <div className="cli-reference"><SectionIndex label="CLI field guide" items={[["cli-install","Install"],["cli-setup","Connect a project"],["cli-exit","Exit behavior"],["cli-rules","Rules & policy"],["cli-action","CI workflow"],["cli-reference","Command reference"],["cli-downloads","Releases"]]} /><div className="cli-reference__body">
+      <div id="cli-install"><Install step={1} /></div><div id="cli-setup"><Setup step={2} /></div><div id="cli-exit"><ExitCodes step={3} /></div><div id="cli-rules"><Rules step={4} /></div><div id="cli-action"><Action step={5} /></div><div id="cli-reference"><WithoutTheDashboard step={6} /></div>
+      <div id="cli-downloads">
       {query.isPending ? <AsyncLoading>Checking the latest release…</AsyncLoading> : null}
       {query.isError ? (
         <AsyncError error={query.error} onRetry={() => query.refetch()} />
@@ -137,73 +133,7 @@ export function CliPage() {
           <Dependencies module={query.data.go_module} repo={query.data.repo} />
         </>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * One `weedout scan --ci` run, in the format the binary really prints.
- *
- * Marked `aria-hidden` and paired with a written summary: read aloud, a
- * terminal transcript is a stream of package names and numbers that means
- * nothing, and the sentence beneath it is the point of the whole panel.
- */
-function Transcript() {
-  return (
-    <figure className="transcript">
-      <div aria-hidden="true" className="transcript__frame">
-        <div className="transcript__bar">
-          <span className="transcript__dot" />
-          <span className="transcript__dot" />
-          <span className="transcript__dot" />
-          <span className="transcript__path">acme-storefront</span>
-        </div>
-
-        <pre className="transcript__body">
-          <span className="transcript__prompt">$</span> weedout scan --ci{"\n"}
-          {"\n"}
-          <b>strictseal-node</b> <span className="dim">package-lock.json</span>
-          {"\n"}
-          <span className="dim">4 dependencies scanned · 2 filtered out as noise</span>
-          {"\n"}
-          <span className="dim">Reachability: 2 source file(s) · complete</span>
-          {"\n"}
-          <span className="dim">{"  "}reachable 1 · potentially reachable 1 · not observed 2</span>
-          {"\n\n"}
-          <span className="transcript__bad">1 critical</span>
-          <span className="dim"> · </span>
-          <span className="transcript__warn">1 high</span>
-          {"\n\n"}
-          <span className="transcript__bad">▲</span> minimist@1.2.5{"  "}
-          <span className="dim">CVE-2021-44906</span>
-          {"  "}
-          <span className="transcript__good">→ 1.2.6</span>
-          {"\n"}
-          <span className="dim">{"  "}reachability: not observed</span>
-          {"\n"}
-          <span className="transcript__warn">•</span> axios@0.21.1{"    "}
-          <span className="dim">CVE-2021-3749</span>
-          {"  "}
-          <span className="transcript__good">→ 0.21.2</span>
-          {"\n"}
-          <span className="dim">{"  "}reachability: reachable</span>
-          {"\n"}
-          <span className="dim">{"  "}src/api.js:1 imports axios</span>
-          {"\n\n"}
-          <span className="transcript__bad">
-            Failing: 1 finding(s) at critical severity or confirmed exploitation.
-          </span>
-          {"\n\n"}
-          <span className="transcript__prompt">$</span> echo $?{"\n"}
-          <span className="transcript__bad">1</span>
-        </pre>
-      </div>
-
-      <figcaption className="transcript__caption">
-        The StrictSeal regression lockfile is checked with bounded source evidence. One finding is
-        critical, so the CI run exits 1; the reachability state remains a separate scanner result.
-      </figcaption>
-    </figure>
+    </div></div></div></div>
   );
 }
 

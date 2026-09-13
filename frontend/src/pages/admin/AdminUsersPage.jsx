@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { Link, useSearchParams } from "react-router";
 
 import { AsyncError, AsyncLoading } from "../../components/feedback/AsyncState";
@@ -38,13 +39,9 @@ export function AdminUsersPage() {
   const filtered = Boolean(applied.search || applied.status);
 
   return (
-    <>
-      <div className="admin-head">
-        <h1>Users</h1>
-        <span className="mono dim u-text-xs">
+    <PageFrame className="operations-page operations-users" eyebrow="Weedout / Operations" title={<> Users </>} description="Find an account, inspect its projects and manage access." actions={<><span className="mono dim u-text-xs">
           {data.total} {data.total === 1 ? "account" : "accounts"}
-        </span>
-      </div>
+        </span></>}>
 
       <form className="filter-bar" onSubmit={apply}>
         <div className="filter-bar__search">
@@ -133,7 +130,7 @@ export function AdminUsersPage() {
       </div>
 
       {data.total ? <Pager data={data} params={params} setParams={setParams} /> : null}
-    </>
+    </PageFrame>
   );
 }
 

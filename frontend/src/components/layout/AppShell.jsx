@@ -1,181 +1,39 @@
-import {
-  Bell,
-  Code2,
-  FileKey2,
-  FolderKanban,
-  GitBranch,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  PackageSearch,
-  Settings,
-  ShieldCheck,
-  Terminal,
-  X,
-} from "lucide-react";
-import { useEffect, useId, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
-
+import { Bell, FolderKanban, LayoutDashboard, LogOut, Menu, Settings, ShieldCheck, Terminal, X, Plus } from "lucide-react";
+import { useState } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { signOut } from "../../api/authActions";
-import { WeedoutLogo } from "../brand/WeedoutLogo";
 import { useAuthRefresh, useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
 import { ThemeControl } from "../../features/theme/ThemeControl";
-
-const NAV_GROUPS = [
-  {
-    label: "Workspace",
-    items: [
-      { to: "/dashboard", label: "Overview", Icon: LayoutDashboard },
-      { to: "/alerts", label: "Dependency findings", Icon: Bell },
-    ],
-  },
-  {
-    label: "Security analysis",
-    items: [
-      { label: "Dependencies", Icon: PackageSearch, state: "Active" },
-      { label: "Source code", Icon: Code2, state: "Planned" },
-      { label: "Secrets", Icon: FileKey2, state: "Planned" },
-      { label: "CI & config", Icon: GitBranch, state: "Planned" },
-    ],
-  },
-  {
-    label: "Manage",
-    items: [
-      { to: "/targets/new", label: "Add a project", Icon: FolderKanban },
-      { to: "/cli", label: "CLI", Icon: Terminal },
-      { to: "/settings", label: "Settings", Icon: Settings },
-    ],
-  },
-];
+import { WeedoutLogo } from "../brand/WeedoutLogo";
+import { PageTransition } from "../motion/PageTransition";
+import { InlineNotice } from "../ui/InlineNotice";
+import { useNavigationDisclosure } from "./useNavigationDisclosure";
+const LINKS = [["/dashboard", "Overview", LayoutDashboard], ["/dashboard?view=projects", "Projects", FolderKanban], ["/alerts", "Dependency findings", Bell], ["/targets/new", "Add a project", Plus], ["/cli", "CLI", Terminal], ["/settings", "Settings", Settings]];
 
 export function AppShell() {
   const { data } = useCurrentUser();
-  const location = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
-  const refreshAuth = useAuthRefresh();
-
-  const navId = useId();
-
-  // The route the panel was opened on, rather than a boolean: navigating makes
-  // it stale and the panel closes, with no effect writing state during render.
-  const [openedAt, setOpenedAt] = useState(null);
-  const navOpen = openedAt === location.pathname;
-  const toggleNav = () => setOpenedAt(navOpen ? null : location.pathname);
-
-  // ProtectedRoute waits for an authenticated answer before rendering this, so
-  // `data` is populated in practice. Reading through it unguarded still made
-  // the shell impossible to render on its own and would turn any future change
-  // to that ordering into a blank screen rather than a missing email.
-  const account = data?.user;
-
-  useEffect(() => {
-    if (!navOpen) return undefined;
-
-    function onKeyDown(event) {
-      if (event.key === "Escape") setOpenedAt(null);
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navOpen]);
-
-  async function onSignOut() {
-    await signOut();
-    // Re-read before navigating: the guard on the destination reads the cached
-    // identity, and a stale one sends you straight back in.
-    await refreshAuth();
-    navigate("/login");
+  const refresh = useAuthRefresh();
+  const { id: menuId, trigger: triggerRef, open: menuOpen, toggle: toggleMenu } = useNavigationDisclosure();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function logout() {
+    setBusy(true); setError("");
+    try { await signOut(); await refresh(); navigate("/login"); }
+    catch { setError("Could not sign out. Try again."); setBusy(false); }
   }
-
-  return (
-    <div className={`app-shell min-h-screen${navOpen ? " is-nav-open" : ""}`}>
-      <a className="skip-link" href="#main">
-        Skip to content
-      </a>
-
-      <aside className="app-sidebar">
-        <div className="app-sidebar__top">
-          <NavLink className="app-shell__brand" to="/dashboard">
-            <WeedoutLogo />
-          </NavLink>
-
-          {/* Only ever visible at narrow widths, where the sidebar has
-              collapsed into this bar. */}
-          <button
-            aria-controls={navId}
-            aria-expanded={navOpen}
-            aria-label={navOpen ? "Close navigation" : "Open navigation"}
-            className="app-shell__menu"
-            onClick={toggleNav}
-            type="button"
-          >
-            {navOpen ? <X size={19} /> : <Menu size={19} />}
-          </button>
-        </div>
-
-        <div className="app-sidebar__panel" id={navId}>
-          <nav aria-label="Application" className="app-shell__nav">
-            {NAV_GROUPS.map((group) => (
-              <div className="app-shell__nav-group" key={group.label}>
-                <p className="app-shell__nav-label">{group.label}</p>
-                {group.items.map(({ to, label, Icon, state }) =>
-                  to ? (
-                    <NavLink
-                      className={({ isActive }) => `app-shell__nav-link${isActive ? " is-active" : ""}`}
-                      end={to === "/dashboard"}
-                      key={to}
-                      to={to}
-                    >
-                      <Icon aria-hidden="true" size={16} />
-                      <span>{label}</span>
-                    </NavLink>
-                  ) : (
-                    <span
-                      aria-disabled={state === "Planned" ? "true" : undefined}
-                      className={`app-shell__nav-link app-shell__nav-link--module${state === "Active" ? " is-current" : ""}`}
-                      key={label}
-                    >
-                      <Icon aria-hidden="true" size={16} />
-                      <span>{label}</span>
-                      <small>{state}</small>
-                    </span>
-                  ),
-                )}
-              </div>
-            ))}
-
-            {/* Convenience only. The access control is on
-                /api/internal/admin/*; hiding this link protects nothing. */}
-            {account?.is_admin ? (
-              <NavLink
-                className={({ isActive }) => `app-shell__nav-link${isActive ? " is-active" : ""}`}
-                to="/admin"
-              >
-                <ShieldCheck aria-hidden="true" size={16} /> Admin
-              </NavLink>
-            ) : null}
-          </nav>
-
-          <div className="app-shell__foot">
-            <ThemeControl />
-
-            <div className="app-shell__account">
-              <span className="app-shell__account-copy">
-                <span className="app-shell__account-email">{account?.email}</span>
-                <span className="app-shell__account-tier">{account?.tier} workspace</span>
-              </span>
-            </div>
-
-            <button className="app-shell__nav-link" onClick={onSignOut} type="button">
-              <LogOut aria-hidden="true" size={16} /> Sign out
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      <main className="app-shell__main" id="main">
-        <Outlet />
-      </main>
-    </div>
-  );
+  const context = pathname.startsWith("/targets/") && pathname !== "/targets/new" ? "Project workspace" : pathname.startsWith("/alerts/") ? "Finding investigation" : "Workspace";
+  return <div className={`workspace-shell app-shell ${menuOpen ? "is-nav-open" : ""}`}>
+    <a className="skip-link" href="#main">Skip to content</a>
+    <header className="workspace-top"><Link className="brand" to="/dashboard" aria-label="Weedout overview"><WeedoutLogo /></Link><div className="workspace-context"><span>Workspace</span><span>/</span><strong>{context === "Workspace" ? "Dependency intelligence" : context}</strong></div><Link className="workspace-top__docs" to="/docs">Documentation ↗</Link><button ref={triggerRef} className="nav-toggle" type="button" aria-controls={menuId} aria-expanded={menuOpen} aria-label={menuOpen ? "Close navigation" : "Open navigation"} onClick={toggleMenu}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button></header>
+    <div className="workspace-body"><aside className="workspace-rail"><div className="app-sidebar__panel workspace-navigation" id={menuId}>
+      <p className="workspace-label eyebrow">Your workspace</p><nav aria-label="Application">{LINKS.map(([to, label, Icon]) => {
+        const projects = new URLSearchParams(search).get("view") === "projects";
+        const active = to.startsWith("/dashboard") ? pathname === "/dashboard" && to.includes("?") === projects : pathname === to || pathname.startsWith(`${to}/`);
+        return <Link key={to} to={to} aria-current={active ? "page" : undefined} className={`workspace-link${active ? " is-active" : ""}`}><Icon size={17} aria-hidden="true" /><span>{label}</span></Link>;
+      })}{data?.user?.is_admin && <NavLink className="workspace-link" to="/admin"><ShieldCheck size={17} aria-hidden="true" /><span>Admin</span></NavLink>}</nav>
+      <div className="workspace-account"><span className="account-initial" aria-hidden="true">{data?.user?.email?.[0]?.toUpperCase() ?? "W"}</span><div><strong>{data?.user?.email}</strong><small>{data?.user?.tier ?? "free"} workspace</small></div></div><ThemeControl /><button className="workspace-link signout" disabled={busy} onClick={logout} type="button"><LogOut size={16} aria-hidden="true" />{busy ? "Signing out…" : "Sign out"}</button>{error && <InlineNotice tone="danger">{error}</InlineNotice>}
+    </div></aside><main tabIndex={-1} id="main" className="workspace-content app-shell__main"><PageTransition key={pathname}><Outlet /></PageTransition></main></div>
+  </div>;
 }

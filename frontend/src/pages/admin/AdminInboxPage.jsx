@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { Link, useSearchParams } from "react-router";
 
 import { AsyncError, AsyncLoading } from "../../components/feedback/AsyncState";
@@ -22,10 +23,7 @@ export function AdminInboxPage() {
   const { messages, total, unread } = query.data;
 
   return (
-    <>
-      <div className="admin-head">
-        <h1>Inbox</h1>
-      </div>
+    <PageFrame className="operations-page operations-inbox" eyebrow="Weedout / Operations" title={<> Inbox </>} description="Triage feedback and support messages.">
 
       <nav aria-label="Message status" className="tabs tabs--sub">
         {FILTERS.map((filter) => (
@@ -90,7 +88,7 @@ export function AdminInboxPage() {
           </div>
         </div>
       )}
-    </>
+    </PageFrame>
   );
 }
 

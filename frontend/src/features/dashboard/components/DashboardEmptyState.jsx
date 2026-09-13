@@ -9,8 +9,7 @@ export function DashboardEmptyState() {
         <p className="section-label">No projects yet</p>
         <h2 id="dashboard-empty-heading">Add a project to start watching.</h2>
         <p>
-          Upload a supported manifest in the existing Weedout flow. Its first check still runs in
-          Python exactly as it does today.
+          Upload a supported manifest, paste its contents, or create a project to connect from the CLI.
         </p>
       </div>
       <Link className="button button--primary" to="/targets/new">

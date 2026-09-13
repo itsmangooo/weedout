@@ -55,6 +55,7 @@ export function applyTheme(choice) {
   } catch {
     // It still applies for this page; it just will not be remembered.
   }
+  window.dispatchEvent(new CustomEvent("weedout-theme-change", { detail: choice }));
 }
 
 export function useTheme() {
@@ -76,8 +77,10 @@ export function useTheme() {
       setThemeState(next);
     }
 
+    const sync = (event) => setThemeState(THEMES.includes(event.detail) ? event.detail : readChoice());
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener("weedout-theme-change", sync);
+    return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("weedout-theme-change", sync); };
   }, []);
 
   useEffect(() => {

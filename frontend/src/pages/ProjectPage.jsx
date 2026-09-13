@@ -7,7 +7,7 @@ import { Button } from "../components/ui/Button";
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { InlineNotice } from "../components/ui/InlineNotice";
 import { ProjectFindings } from "../features/projects/components/ProjectFindings";
-import { ProjectOverview } from "../features/projects/components/ProjectOverview";
+import { ProjectOverview, ProjectHistory, ProjectDependencies } from "../features/projects/components/ProjectOverview";
 import { ProjectSettings } from "../features/projects/components/ProjectSettings";
 import { useProject, useProjectMutation } from "../features/projects/hooks/useProject";
 import { dueTime, relativeTime } from "../lib/time";
@@ -15,6 +15,8 @@ import { dueTime, relativeTime } from "../lib/time";
 const VIEWS = [
   { id: "overview", label: "Security overview" },
   { id: "findings", label: "Dependency findings" },
+  { id: "dependencies", label: "Dependencies" },
+  { id: "history", label: "Scan history" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -51,10 +53,6 @@ export function ProjectPage() {
   const page = query.data;
   const project = page.data;
 
-  // A project is now the stable home for more than one analysis domain. The
-  // overview is therefore the honest default: dependencies are active today,
-  // while future modules are visible as planned rather than pretending their
-  // findings already exist.
   const requested = params.get("view");
   const view = VIEWS.some((entry) => entry.id === requested)
     ? requested
@@ -95,6 +93,8 @@ export function ProjectPage() {
       ) : null}
 
       {view === "overview" ? <ProjectOverview page={page} /> : null}
+      {view === "history" && <ProjectHistory page={page} />}
+      {view === "dependencies" && <ProjectDependencies page={page} />}
 
       {view === "settings" ? <ProjectSettings page={page} projectId={projectId} /> : null}
     </div>

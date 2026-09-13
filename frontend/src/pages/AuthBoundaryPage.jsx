@@ -11,13 +11,11 @@ export function AuthBoundaryPage() {
 
   return (
     <PageTransition>
-      <div className="auth-boundary-page mx-auto w-full max-w-4xl px-6 py-16 sm:px-10 sm:py-20">
-        <p className="eyebrow">Phase 2 · Protected route</p>
+      <div className="auth-boundary-page boundary-record">
+        <p className="eyebrow">Account / session</p>
         <h1>Session boundary confirmed.</h1>
         <p className="auth-boundary-page__lede">
-          React knows only the safe identity fields returned by Weedout&apos;s existing server-side
-          session. Passwords, keys, private identifiers, and authorization decisions remain in
-          Python.
+          Your Weedout session is active. Sensitive credentials remain outside the browser view.
         </p>
 
         <InlineNotice icon={ShieldCheck} title="Authenticated" tone="success">
@@ -28,7 +26,7 @@ export function AuthBoundaryPage() {
 
         <div className="auth-boundary-page__actions">
           <Link className="text-link" to="/auth-boundary/admin">
-            <KeyRound aria-hidden="true" size={16} /> Check the admin boundary
+            <KeyRound aria-hidden="true" size={16} /> Check administrator access
           </Link>
         </div>
       </div>

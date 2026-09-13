@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { Link } from "react-router";
 
 import { AsyncError, AsyncLoading } from "../../components/feedback/AsyncState";
@@ -14,16 +15,12 @@ export function AdminBillingPage() {
   const { snapshot, subscribers, dodo_enabled: enabled, dodo_dashboard_url: dashboard } = query.data;
 
   return (
-    <>
-      <div className="admin-head">
-        <h1>Billing</h1>
-        {/* Anything with financial consequence links out. Reimplementing
+    <PageFrame className="operations-page operations-billing" eyebrow="Weedout / Operations" title={<> Billing </>} description="Subscription records and billing state." actions={<>{/* Anything with financial consequence links out. Reimplementing
             refunds and disputes here would mean a second, lagging source of
             truth for money. */}
         <a className="button button--secondary" href={dashboard} rel="noopener noreferrer" target="_blank">
           Open Dodo dashboard
-        </a>
-      </div>
+        </a></>}>
 
       {enabled ? null : (
         <div className="u-mb-5">
@@ -136,7 +133,7 @@ export function AdminBillingPage() {
           )}
         </div>
       </section>
-    </>
+    </PageFrame>
   );
 }
 

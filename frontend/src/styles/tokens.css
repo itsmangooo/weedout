@@ -9,12 +9,12 @@
   --wo-space-8: 4rem;
   --wo-space-9: 6rem;
 
-  --wo-radius-xs: 0.65rem;
-  --wo-radius-sm: 0.85rem;
-  --wo-radius: 1rem;
-  --wo-radius-lg: 1.25rem;
-  --wo-radius-xl: 1.55rem;
-  --wo-radius-2xl: 2rem;
+  --wo-radius-xs: 0.25rem;
+  --wo-radius-sm: 0.375rem;
+  --wo-radius: 0.5rem;
+  --wo-radius-lg: 0.5rem;
+  --wo-radius-xl: 0.625rem;
+  --wo-radius-2xl: 0.625rem;
   --wo-page-max: 86rem;
   --wo-app-max: 96rem;
   --wo-measure: 66ch;

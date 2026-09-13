@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { AsyncError, AsyncLoading } from "../../components/feedback/AsyncState";
 import { AuditList } from "../../features/admin/components/AuditList";
 import { useAudit } from "../../features/admin/hooks/useAdmin";
@@ -9,10 +10,7 @@ export function AdminAuditPage() {
   if (query.isError) return <AsyncError error={query.error} onRetry={() => query.refetch()} />;
 
   return (
-    <>
-      <div className="admin-head">
-        <h1>Audit log</h1>
-      </div>
+    <PageFrame className="operations-page operations-audit" eyebrow="Weedout / Operations" title={<> Audit log </>} description="An append-only record of administrative actions.">
 
       <p className="prose u-text-sm u-mb-5">
         Every administrative action, newest first. Append-only — nothing here is edited or deleted
@@ -29,6 +27,6 @@ export function AdminAuditPage() {
           </div>
         )}
       </div>
-    </>
+    </PageFrame>
   );
 }

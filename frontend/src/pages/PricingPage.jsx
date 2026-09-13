@@ -16,7 +16,7 @@ export function PricingPage() {
   const query = usePricing();
 
   return (
-    <div className="page-narrow">
+    <div className="pricing-page public-editorial">
       <header className="page-head">
         <p className="section-label">Pricing</p>
         <h1>Everything Weedout ships is Free.</h1>
@@ -26,6 +26,7 @@ export function PricingPage() {
         </p>
       </header>
 
+      <div className="pricing-detail">
       {query.isPending ? <AsyncLoading>Loading plans…</AsyncLoading> : null}
       {query.isError ? (
         <AsyncError error={query.error} onRetry={() => query.refetch()} />
@@ -35,8 +36,7 @@ export function PricingPage() {
         <div className="plan-grid">
           {query.data.plans.map((plan) => (
             <section className="plan-card" key={plan.id}>
-              <h2>{plan.name}</h2>
-              <p className="plan-card__price">{plan.price}</p>
+              <header className="plan-intro"><div><p className="eyebrow">The whole product</p><h2>{plan.name}</h2></div><p className="plan-card__price">{plan.price}</p></header>
               <ul>
                 {plan.features.map((feature) => (
                   <li key={feature}>
@@ -51,6 +51,6 @@ export function PricingPage() {
           ))}
         </div>
       ) : null}
-    </div>
+    </div></div>
   );
 }

@@ -1,22 +1,11 @@
-@keyframes rotate {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.inline-notice__icon.lucide-loader-circle {
-  animation: rotate 1.1s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    animation-delay: 0s !important;
-    transition-duration: 0.01ms !important;
-    transition-delay: 0s !important;
-  }
+﻿.route-transition { animation: route-enter 230ms ease-out both; }
+@keyframes route-enter { from { opacity: .65; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes data-enter { from { opacity: .4; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+@keyframes path-enter { from { opacity: .25; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+@keyframes reveal-line { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@media(prefers-reduced-motion: reduce) {
+  *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .route-transition,.magnetic,.button:hover { transform: none !important; }
+  [data-text-line] { transform: none !important; }
+  [data-reveal] { opacity: 1 !important; transform: none !important; clip-path: none !important; }
 }

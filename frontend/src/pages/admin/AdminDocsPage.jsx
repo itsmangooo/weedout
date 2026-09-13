@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { useState } from "react";
 import { Link } from "react-router";
 
@@ -17,18 +18,14 @@ export function AdminDocsPage() {
   const pages = query.data;
 
   return (
-    <>
-      <div className="admin-head">
-        <h1>Docs</h1>
-        <div className="btn-row">
+    <PageFrame className="operations-page operations-docs" eyebrow="Weedout / Operations" title={<> Docs </>} description="Manage the documentation published to readers." actions={<><div className="btn-row">
           <a className="button button--ghost" href="/docs" rel="noopener" target="_blank">
             View public docs
           </a>
           <Link className="button button--primary" to="/admin/docs/new">
             New page
           </Link>
-        </div>
-      </div>
+        </div></>}>
 
       <div className="card card--flush">
         {pages.length ? (
@@ -67,7 +64,7 @@ export function AdminDocsPage() {
           </div>
         )}
       </div>
-    </>
+    </PageFrame>
   );
 }
 

@@ -169,6 +169,7 @@ describe("the application sidebar", () => {
     const nav = screen.getByRole("navigation", { name: "Application" });
     expect(hrefsIn(nav)).toEqual([
       "/dashboard",
+      "/dashboard?view=projects",
       "/alerts",
       "/targets/new",
       "/cli",
@@ -176,14 +177,11 @@ describe("the application sidebar", () => {
     ]);
   });
 
-  it("marks future analysis modules as planned instead of linking to fake screens", () => {
-    renderShell(<AppShell />);
-
-    for (const label of ["Source code", "Secrets", "CI & config"]) {
-      const module = screen.getByText(label).closest(".app-shell__nav-link");
-      expect(module).toHaveAttribute("aria-disabled", "true");
-      expect(module).not.toHaveAttribute("href");
-    }
+  it("exposes only real analysis tools and gives Projects its own active state", () => {
+    renderShell(<AppShell />, { initialPath: "/dashboard?view=projects" });
+    for (const label of ["Source code", "Secrets", "CI & config"]) expect(screen.queryByText(label)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", {name: "Projects"})).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", {name: "Overview"})).not.toHaveAttribute("aria-current");
   });
 
   it("shows the admin link only to an administrator", () => {

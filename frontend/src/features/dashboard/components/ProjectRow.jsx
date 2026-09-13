@@ -14,6 +14,9 @@ import { relativeTime } from "../../../lib/time";
 import { Link } from "react-router";
 
 function projectState(project) {
+  if (project.last_scan_failed) {
+    return { icon: CircleAlert, label: "Last check failed", tone: "danger" };
+  }
   if (project.findings.exploited > 0) {
     return { icon: CircleAlert, label: "Exploited finding", tone: "danger" };
   }
@@ -25,9 +28,6 @@ function projectState(project) {
   }
   if (!project.has_manifest) {
     return { icon: FileWarning, label: "Manifest needed", tone: "setup" };
-  }
-  if (project.last_scan_failed) {
-    return { icon: CircleAlert, label: "Last check failed", tone: "danger" };
   }
   if (!project.last_scanned_at) {
     return { icon: Clock3, label: "Awaiting first check", tone: "pending" };

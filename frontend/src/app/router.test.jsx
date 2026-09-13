@@ -101,12 +101,12 @@ describe("frontend routes", () => {
     const user = userEvent.setup();
 
     renderRoute("/not-migrated");
-    expect(screen.getByRole("heading", { name: "This frontend route has not migrated yet." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Nothing at\s*this address\./ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("link", { name: "Return to the foundation" }));
+    await user.click(screen.getByRole("link", { name: "Return home" }));
     expect(
       await screen.findByRole("heading", {
-        name: "Security findings with the context to fix them.",
+        name: "Security findings. With context.",
       }),
     ).toBeInTheDocument();
   });
@@ -120,14 +120,14 @@ describe("frontend routes", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Security findings with the context to fix them.",
+        name: "Security findings. With context.",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "From a CVE to actual project context." }),
+      screen.getByRole("heading", { name: /The reason\.\s*The path\.\s*The next step\./ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "From manifest to decision, in three steps." }),
+      screen.getByRole("heading", { name: /From project\s*to clear action\./ }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/dynamic or incomplete analysis stays Unknown/),
@@ -140,11 +140,11 @@ describe("frontend routes", () => {
     expect(screen.queryByText("Planned")).not.toBeInTheDocument();
     expect(screen.queryByText("Source-code analysis")).not.toBeInTheDocument();
     expect(screen.getByAltText("Emanuel RM")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Founder · LinkedIn" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Emanuel RM.*Founder/ })).toHaveAttribute(
       "href",
       expect.stringContaining("linkedin.com/in/emanuel-rm"),
     );
-    expect(screen.getByText("Product preview")).toBeInTheDocument();
+    expect(screen.getByText("Illustrative shortlist / demo-app")).toBeInTheDocument();
     const mainNav = screen.getByRole("navigation", { name: "Main" });
     expect(mainNav).not.toHaveTextContent("Pricing");
   });

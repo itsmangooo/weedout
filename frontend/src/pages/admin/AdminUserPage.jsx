@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -20,13 +21,9 @@ export function AdminUserPage() {
   const account = detail.user;
 
   return (
-    <>
-      <div className="admin-head">
-        <h1 className="mono">{account.email}</h1>
-        <Link className="button button--ghost" to="/admin/users">
+    <PageFrame className="operations-page operations-user" eyebrow="Weedout / Operations" title={account.email} description="Account activity, project coverage and access controls." actions={<><Link className="button button--ghost" to="/admin/users">
           Back to users
-        </Link>
-      </div>
+        </Link></>}>
 
       {account.is_suspended ? (
         <div className="u-mb-5">
@@ -43,6 +40,7 @@ export function AdminUserPage() {
         </div>
       ) : null}
 
+      <div className="account-record"><AccountFacts account={account} detail={detail} /></div>
       <div className="detail-grid">
         <div>
           <Projects account={account} targets={detail.targets} />
@@ -58,13 +56,12 @@ export function AdminUserPage() {
         </div>
 
         <aside>
-          <AccountFacts account={account} detail={detail} />
           {account.dodo_subscription_id ? <Subscription account={account} /> : null}
           <AccessCard account={account} />
           <DangerCard account={account} detail={detail} />
         </aside>
       </div>
-    </>
+    </PageFrame>
   );
 }
 

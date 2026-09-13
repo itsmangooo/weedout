@@ -1,23 +1,19 @@
 # Weedout frontend
 
-This directory is the isolated React/Vite presentation layer introduced by the controlled
-frontend migration. Phase 5 makes the parity-complete React dashboard the canonical production
-dashboard while preserving the server-rendered version as an explicit rollback route.
-
-React owns only `/dashboard` in production. The protected `/dashboard/legacy` route renders the
-unchanged `app/templates/dashboard.html` for rollback and parity checks; it is intentionally absent
-from normal product navigation. Login, signup, settings, projects, alerts, billing, and admin
-remain server-rendered.
+The Weedout interface is a React 19 and Vite application served by the existing Python service.
+It owns the public site, authentication screens, customer workspace, project and finding views,
+account settings, and the operations console. Python remains responsible for authentication,
+authorization, validation, billing, scanning, persistence, and project ownership.
 
 ## Local development
 
-Run the Python application from the repository root:
+Start the Python application from the repository root:
 
 ```powershell
 python -m app
 ```
 
-Then start the frontend in a second terminal:
+Then start Vite in a second terminal:
 
 ```powershell
 cd frontend
@@ -25,10 +21,9 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173/dashboard`. Vite owns the canonical dashboard locally and proxies
-`/healthz`, `/api`, and `/events` to Python on `http://localhost:8000`. It also proxies
-`/dashboard/legacy`, `/login`, `/alerts`, `/targets`, and `/settings` for intentional legacy
-handoffs. Browser code uses same-origin paths and needs no CORS policy.
+Open `http://localhost:5173`. Vite proxies `/api`, `/healthz`, `/events`, `/webhooks`, the CLI
+installers, and backend static assets to `http://localhost:8000`. Browser requests remain
+same-origin and need no separate CORS policy.
 
 ## Commands
 
@@ -40,219 +35,92 @@ npm run build
 npm run preview
 ```
 
-## Ownership rules
+The repository shipping workflow lives at `../scripts/ship.sh`. It validates both applications,
+checks `origin/main`, commits the selected task files, and pushes without rewriting history.
 
-- `src/api/` owns HTTP transport and domain API modules. Presentation components do not call
-  `fetch()` directly.
-- `src/app/` owns routing and global providers.
-- `src/components/` contains only reusable UI, layout, feedback, and motion primitives.
-- `src/features/` owns domain-specific components and hooks.
-- `src/pages/` composes routes from shared and feature-owned pieces.
-- `src/styles/` owns Weedout design tokens and branded global composition; Tailwind is used mainly
-  for layout and responsive utilities.
+## Structure
 
-Remote state belongs in TanStack Query. Local interaction state stays in React. Authentication,
-authorization, validation of trusted data, billing, scanning, persistence, and ownership checks
-remain in Python.
+- `src/api/` owns HTTP transport and domain API modules. Views never call `fetch()` directly.
+- `src/app/` owns routing, query configuration, error boundaries, and global providers.
+- `src/components/` contains reusable brand, layout, feedback, motion, and UI primitives.
+- `src/features/` owns domain components and query or mutation hooks.
+- `src/pages/` composes route-level experiences from shared and domain pieces.
+- `src/styles/` contains the single Weedout design system and its shell-specific compositions.
 
-There is deliberately no `AuthProvider`. `useCurrentUser()` is a TanStack Query over one canonical
-cache entry, so copying that data into React Context would create a second source of truth.
-`useDashboard()` and `useOpenFindings()` follow the same rule: their server state lives only in
-their Query caches.
+Remote server state stays in TanStack Query. Local interaction state stays in React. There is no
+second authentication store: `useCurrentUser()` reads the canonical query cache shared by route
+guards and navigation.
 
-## Visual language
+## Product shells
 
-The React surface has two explicit themes. Public and authentication boundary routes use the
-`public` theme: warm ivory and pearl surfaces, graphite typography, a quiet green action color,
-and editorial spacing. Authenticated routes use the `app` theme: neutral near-black graphite,
-tonal surface separation, compact rows, and semantic red, amber, and green only where status needs
-them. The palette deliberately contains no purple theme, gradients, glass effects, or decorative
-glow.
+The product has three related layouts:
 
-Reusable tokens live in `src/styles/tokens.css` and theme values in `src/styles/themes.css`.
-Marketing motion is isolated from the app shell and respects the global `reducedMotion="user"`
-policy. Dashboard motion stays limited to small row/status transitions.
+- The public shell uses editorial spacing and large type for the landing page, docs, CLI guide,
+  pricing, status, contact, legal, and authentication routes.
+- The customer shell uses a fixed workspace rail and dense queues for overview, projects,
+  findings, project dependencies, scan history, and account settings.
+- The operations shell uses horizontal console navigation, compact tables, source health, account
+  records, billing, inbox, campaign confirmation, docs management, and audit history.
 
-The public landing is scoped to `FoundationPage`, `features/landing/`, and `landing.css`.
-Its product story moves from a selectable finding preview to an interactive 47-alert / 3-finding
-example, a connected three-step workflow, and a replayable CLI output excerpt. All sample counts,
-source paths and findings are explicitly labeled as illustrative and stay in landing-only fixtures;
-they never enter API responses or authenticated state. Filtering remains separate from source
-reachability, and Unknown evidence is never presented as a safety conclusion.
+All three consume the same typography, spacing, color, form, button, table, dialog, and status
+tokens. Normal surfaces use 4–8px radii. Tags use compact status treatments; content grouping relies
+on whitespace and dividers rather than repeated cards.
 
-The terminal uses the supported `weedout scan --ci` command and the output format in the sibling
-CLI repository's `internal/cli/cli.go`. Playback starts in view, pauses offscreen, ends after one
-short sequence, and has pause/replay controls. Reduced motion displays the complete transcript
-immediately and disables entry, path, background and navigation animation. Scroll reveals keep
-content visible by default; no pinned scroll scenes or pointer tracking are required. Finding
-selection uses native buttons, and evidence and filtered-result explanations use native disclosures.
-The existing account navigation, signup/docs routes, founder links and service-status disclosure
-remain available.
+## Theme and motion
 
-Finding and project rows expose the same read-only destinations through an accessible ellipsis
-button and a pointer-positioned context menu. The custom menu is scoped to the non-interactive row
-surface, so links, controls, code, and every area outside those entities retain the native browser
-context menu. No destructive or mutating action is exposed.
+Light and dark palettes are complete mappings in `src/styles/themes.css`. Light uses warm paper,
+deep charcoal, and forest green. Dark uses near-black forest surfaces, cream type, and muted green.
+The theme control writes `weedout-theme` to local storage and applies the resolved palette to
+`<html>`, so it persists across public, customer, and admin routes. The pre-paint backend script
+uses the same storage key.
 
-## API boundaries
+Landing motion is isolated in `features/landing/useLandingMotion.js`. GSAP handles masked entry,
+scroll reveals, a pinned analysis sequence, and restrained parallax. Lenis is enabled only for a
+fine pointer on a large viewport. The dependency field loads one Three.js scene only when it nears
+the viewport; an SVG rendering is always available for reduced motion, unsupported WebGL, and
+context loss. Every observer, ticker, renderer, material, and geometry is disposed on unmount.
 
-`GET /healthz` remains a connectivity check, not an application-data contract.
+`prefers-reduced-motion` disables animated transforms and pinning while keeping all information and
+controls visible. Route transitions use opacity and a small transform, reset scroll position, and
+move keyboard focus to the new main region. Finding transitions, dependency paths, and numeric
+updates stay transform/opacity based.
 
-`GET /api/internal/auth/me` is the first browser endpoint. It uses the existing opaque,
-database-backed `weedout_session` cookie and returns one of three outcomes:
+## Landing demo boundary
 
-- `200` with `authenticated: false` when no session cookie exists;
-- `200` with the explicitly serialized `id`, `email`, `is_admin`, `tier`, and `account_state` fields
-  when the session is valid; or
-- `401 SESSION_EXPIRED` when a cookie exists but is invalid, revoked, expired, suspended, or tied to
-  an inactive account. Those cases intentionally look the same to the browser.
+The 47-alert to 3-finding sequence is explicitly marked as illustrative. Its CVEs, package paths,
+source paths, severities, and counts live only in `features/landing/demo.js`; they never enter API
+responses or authenticated state. The demo keeps filtering separate from source reachability and
+never presents Unknown or an observed import as proof of safety or vulnerable-function execution.
 
-Responses are private and non-cacheable. `/api/internal/*` is reserved for cookie-authenticated
-browser traffic; `/api/v1/*` remains the bearer-key API for CLI and machine consumers.
+The CLI transcript uses the supported `weedout scan --ci` command and mirrors the output shape from
+the sibling CLI implementation. Playback is bounded, pauses and replays, and renders fully when
+reduced motion is requested.
 
-`GET /api/internal/dashboard` requires that same session and returns only the aggregate and project
-fields rendered by `/dashboard`:
+## API and security boundaries
 
-```json
-{
-  "data": {
-    "summary": {
-      "projects": 1,
-      "dependencies": 143,
-      "open_findings": 3,
-      "exploited_findings": 1,
-      "critical_findings": 2,
-      "filtered_findings": 8,
-      "dismissed_findings": 0,
-      "resolved_findings": 4,
-      "filter_rate_percent": 73
-    },
-    "projects": [
-      {
-        "id": 8,
-        "name": "checkout-api",
-        "ecosystem": "npm",
-        "manifest_kind": "package-lock.json",
-        "dependency_count": 143,
-        "is_active": true,
-        "has_manifest": true,
-        "last_scanned_at": "2026-08-20T18:30:00Z",
-        "last_scan_failed": false,
-        "findings": { "open": 3, "exploited": 1, "filtered": 8 }
-      }
-    ]
-  }
-}
-```
+`/api/internal/*` is reserved for cookie-authenticated browser traffic. `/api/v1/*` remains the
+bearer-key API for CLI and machine consumers. The browser never reads the HttpOnly session cookie
+and stores no JWT. The readable CSRF cookie is copied to `X-CSRF-Token` for unsafe requests; Python
+verifies the pair before executing mutations.
 
-The endpoint calls `dashboard_stats()` and `list_targets()` with the authenticated user's ID.
-Those services enforce target ownership in their queries; the route only copies an explicit safe
-field list and never serializes ORM instances.
+Route guards improve presentation, while every customer and administrator endpoint independently
+enforces authentication, role, and ownership server-side. The UI renders explicit response fields
+only. It never serializes ORM records, password hashes, stored key hashes, manifests, sensitive
+configuration, or arbitrary audit objects. Newly issued API tokens remain one-time component state
+and are not persisted by the frontend.
 
-`GET /api/internal/findings?show=open&limit=25` is the compact finding read used by the dashboard.
-The accepted `show` values are `open`, `filtered`, `dismissed`, and `resolved`; `limit` must be at
-least 1 and is capped at 200 by the server. The default response is:
+Finding status controls expose only dismiss and reopen. A finding becomes resolved only when a
+later scan no longer sees it. Missing evidence is displayed as Unknown, failed scans are never shown
+as zero findings, and truncated finding lists declare their loaded limit.
 
-```json
-{
-  "data": [
-    {
-      "id": 91,
-      "project": { "id": 8, "name": "checkout-api" },
-      "identifier": "CVE-2026-5001",
-      "package_name": "minimist",
-      "installed_version": "1.2.5",
-      "severity": "critical",
-      "is_exploited": true,
-      "reachability": "runtime_transitive",
-      "status": "open",
-      "detected_at": "2026-08-20T18:30:00Z"
-    }
-  ],
-  "meta": { "show": "open", "limit": 25, "count": 1 }
-}
-```
-
-`identifier` is the first CVE when the advisory carries one, otherwise the stable OSV advisory
-identifier. `reachability` retains Weedout's honest manifest-level vocabulary instead of claiming
-source-level vulnerable-function reachability. The shared `list_findings()` service owns the user
-join, filters, urgency order, and cap for both legacy HTML reads and this endpoint. The serializer
-copies only the listed fields; owner IDs, raw manifests, hashes, repository metadata, policy
-content, full advisory records, and scanner internals remain server-side. Responses are
-`private, no-store` and vary on `Cookie`.
-
-The shared client accepts legacy errors during the migration while future internal endpoints use:
-
-```json
-{
-  "error": {
-    "code": "STABLE_CODE",
-    "message": "A safe message for the user."
-  }
-}
-```
-
-## CSRF bootstrap for React
-
-The `/me` request is also the CSRF bootstrap; no separate token endpoint is needed:
-
-1. `getCurrentUser()` requests the same-origin `/api/internal/auth/me` path with
-   `credentials: "include"`.
-2. Python creates or reissues the host-only `weedout_csrf` cookie with `Path=/`, `SameSite=Lax`, a
-   12-hour lifetime, and the environment's `Secure` setting. It remains readable by JavaScript on
-   purpose; unlike `weedout_session`, it is not an authentication secret.
-3. For every unsafe request, `src/api/client.js` reads that cookie and sends the same value in
-   `X-CSRF-Token`. JSON objects are serialized, while `FormData` remains untouched.
-4. Python's existing `verify_csrf` dependency compares the cookie and header with a constant-time
-   comparison. Missing or mismatched values remain `403` responses.
-
-The HttpOnly session cookie is never read by React and no JWT or browser token store is involved.
-
-## Live dashboard refresh
-
-`useLiveDashboardUpdates()` opens one credentialed, same-origin `EventSource` on the existing
-`/events` endpoint while the protected dashboard is mounted. The browser's native EventSource
-reconnection is used; an `error` only changes the restrained header indicator to “Reconnecting”
-and never creates a toast or replaces dashboard content.
-
-Each existing `stats` event invalidates the `dashboard` and `findings/open/25` TanStack Query keys.
-Active queries then refetch their authoritative JSON responses. Event payloads are never merged
-into cached objects, and SSE is not a second state store. All listeners are attached once per
-mounted dashboard and removed before `EventSource.close()` during cleanup.
+Live dashboard updates use one credentialed same-origin `EventSource`. A `stats` event invalidates
+the relevant dashboard and finding query keys, and those queries refetch authoritative JSON. Event
+payloads are not merged into the cache.
 
 ## Production integration
 
-The Dockerfile uses Node 24 and the committed npm lockfile to run `npm ci` followed by
-`npm run build`. Only the resulting immutable `dist` directory is copied into the unprivileged
-Python image; Node and `node_modules` do not enter the runtime stage.
-
-FastAPI serves:
-
-- `/dashboard` — the Vite HTML entry with `Cache-Control: private, no-store` and `Vary: Cookie`;
-- `/assets/*` — hashed JS, CSS, images, fonts, and lazy chunks with a one-year immutable cache;
-- `/dashboard/legacy` — the protected Jinja rollback implementation.
-
-There is no SPA catch-all. `/api`, `/webhooks`, `/static`, `/install.sh`, `/install.ps1`, `/healthz`, `/readyz`,
-`/events`, and every legacy product route retain their existing handlers. A missing frontend entry
-returns `503`; missing assets and unknown routes return `404` rather than receiving the SPA shell.
-
-Coolify, Traefik, and Cloudflare can continue forwarding the single Weedout origin to the Python web
-service. A separate frontend hostname or CORS policy is not planned.
-
-## Dashboard cutover and recommended Phase 6
-
-The React dashboard now has the legacy read path's headline counts, attention priority, filter
-ratio, project/scan state, 25-item open-finding excerpt, independent loading/empty/error recovery,
-and live refresh. Finding and project rows retain stable IDs and isolated component boundaries;
-their scoped read-only menus preserve native right-click behavior everywhere else. All finding
-mutations and the full findings workflow remain in the legacy application.
-
-The React and legacy routes call the same ownership-scoped dashboard and finding services. An
-integration parity test verifies equivalent summary, project, and finding data for one account.
-The built application remains compatible with the existing same-origin CSP: no `unsafe-eval`,
-wildcard, `blob:` allowance, inline script, or new CSP directive was added.
-
-Keep `dashboard.html` through a real Coolify deployment and observation window. Phase 6 should be
-a bounded post-cutover cleanup: verify production telemetry and rollback readiness, then remove
-`/dashboard/legacy`, `dashboard.html`, and dashboard-only legacy assets after rollback is no longer
-needed. It should not migrate another feature in the same phase.
+The Docker build runs `npm ci` and `npm run build`, then copies only the immutable `dist` output
+into the unprivileged Python runtime image. Python serves the Vite entry for the explicit frontend
+route allowlist and serves hashed assets with long-lived cache headers. API, webhook, static,
+installer, health, readiness, and event routes retain their existing handlers; there is no broad
+SPA catch-all.

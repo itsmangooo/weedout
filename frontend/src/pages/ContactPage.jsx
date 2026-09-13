@@ -59,7 +59,7 @@ export function ContactPage() {
   }
 
   return (
-    <div className="page-narrow">
+    <div className="contact-page public-editorial">
       <header className="page-head">
         <p className="section-label">Contact</p>
         <h1>Tell us what happened.</h1>
@@ -70,6 +70,7 @@ export function ContactPage() {
         </p>
       </header>
 
+      <div className="contact-form-region">
       {error ? (
         <div className="u-mb-5">
           <InlineNotice tone="danger">{error}</InlineNotice>
@@ -137,7 +138,7 @@ export function ContactPage() {
             {busy ? "Sending…" : "Send"}
           </Button>
         </div>
-      </form>
+      </form></div>
     </div>
   );
 }

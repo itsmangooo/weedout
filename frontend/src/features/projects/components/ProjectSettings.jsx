@@ -1,3 +1,4 @@
+import { SectionIndex } from "../../../components/ui/SectionIndex";
 import { KeyRound, ShieldAlert, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -33,11 +34,11 @@ const SEVERITIES = [
 
 export function ProjectSettings({ page, projectId }) {
   return (
-    <div className="project-section project-settings">
-      <RenameSection name={page.data.name} projectId={projectId} />
-      <KeysSection keys={page.api_keys} projectId={projectId} />
-      <RulesSection page={page} projectId={projectId} />
-      <DangerSection name={page.data.name} projectId={projectId} />
+    <div className="settings-layout project-settings"><SectionIndex label="Project settings" items={[["project-name-section","Identity"],["project-rules-section","Scan rules"],["project-keys-section","API access"],["project-danger-section","Delete project"]]} /><div className="settings-content">
+      <div id="project-name-section"><RenameSection name={page.data.name} projectId={projectId} /></div>
+      <div id="project-rules-section"><RulesSection page={page} projectId={projectId} /></div>
+      <div id="project-keys-section"><KeysSection keys={page.api_keys} projectId={projectId} /></div>
+      <div id="project-danger-section"><DangerSection name={page.data.name} projectId={projectId} /></div></div>
     </div>
   );
 }

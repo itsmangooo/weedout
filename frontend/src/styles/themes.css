@@ -22,18 +22,18 @@
 
 :root {
   /* --- Light ------------------------------------------------------------ */
-  --wo-light-bg: #f3f0e8;
-  --wo-light-surface-low: #eeebe2;
-  --wo-light-surface: #faf8f2;
-  --wo-light-surface-high: #fffdf8;
-  --wo-light-text: #252723;
-  --wo-light-text-muted: #60645d;
-  --wo-light-text-dim: #858a82;
+  --wo-light-bg: #f3f0e7;
+  --wo-light-surface-low: #e8e8dd;
+  --wo-light-surface: #faf8f1;
+  --wo-light-surface-high: #fffdf7;
+  --wo-light-text: #202c23;
+  --wo-light-text-muted: #536155;
+  --wo-light-text-dim: #637166;
   --wo-light-separator: rgb(39 42 37 / 0.1);
   --wo-light-separator-strong: rgb(39 42 37 / 0.2);
-  --wo-light-accent: #426b5c;
-  --wo-light-accent-strong: #2f5548;
-  --wo-light-accent-solid: #2e5045;
+  --wo-light-accent: #345e40;
+  --wo-light-accent-strong: #244b30;
+  --wo-light-accent-solid: #31573a;
   --wo-light-accent-quiet: rgb(66 107 92 / 0.1);
   --wo-light-on-accent: #fbfaf5;
   --wo-light-focus: #426b5c;
@@ -41,7 +41,7 @@
   --wo-light-shadow-high: 0 30px 80px -42px rgb(52 53 46 / 0.44);
   --wo-light-shadow-soft: 0 18px 50px -38px rgb(52 53 46 / 0.28);
   /* Translucent, for a bar that content scrolls under. */
-  --wo-light-veil: rgb(243 240 232 / 0.86);
+  --wo-light-veil: #f3f0e7;
   /* Deeper than the dark theme's. The dark set reads at 2.7:1 on cream,
      which is not a colour you can put a word in. These clear 5:1 against
      both the page and the raised surface. */
@@ -55,30 +55,30 @@
   --wo-light-failure-quiet: rgb(168 58 66 / 0.1);
 
   /* --- Dark ------------------------------------------------------------- */
-  --wo-dark-bg: #111312;
-  --wo-dark-surface-low: #171918;
-  --wo-dark-surface: #1d201e;
-  --wo-dark-surface-high: #252825;
-  --wo-dark-text: #edeee8;
-  --wo-dark-text-muted: #a7aba3;
-  --wo-dark-text-dim: #777c75;
+  --wo-dark-bg: #101711;
+  --wo-dark-surface-low: #151e17;
+  --wo-dark-surface: #1b261d;
+  --wo-dark-surface-high: #263328;
+  --wo-dark-text: #f1efe3;
+  --wo-dark-text-muted: #b0bdac;
+  --wo-dark-text-dim: #95a68f;
   --wo-dark-separator: rgb(237 238 232 / 0.075);
   --wo-dark-separator-strong: rgb(237 238 232 / 0.14);
-  --wo-dark-accent: #c8d1ca;
-  --wo-dark-accent-strong: #edf0e9;
-  --wo-dark-accent-solid: #e4e7df;
+  --wo-dark-accent: #abc79d;
+  --wo-dark-accent-strong: #d4e4c7;
+  --wo-dark-accent-solid: #b6cfaa;
   --wo-dark-accent-quiet: rgb(228 231 223 / 0.07);
-  --wo-dark-on-accent: #151715;
+  --wo-dark-on-accent: #142018;
   --wo-dark-focus: #9db8a9;
   --wo-dark-shadow: 0 24px 72px -44px rgb(0 0 0 / 0.78);
   --wo-dark-shadow-high: 0 30px 90px -42px rgb(0 0 0 / 0.92);
   --wo-dark-shadow-soft: 0 18px 54px -36px rgb(0 0 0 / 0.72);
-  --wo-dark-veil: rgb(23 25 24 / 0.9);
-  --wo-dark-critical: #e86f6b;
+  --wo-dark-veil: #151e17;
+  --wo-dark-critical: #ee9990;
   --wo-dark-critical-quiet: rgb(232 111 107 / 0.12);
-  --wo-dark-warning: #cf924d;
+  --wo-dark-warning: #e1b776;
   --wo-dark-warning-quiet: rgb(207 146 77 / 0.12);
-  --wo-dark-success: #519874;
+  --wo-dark-success: #95bd8a;
   --wo-dark-success-quiet: rgb(81 152 116 / 0.12);
   --wo-dark-failure: #cf7077;
   --wo-dark-failure-quiet: rgb(207 112 119 / 0.12);

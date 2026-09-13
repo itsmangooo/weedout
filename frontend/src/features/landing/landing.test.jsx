@@ -4,8 +4,8 @@ import { useReducedMotion } from "motion/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CliDemo } from "./components/CliDemo";
-import { ProductScreenshot } from "./components/ProductScreenshot";
-import { SignalDemo } from "./components/SignalDemo";
+import { FindingExplorer } from "./components/FindingExplorer";
+import { AnalysisStory } from "./components/AnalysisStory";
 
 vi.mock("motion/react", () => ({ useReducedMotion: vi.fn(() => false) }));
 
@@ -15,7 +15,7 @@ describe("landing product demonstrations", () => {
   it("lets a keyboard user select a finding and inspect its matching path, evidence and fix", async () => {
     const user = userEvent.setup();
     const request = vi.spyOn(globalThis, "fetch");
-    render(<ProductScreenshot />);
+    render(<FindingExplorer />);
     await user.tab();
     expect(screen.getByRole("button", { name: /01 axios/ })).toHaveFocus();
     await user.tab();
@@ -44,7 +44,7 @@ describe("landing product demonstrations", () => {
 
   it("keeps unknown evidence honest and resets the disclosure on finding changes", async () => {
     const user = userEvent.setup();
-    render(<ProductScreenshot />);
+    render(<FindingExplorer />);
     await user.click(screen.getByText("Evidence"));
     await user.click(screen.getByRole("button", { name: /03 lodash/ }));
     const detail = within(
@@ -59,61 +59,31 @@ describe("landing product demonstrations", () => {
     expect(detail.getByText("4.17.21")).toBeInTheDocument();
   });
 
-  it("opens and resets the 47-to-3 demo without exposing hidden controls in the tab order", async () => {
+  it("transforms 47 alerts into three findings with keyboard controls and an SVG fallback", async () => {
     const user = userEvent.setup();
-    render(<SignalDemo />);
-    const apply = screen.getByRole("button", { name: "Add project context" });
-    const result = document.getElementById(apply.getAttribute("aria-controls"));
-    expect(result).not.toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: /minimist/ }),
-    ).not.toBeInTheDocument();
-    await user.click(apply);
-    expect(result).toBeVisible();
-    expect(screen.getByRole("button", { name: "Reset demo" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(
-      within(screen.getByLabelText("Shortlisted demo findings")).getAllByRole(
-        "button",
-      ),
-    ).toHaveLength(3);
-    await user.click(screen.getByRole("button", { name: /minimist/ }));
-    expect(
-      screen.getByRole("heading", { name: "CVE-2021-44906" }),
-    ).toBeInTheDocument();
-    await user.click(screen.getByText("What happened to the other 44?"));
-    expect(
-      screen.getByText(/remain available for review/).closest("details"),
-    ).toHaveAttribute("open");
-    await user.click(screen.getByRole("button", { name: "Reset demo" }));
-    expect(result).not.toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Add project context" }),
-    ).toHaveFocus();
+    const { container } = render(<AnalysisStory />);
+    expect(screen.getByText("47")).toBeInTheDocument();
+    expect(screen.getByText(/not a live scan/)).toBeInTheDocument();
+    const graph = container.querySelector("svg.dependency-field__fallback");
+    expect(graph.querySelectorAll("circle")).toHaveLength(47);
+    const original = graph.querySelector("circle").getAttribute("cx");
+    await user.tab(); await user.tab(); await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", {name: /Add context/})).toHaveAttribute("aria-pressed", "true");
+    await user.tab(); await user.keyboard("{Enter}");
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(graph.querySelector("circle").getAttribute("cx")).not.toBe(original);
+    await user.click(screen.getByRole("button", {name: /Raw alerts/}));
+    expect(screen.getByText("47")).toBeInTheDocument();
   });
 
-  it("keeps the hero selection independent from the larger demo", async () => {
+  it("responds to the scroll story without changing the independent finding selection", async () => {
     const user = userEvent.setup();
-    render(
-      <>
-        <ProductScreenshot />
-        <SignalDemo />
-      </>,
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Add project context" }),
-    );
-    await user.click(screen.getByRole("button", { name: /^minimist/ }));
-    expect(screen.getByRole("button", { name: /01 axios/ })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    const controls = screen
-      .getAllByRole("button", { name: /minimist/ })
-      .map((button) => button.getAttribute("aria-controls"));
-    expect(new Set(controls).size).toBe(2);
+    render(<><AnalysisStory /><FindingExplorer /></>);
+    await user.click(screen.getByRole("button", {name: /02 minimist/}));
+    act(() => document.querySelector("[data-analysis-story]").dispatchEvent(new CustomEvent("analysis-progress", {detail: 1})));
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: /02 minimist/})).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("article", {name: "Context for minimist"})).toBeInTheDocument();
   });
 });
 

@@ -1,41 +1,25 @@
-import {
-  CircleAlert,
-  Code2,
-  FileKey2,
-  FileUp,
-  GitBranch,
-  Info,
-  PackageSearch,
-  TriangleAlert,
-} from "lucide-react";
+import { CircleAlert, FileUp, Info, TriangleAlert } from "lucide-react";
 import { useState } from "react";
-
+import { Link } from "react-router";
 import { attachManifest } from "../../../api/projects";
 import { Button } from "../../../components/ui/Button";
+import { DataMetric } from "../../../components/ui/PageFrame";
 import { InlineNotice } from "../../../components/ui/InlineNotice";
 import { relativeTime } from "../../../lib/time";
 import { useProjectMutation } from "../hooks/useProject";
-
-/** Concerning first. These are context, not vulnerabilities. */
 const LEVEL_ORDER = { concerning: 0, notable: 1, informational: 2 };
-
-const LEVEL_ICON = {
-  concerning: CircleAlert,
-  notable: TriangleAlert,
-  informational: Info,
-};
-
+const LEVEL_ICON = { concerning: CircleAlert, notable: TriangleAlert, informational: Info };
 export function ProjectOverview({ page }) {
   const project = page.data;
-
-  return (
-    <div className="project-section project-overview">
-      {!project.has_manifest ? <ManifestUpload projectId={project.id} /> : null}
-
-      <ProjectSecurityModules project={project} />
-
-      <div className="project-overview__details">
-      <section aria-labelledby="runs-title" className="project-overview__card">
+  return <div className="project-overview">
+    {!project.has_manifest && <ManifestUpload projectId={project.id} />}
+    <dl className="metric-strip"><DataMetric label="Open findings" value={project.tab_counts?.open ?? 0} /><DataMetric label="Dependencies" value={project.dependency_count} /><DataMetric label="Filtered" value={project.tab_counts?.filtered ?? 0} /><DataMetric label="Resolved" value={project.tab_counts?.resolved ?? 0} /></dl>
+    <div className="project-decision"><div><p className="eyebrow">Your next decision</p><h2>{project.has_manifest ? "Inspect the findings. Follow the evidence." : "Give this project something to scan."}</h2><p>Dependency matches, source evidence and project rules stay distinct. Missing evidence remains unknown.</p></div><Link className="button button--secondary" to={`/targets/${project.id}?view=findings`}>Review findings →</Link></div>
+    <div className="project-overview__details"><ProjectHistory page={page} /><PackageSignals page={page} /></div>
+    <Link className="text-link" to={`/targets/${project.id}?view=dependencies`}>Inspect all {page.dependencies.length} resolved dependencies →</Link>
+  </div>;
+}
+export function ProjectHistory({ page }) { return <section aria-labelledby="runs-title" className="project-overview__card">
         <h2 id="runs-title">Recent dependency checks</h2>
         {page.recent_runs.length === 0 ? (
           <p className="empty-state">No checks yet.</p>
@@ -46,9 +30,8 @@ export function ProjectOverview({ page }) {
             ))}
           </ul>
         )}
-      </section>
-
-      <section aria-labelledby="signals-title" className="project-overview__card">
+      </section>; }
+function PackageSignals({ page }) { return <section aria-labelledby="signals-title" className="project-overview__card">
         <h2 id="signals-title">Package signals</h2>
         {page.supply_chain.length === 0 ? (
           <p className="empty-state">Nothing stood out about these packages.</p>
@@ -85,11 +68,8 @@ export function ProjectOverview({ page }) {
             </p>
           </>
         )}
-      </section>
-
-      </div>
-
-      <section aria-labelledby="deps-title" className="project-overview__card">
+      </section>; }
+export function ProjectDependencies({ page }) { const project = page.data; return <section aria-labelledby="deps-title" className="project-overview__card">
         <h2 id="deps-title">
           Dependencies <span className="dim">({page.dependencies.length})</span>
         </h2>
@@ -130,68 +110,7 @@ export function ProjectOverview({ page }) {
             </table>
           </div>
         )}
-      </section>
-    </div>
-  );
-}
-
-const PLANNED_PROJECT_MODULES = [
-  {
-    Icon: Code2,
-    title: "Source code",
-    description:
-      "Planned full code analysis. Dependency import evidence is already shown above.",
-  },
-  {
-    Icon: FileKey2,
-    title: "Secrets",
-    description: "Reserved for exposed credential and sensitive-value findings.",
-  },
-  {
-    Icon: GitBranch,
-    title: "CI & config",
-    description: "Reserved for workflow and security configuration analysis.",
-  },
-];
-
-function ProjectSecurityModules({ project }) {
-  const open = project.tab_counts?.open ?? 0;
-
-  return (
-    <section className="project-modules" aria-labelledby="project-modules-title">
-      <div className="project-modules__heading">
-        <div>
-          <p className="section-label">Coverage</p>
-          <h2 id="project-modules-title">Security modules</h2>
-        </div>
-        <p>Current coverage and the reserved shape of this project&apos;s future analysis.</p>
-      </div>
-
-      <div className="project-modules__grid">
-        <article className="project-module project-module--active">
-          <div className="project-module__top">
-            <span><PackageSearch aria-hidden="true" size={18} /></span>
-            <em>{project.has_manifest ? "Active" : "Setup needed"}</em>
-          </div>
-          <strong>Dependencies</strong>
-          <p>{project.dependency_count} packages resolved · {open} open {open === 1 ? "finding" : "findings"}</p>
-        </article>
-
-        {PLANNED_PROJECT_MODULES.map(({ Icon, title, description }) => (
-          <article className="project-module" key={title}>
-            <div className="project-module__top">
-              <span><Icon aria-hidden="true" size={18} /></span>
-              <em>Planned</em>
-            </div>
-            <strong>{title}</strong>
-            <p>{description}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
+      </section>; }
 function RunRow({ run }) {
   const when = relativeTime(run.started_at);
 

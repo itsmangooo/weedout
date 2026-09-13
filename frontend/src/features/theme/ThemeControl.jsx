@@ -28,6 +28,14 @@ export function ThemeControl({ className = "" }) {
       aria-label="Colour theme"
       className={`theme-control ${className}`.trim()}
       role="radiogroup"
+      onKeyDown={(event) => {
+        const current = OPTIONS.findIndex((option) => option.value === theme);
+        const next = event.key === "ArrowRight" || event.key === "ArrowDown" ? (current + 1) % OPTIONS.length : event.key === "ArrowLeft" || event.key === "ArrowUp" ? (current + OPTIONS.length - 1) % OPTIONS.length : event.key === "Home" ? 0 : event.key === "End" ? OPTIONS.length - 1 : null;
+        if (next === null) return;
+        event.preventDefault();
+        setTheme(OPTIONS[next].value);
+        event.currentTarget.querySelectorAll('[role="radio"]')[next]?.focus();
+      }}
     >
       {OPTIONS.map(({ value, label, Icon }) => (
         <button
@@ -36,6 +44,7 @@ export function ThemeControl({ className = "" }) {
           key={value}
           onClick={() => setTheme(value)}
           role="radio"
+          tabIndex={theme === value ? 0 : -1}
           title={label}
           type="button"
         >

@@ -15,7 +15,7 @@ export function AsyncError({ error, onRetry }) {
   return (
     <div className="async-error">
       <InlineNotice icon={ServerOff} title="Backend unavailable" tone="danger">
-        <p>{error?.message || "The Python application did not answer."}</p>
+        <p>{error?.message || "The service did not answer."}</p>
       </InlineNotice>
       {onRetry ? (
         <Button onClick={onRetry} variant="secondary">

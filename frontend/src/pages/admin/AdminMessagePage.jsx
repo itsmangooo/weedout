@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 
@@ -25,10 +26,7 @@ export function AdminMessagePage() {
   const message = query.data.message;
 
   return (
-    <>
-      <div className="admin-head">
-        <h1>{message.category_label}</h1>
-        <div className="btn-row">
+    <PageFrame className="operations-page operations-message" eyebrow="Weedout / Operations" title={message.category_label} description="Message context and triage controls." actions={<><div className="btn-row">
           <Link className="button button--secondary" to="/admin/inbox">
             Back to inbox
           </Link>
@@ -41,8 +39,7 @@ export function AdminMessagePage() {
           >
             Reply by email
           </a>
-        </div>
-      </div>
+        </div></>}>
 
       <div className="detail-grid">
         <div>
@@ -109,7 +106,7 @@ export function AdminMessagePage() {
           </div>
         </aside>
       </div>
-    </>
+    </PageFrame>
   );
 }
 

@@ -9,15 +9,14 @@ export function AdminBoundaryPage() {
 
   return (
     <PageTransition>
-      <div className="auth-boundary-page mx-auto w-full max-w-4xl px-6 py-16 sm:px-10 sm:py-20">
-        <p className="eyebrow">Phase 2 · Admin route</p>
+      <div className="auth-boundary-page boundary-record">
+        <p className="eyebrow">Operations / access</p>
         <h1>Admin boundary confirmed.</h1>
         <InlineNotice icon={BadgeCheck} title="Administrator session" tone="success">
-          <p>{data.user.email} may enter this React route.</p>
+          <p>{data.user.email} may enter the Weedout operations console.</p>
         </InlineNotice>
         <p className="auth-boundary-page__note">
-          This client-side guard controls presentation only. Every future admin data endpoint must
-          independently enforce administrator authorization in Python.
+          Administrative data and actions still require server-side authorization on every request.
         </p>
       </div>
     </PageTransition>
