@@ -230,6 +230,17 @@ describe("the application sidebar", () => {
 });
 
 describe("the admin sidebar", () => {
+  it("uses the same rail-and-content structure as the product workspace", () => {
+    const { container } = renderShell(<AdminShell />, {
+      initialPath: "/admin",
+      user: authResponse({ is_admin: true }),
+    });
+
+    expect(container.querySelector(".operations-body > .operations-rail")).not.toBeNull();
+    expect(container.querySelector(".operations-body > .operations-content")).not.toBeNull();
+    expect(container.querySelector(".operations-shell .liquid-glass")).toBeNull();
+  });
+
   it("contains every real administration section and a route back to the product", () => {
     renderShell(<AdminShell />, {
       initialPath: "/admin",

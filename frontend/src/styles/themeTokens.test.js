@@ -79,4 +79,8 @@ describe("the theme token mappings", () => {
       expect(CSS).toContain(`${value.slice("var(".length, -1)}:`);
     }
   });
+
+  it("anchors the dashboard dark theme to the product background", () => {
+    expect(CSS).toContain("--wo-dark-bg: #1a1a1a;");
+  });
 });

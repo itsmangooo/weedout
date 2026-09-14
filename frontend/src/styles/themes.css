@@ -22,26 +22,26 @@
 
 :root {
   /* --- Light ------------------------------------------------------------ */
-  --wo-light-bg: #f1efe8;
-  --wo-light-surface-low: #e8e6df;
-  --wo-light-surface: #faf9f5;
-  --wo-light-surface-high: #fffefa;
-  --wo-light-text: #17201c;
-  --wo-light-text-muted: #59625e;
-  --wo-light-text-dim: #707974;
-  --wo-light-separator: rgb(23 32 28 / 0.1);
-  --wo-light-separator-strong: rgb(23 32 28 / 0.19);
-  --wo-light-accent: #4e7365;
-  --wo-light-accent-strong: #294f42;
-  --wo-light-accent-solid: #365f51;
-  --wo-light-accent-quiet: rgb(54 95 81 / 0.1);
-  --wo-light-on-accent: #fffefa;
-  --wo-light-focus: #4e7365;
-  --wo-light-shadow: 0 22px 60px -44px rgb(23 32 28 / 0.3);
-  --wo-light-shadow-high: 0 30px 76px -46px rgb(23 32 28 / 0.4);
-  --wo-light-shadow-soft: 0 14px 38px -30px rgb(23 32 28 / 0.28);
+  --wo-light-bg: #f5f4f1;
+  --wo-light-surface-low: #eeece7;
+  --wo-light-surface: #faf9f6;
+  --wo-light-surface-high: #ffffff;
+  --wo-light-text: #242321;
+  --wo-light-text-muted: #67645f;
+  --wo-light-text-dim: #7c7973;
+  --wo-light-separator: rgb(36 35 33 / 0.1);
+  --wo-light-separator-strong: rgb(36 35 33 / 0.18);
+  --wo-light-accent: #756b5e;
+  --wo-light-accent-strong: #403a33;
+  --wo-light-accent-solid: #554e45;
+  --wo-light-accent-quiet: rgb(85 78 69 / 0.08);
+  --wo-light-on-accent: #ffffff;
+  --wo-light-focus: #756b5e;
+  --wo-light-shadow: 0 18px 48px -38px rgb(30 28 25 / 0.26);
+  --wo-light-shadow-high: 0 26px 64px -42px rgb(30 28 25 / 0.32);
+  --wo-light-shadow-soft: 0 10px 30px -25px rgb(30 28 25 / 0.24);
   /* Translucent, for a bar that content scrolls under. */
-  --wo-light-veil: #f1efe8;
+  --wo-light-veil: #f5f4f1;
   /* Deeper than the dark theme's. The dark set reads at 2.7:1 on cream,
      which is not a colour you can put a word in. These clear 5:1 against
      both the page and the raised surface. */
@@ -55,25 +55,25 @@
   --wo-light-failure-quiet: rgb(168 58 66 / 0.1);
 
   /* --- Dark ------------------------------------------------------------- */
-  --wo-dark-bg: #101512;
-  --wo-dark-surface-low: #171d19;
-  --wo-dark-surface: #1e2722;
-  --wo-dark-surface-high: #28332d;
-  --wo-dark-text: #f2f0e9;
-  --wo-dark-text-muted: #b2b8b3;
-  --wo-dark-text-dim: #929a94;
-  --wo-dark-separator: rgb(237 238 232 / 0.075);
-  --wo-dark-separator-strong: rgb(237 238 232 / 0.14);
-  --wo-dark-accent: #91b9a7;
-  --wo-dark-accent-strong: #c2ddcf;
-  --wo-dark-accent-solid: #86ad9b;
-  --wo-dark-accent-quiet: rgb(145 185 167 / 0.1);
-  --wo-dark-on-accent: #101512;
-  --wo-dark-focus: #91b9a7;
-  --wo-dark-shadow: 0 24px 72px -44px rgb(0 0 0 / 0.78);
-  --wo-dark-shadow-high: 0 30px 90px -42px rgb(0 0 0 / 0.92);
-  --wo-dark-shadow-soft: 0 18px 54px -36px rgb(0 0 0 / 0.72);
-  --wo-dark-veil: #171d19;
+  --wo-dark-bg: #1a1a1a;
+  --wo-dark-surface-low: #202020;
+  --wo-dark-surface: #252525;
+  --wo-dark-surface-high: #2c2c2c;
+  --wo-dark-text: #f1f0ed;
+  --wo-dark-text-muted: #aaa7a1;
+  --wo-dark-text-dim: #85827d;
+  --wo-dark-separator: rgb(245 242 236 / 0.08);
+  --wo-dark-separator-strong: rgb(245 242 236 / 0.15);
+  --wo-dark-accent: #b8ad9d;
+  --wo-dark-accent-strong: #e0d8cd;
+  --wo-dark-accent-solid: #c8bdad;
+  --wo-dark-accent-quiet: rgb(200 189 173 / 0.09);
+  --wo-dark-on-accent: #1a1a1a;
+  --wo-dark-focus: #c8bdad;
+  --wo-dark-shadow: 0 20px 60px -40px rgb(0 0 0 / 0.8);
+  --wo-dark-shadow-high: 0 28px 72px -42px rgb(0 0 0 / 0.9);
+  --wo-dark-shadow-soft: 0 12px 38px -30px rgb(0 0 0 / 0.78);
+  --wo-dark-veil: #1a1a1a;
   --wo-dark-critical: #ee9990;
   --wo-dark-critical-quiet: rgb(232 111 107 / 0.12);
   --wo-dark-warning: #e1b776;
@@ -173,20 +173,20 @@
 /* Forest remains the Weedout default. Alternate signatures preserve status
    semantics while changing the working ground and accent character. */
 :root[data-panel-scheme="mineral"] :is(.workspace-shell,.operations-shell) {
-  --wo-bg:#edf1ef;--wo-surface-low:#e2e9e6;--wo-surface:#f6f9f7;--wo-surface-high:#fbfdfc;--wo-text:#1d292b;--wo-text-muted:#4e6063;--wo-text-dim:#657579;--wo-separator:rgb(29 56 61 / .1);--wo-separator-strong:rgb(29 56 61 / .2);--wo-accent:#3e737d;--wo-accent-strong:#25545d;--wo-accent-solid:#315f69;--wo-accent-quiet:rgb(49 95 105 / .1);--wo-on-accent:#f7fbfa;--wo-focus:#3e737d;--wo-veil:#edf1ef;
+  --wo-bg:#f1f2f2;--wo-surface-low:#e7e9ea;--wo-surface:#f8f9f9;--wo-surface-high:#fff;--wo-text:#26292b;--wo-text-muted:#62686b;--wo-text-dim:#767c7f;--wo-separator:rgb(38 41 43 / .1);--wo-separator-strong:rgb(38 41 43 / .19);--wo-accent:#68757a;--wo-accent-strong:#3e494d;--wo-accent-solid:#505c61;--wo-accent-quiet:rgb(80 92 97 / .08);--wo-on-accent:#fff;--wo-focus:#68757a;--wo-veil:#f1f2f2;
 }
 :root[data-theme="dark"][data-panel-scheme="mineral"] :is(.workspace-shell,.operations-shell) {
-  --wo-bg:#0e1719;--wo-surface-low:#142124;--wo-surface:#1a292c;--wo-surface-high:#243639;--wo-text:#edf5f3;--wo-text-muted:#adc0bd;--wo-text-dim:#8fa5a2;--wo-separator:rgb(224 242 239 / .075);--wo-separator-strong:rgb(224 242 239 / .15);--wo-accent:#8dbbc2;--wo-accent-strong:#c4e0e3;--wo-accent-solid:#9bc5cb;--wo-accent-quiet:rgb(141 187 194 / .09);--wo-on-accent:#102124;--wo-focus:#9bc5cb;--wo-veil:#142124;
+  --wo-bg:#1a1a1a;--wo-surface-low:#202122;--wo-surface:#252627;--wo-surface-high:#2c2d2e;--wo-text:#f1f1ef;--wo-text-muted:#aaadae;--wo-text-dim:#85898b;--wo-separator:rgb(241 243 243 / .08);--wo-separator-strong:rgb(241 243 243 / .15);--wo-accent:#aab3b6;--wo-accent-strong:#d9dddf;--wo-accent-solid:#b9c0c2;--wo-accent-quiet:rgb(185 192 194 / .08);--wo-on-accent:#1a1a1a;--wo-focus:#b9c0c2;--wo-veil:#1a1a1a;
 }
 :root[data-panel-scheme="clay"] :is(.workspace-shell,.operations-shell) {
   --wo-bg:#f4eee7;--wo-surface-low:#ebe1d7;--wo-surface:#fbf7f2;--wo-surface-high:#fffaf5;--wo-text:#30241f;--wo-text-muted:#68574e;--wo-text-dim:#78675e;--wo-separator:rgb(76 49 38 / .1);--wo-separator-strong:rgb(76 49 38 / .2);--wo-accent:#9a6045;--wo-accent-strong:#75432e;--wo-accent-solid:#875039;--wo-accent-quiet:rgb(135 80 57 / .1);--wo-on-accent:#fff9f4;--wo-focus:#9a6045;--wo-veil:#f4eee7;
 }
 :root[data-theme="dark"][data-panel-scheme="clay"] :is(.workspace-shell,.operations-shell) {
-  --wo-bg:#19130f;--wo-surface-low:#241b16;--wo-surface:#2d211b;--wo-surface-high:#3a2b23;--wo-text:#f4ebe2;--wo-text-muted:#c5b2a5;--wo-text-dim:#aa9486;--wo-separator:rgb(245 229 217 / .08);--wo-separator-strong:rgb(245 229 217 / .15);--wo-accent:#d79a7b;--wo-accent-strong:#f0c5ad;--wo-accent-solid:#dda88c;--wo-accent-quiet:rgb(215 154 123 / .1);--wo-on-accent:#26150e;--wo-focus:#d79a7b;--wo-veil:#241b16;
+  --wo-bg:#1a1a1a;--wo-surface-low:#211f1d;--wo-surface:#272421;--wo-surface-high:#2e2a27;--wo-text:#f3efeb;--wo-text-muted:#b0a8a0;--wo-text-dim:#8e867f;--wo-separator:rgb(245 236 229 / .08);--wo-separator-strong:rgb(245 236 229 / .15);--wo-accent:#c7aa98;--wo-accent-strong:#ead8cc;--wo-accent-solid:#d3b6a4;--wo-accent-quiet:rgb(211 182 164 / .08);--wo-on-accent:#1a1a1a;--wo-focus:#d3b6a4;--wo-veil:#1a1a1a;
 }
 :root[data-panel-scheme="mono"] :is(.workspace-shell,.operations-shell) {
-  --wo-bg:#efefec;--wo-surface-low:#e4e5e1;--wo-surface:#f7f7f4;--wo-surface-high:#fcfcf9;--wo-text:#191d1b;--wo-text-muted:#545b57;--wo-text-dim:#68706c;--wo-separator:rgb(25 29 27 / .1);--wo-separator-strong:rgb(25 29 27 / .22);--wo-accent:#505b56;--wo-accent-strong:#303834;--wo-accent-solid:#3d4742;--wo-accent-quiet:rgb(61 71 66 / .1);--wo-on-accent:#f7f7f4;--wo-focus:#505b56;--wo-veil:#efefec;
+  --wo-bg:#efefed;--wo-surface-low:#e5e5e2;--wo-surface:#f8f8f5;--wo-surface-high:#fff;--wo-text:#20201f;--wo-text-muted:#5e5e5a;--wo-text-dim:#73736e;--wo-separator:rgb(32 32 31 / .1);--wo-separator-strong:rgb(32 32 31 / .2);--wo-accent:#666660;--wo-accent-strong:#383835;--wo-accent-solid:#4a4a46;--wo-accent-quiet:rgb(74 74 70 / .08);--wo-on-accent:#fff;--wo-focus:#666660;--wo-veil:#efefed;
 }
 :root[data-theme="dark"][data-panel-scheme="mono"] :is(.workspace-shell,.operations-shell) {
-  --wo-bg:#111312;--wo-surface-low:#181b19;--wo-surface:#202421;--wo-surface-high:#2b302d;--wo-text:#f0f1ed;--wo-text-muted:#b4bbb7;--wo-text-dim:#929b96;--wo-separator:rgb(240 241 237 / .075);--wo-separator-strong:rgb(240 241 237 / .15);--wo-accent:#aab5af;--wo-accent-strong:#dce2de;--wo-accent-solid:#b8c1bc;--wo-accent-quiet:rgb(184 193 188 / .08);--wo-on-accent:#171b19;--wo-focus:#aab5af;--wo-veil:#181b19;
+  --wo-bg:#1a1a1a;--wo-surface-low:#202020;--wo-surface:#252525;--wo-surface-high:#2c2c2c;--wo-text:#f0f0ed;--wo-text-muted:#acaca7;--wo-text-dim:#858580;--wo-separator:rgb(240 240 237 / .08);--wo-separator-strong:rgb(240 240 237 / .15);--wo-accent:#b9b9b3;--wo-accent-strong:#e0e0dc;--wo-accent-solid:#c7c7c1;--wo-accent-quiet:rgb(199 199 193 / .08);--wo-on-accent:#1a1a1a;--wo-focus:#c7c7c1;--wo-veil:#1a1a1a;
 }

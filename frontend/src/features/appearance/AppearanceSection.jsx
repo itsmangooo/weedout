@@ -6,10 +6,10 @@ import { LiquidGlass } from "../../components/ui/LiquidGlass";
 import { useAppearance } from "./useAppearance";
 
 const SCHEMES = [
-  { value: "forest", label: "Standard", colors: ["#f6f7f9", "#3658ca", "#17191d"] },
-  { value: "mineral", label: "Mineral", colors: ["#edf1ef", "#315f69", "#1d292b"] },
-  { value: "clay", label: "Clay", colors: ["#f4eee7", "#8a553d", "#30241f"] },
-  { value: "mono", label: "Ink", colors: ["#efefec", "#3d4542", "#191d1b"] },
+  { value: "forest", label: "Warm gray", colors: ["#f5f4f1", "#756b5e", "#242321"] },
+  { value: "mineral", label: "Slate", colors: ["#f1f2f2", "#68757a", "#26292b"] },
+  { value: "clay", label: "Clay", colors: ["#f4eee7", "#9a6045", "#30241f"] },
+  { value: "mono", label: "Mono", colors: ["#efefed", "#666660", "#20201f"] },
 ];
 const FONTS = [
   { value: "poppins", label: "Poppins", note: "Geometric" },
