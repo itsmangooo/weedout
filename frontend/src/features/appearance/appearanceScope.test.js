@@ -21,7 +21,7 @@ describe("appearance scope", () => {
   it("gives public and authentication routes one fixed non-green palette", () => {
     const publicStyles = read("public.css");
     expect(publicStyles).toContain(".public-shell {");
-    expect(publicStyles).toContain("--wo-accent:#a55b3b");
+    expect(publicStyles).toContain("--wo-accent:#4f5bff");
     expect(publicStyles).not.toContain("data-panel-scheme");
   });
 });

@@ -14,11 +14,11 @@ export function useLandingMotion(ref, reducedMotion = false) {
       let removeHeroListeners = () => {};
       const context = gsap.context(() => {
         const root = ref.current;
-        const intro = root.querySelector(".landing-intro");
+        const intro = root.querySelector(".landing-hero");
         const heroLayer = root.querySelector("[data-hero-depth]");
         const heroTimeline = gsap.timeline({ defaults: { ease: "power3.out" } });
         heroTimeline
-          .fromTo(root.querySelector(".landing-intro__edition"), { y: -12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55 })
+          .fromTo(root.querySelector(".landing-hero__top"), { y: -12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55 })
           .fromTo(root.querySelectorAll("[data-text-line]"), { yPercent: 112 }, { yPercent: 0, duration: 1.05, stagger: 0.13 }, "-=.25")
           .fromTo(root.querySelectorAll("[data-hero-copy]"), { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, stagger: 0.08 }, "-=.55")
           .fromTo(root.querySelectorAll("[data-hero-signal]"), { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.65, stagger: 0.1, transformOrigin: "left" }, "-=.45");
@@ -61,6 +61,8 @@ export function useLandingMotion(ref, reducedMotion = false) {
         });
 
         gsap.to(root.querySelector("[data-scroll-progress]"), { scaleX: 1, ease: "none", scrollTrigger: { trigger: root, start: "top top", end: "bottom bottom", scrub: 0.15 } });
+        gsap.to(root.querySelector(".landing-hero__visual img"), { yPercent: 8, scale: 1.1, ease: "none", scrollTrigger: { trigger: ".landing-hero__visual", start: "top bottom", end: "bottom top", scrub: 0.5 } });
+        gsap.to(root.querySelector(".hero-finding"), { y: -26, ease: "none", scrollTrigger: { trigger: ".landing-hero__visual", start: "top bottom", end: "bottom top", scrub: 0.4 } });
         gsap.to(root.querySelector(".landing-conclusion h2"), { backgroundPositionX: "0%", ease: "none", scrollTrigger: { trigger: ".landing-conclusion", start: "top 75%", end: "bottom bottom", scrub: true } });
       }, ref);
       media.add("(min-width: 960px) and (pointer: fine)", () => {

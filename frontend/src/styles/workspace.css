@@ -1,4 +1,14 @@
-﻿/* Working surfaces: queues, project records, investigations and account controls. */
+/* Dashboard uses familiar application surfaces and semantic status colour. */
+.dashboard-page { max-width:92rem; }
+.dashboard-page .page-heading { padding-bottom:1.75rem;border-bottom:1px solid var(--wo-border); }
+.dashboard-page .page-heading h1 { font-size:clamp(2.2rem,3.2vw,3.5rem);letter-spacing:-.055em; }
+.dashboard-page .metric-strip { gap:1rem;border:0; }
+.dashboard-page .data-metric { padding:1.25rem 1.35rem;border:1px solid var(--wo-border);border-radius:10px;background:var(--wo-surface);box-shadow:var(--wo-shadow-soft); }
+.dashboard-page .data-metric + .data-metric { padding-left:1.35rem;border-left:1px solid var(--wo-border); }
+.dashboard-page .data-metric dd { margin-top:.25rem;font-size:clamp(2rem,3vw,3rem); }
+.dashboard-page .overview-decision { overflow:hidden;padding:0 1.4rem;border:1px solid var(--wo-border);border-radius:10px;background:var(--wo-surface);box-shadow:var(--wo-shadow-soft); }
+.dashboard-page .open-findings,.dashboard-page .projects-directory { padding:1.4rem;border:1px solid var(--wo-border);border-radius:10px;background:var(--wo-surface);box-shadow:var(--wo-shadow-soft); }
+/* Working surfaces: queues, project records, investigations and account controls. */
 .workspace-live { display:flex;align-items:center;gap:.5rem;font:.62rem var(--wo-font-mono);color:var(--wo-text-muted);margin-bottom:1rem; }
 .overview-decision { display:grid;grid-template-columns:1fr 16rem;gap:2rem;margin-bottom:3rem; }
 .attention-line { display:flex;align-items:start;gap:1rem;padding:1.5rem 0; }

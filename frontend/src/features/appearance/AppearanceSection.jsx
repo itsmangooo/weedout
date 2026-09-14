@@ -6,7 +6,7 @@ import { LiquidGlass } from "../../components/ui/LiquidGlass";
 import { useAppearance } from "./useAppearance";
 
 const SCHEMES = [
-  { value: "forest", label: "Forest", colors: ["#f3f0e7", "#31573a", "#202c23"] },
+  { value: "forest", label: "Standard", colors: ["#f6f7f9", "#3658ca", "#17191d"] },
   { value: "mineral", label: "Mineral", colors: ["#edf1ef", "#315f69", "#1d292b"] },
   { value: "clay", label: "Clay", colors: ["#f4eee7", "#8a553d", "#30241f"] },
   { value: "mono", label: "Ink", colors: ["#efefec", "#3d4542", "#191d1b"] },

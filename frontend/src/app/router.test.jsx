@@ -106,7 +106,7 @@ describe("frontend routes", () => {
     await user.click(screen.getByRole("link", { name: "Return home" }));
     expect(
       await screen.findByRole("heading", {
-        name: "Security findings. With context.",
+        name: "Security findings with the context to fix them.",
       }),
     ).toBeInTheDocument();
   });
@@ -120,14 +120,14 @@ describe("frontend routes", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Security findings. With context.",
+        name: "Security findings with the context to fix them.",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /The reason\.\s*The path\.\s*The next step\./ }),
+      screen.getByRole("heading", { name: /One finding\.\s*Every reason\./ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /From project\s*to clear action\./ }),
+      screen.getByRole("heading", { name: /Project in\.\s*Decision out\./ }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/dynamic or incomplete analysis stays Unknown/),
@@ -135,7 +135,7 @@ describe("frontend routes", () => {
     expect(
       screen.getByText(/does not claim that observing a package import proves a vulnerable function/),
     ).toBeInTheDocument();
-    expect(screen.getByText("Eight manifest and lockfile formats")).toBeInTheDocument();
+    expect(screen.getAllByText("8 manifest + lockfile formats").length).toBeGreaterThan(0);
     expect(screen.getByText("$ weedout scan --ci")).toBeInTheDocument();
     expect(screen.queryByText("Planned")).not.toBeInTheDocument();
     expect(screen.queryByText("Source-code analysis")).not.toBeInTheDocument();
