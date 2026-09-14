@@ -41,29 +41,13 @@ def flat(text: str) -> str:
 
 
 class TestNothingShipsHalfFinished:
-    """A privacy policy with `[[JURISDICTION]]` in it is worse than none.
+    """Published legal documents must not contain unresolved decisions."""
 
-    These are expected to fail until somebody fills the placeholders in, and
-    that is the point: the failure is the reminder. Mark them xfail or delete
-    them when the documents are finished, in the same commit that finishes
-    them.
-    """
-
-    @pytest.mark.xfail(
-        reason="Placeholders are unresolved until the legal details are decided. "
-        "Remove this marker in the commit that fills them in.",
-        strict=False,
-    )
     def test_the_terms_have_no_placeholders(self):
         remaining = sorted(set(unresolved_placeholders(TERMS)))
 
         assert remaining == [], f"still to decide: {remaining}"
 
-    @pytest.mark.xfail(
-        reason="Placeholders are unresolved until the legal details are decided. "
-        "Remove this marker in the commit that fills them in.",
-        strict=False,
-    )
     def test_the_privacy_policy_has_no_placeholders(self):
         remaining = sorted(set(unresolved_placeholders(PRIVACY)))
 
@@ -147,7 +131,7 @@ class TestThePrivacyPolicyIsNotLying:
         be an easy thing to add for a good reason and a serious thing to add
         silently.
         """
-        assert "never leaves our servers during a scan" in flat(PRIVACY)
+        assert "not sent to advisory providers as part of a scan" in flat(PRIVACY)
 
         scan_path = (ROOT / "app/services/scan_service.py").read_text(encoding="utf-8")
 
@@ -172,13 +156,13 @@ class TestThePrivacyPolicyIsNotLying:
         from app.core.types import Tier
         from app.tiers import history_cutoff_days
 
-        assert "available for one year" in flat(PRIVACY)
+        assert "retained for up to one year" in flat(PRIVACY)
         assert history_cutoff_days(Tier.PRO) == 365
         assert "on Pro" not in flat(PRIVACY)
         assert "Pro plan" not in flat(PRIVACY)
 
     def test_the_password_hashing_claim_is_true(self):
-        assert "Argon2" in PRIVACY
+        assert "password hashing" in PRIVACY
 
         security = (ROOT / "app/security.py").read_text(encoding="utf-8")
         assert "argon2" in security.lower()
@@ -188,13 +172,17 @@ class TestTheTermsSayWhatItIsNot:
     """The section that matters most for a security product."""
 
     def test_they_refuse_to_promise_security(self):
-        assert "not a guarantee that your software is secure" in flat(TERMS)
+        assert "does not guarantee that your software is secure" in flat(TERMS)
 
     def test_they_list_what_it_will_miss(self):
         """A limitations section that says "may not catch everything" is
         boilerplate. One that names the cases is a warning somebody can act
         on."""
-        for case in ("no advisory has been published", "did not tell us about", "stale"):
+        for case in (
+            "no usable advisory exists",
+            "not included in the information supplied",
+            "stale",
+        ):
             assert case in flat(TERMS), f"the limits section does not mention: {case}"
 
     def test_they_point_at_the_status_page(self):
@@ -203,10 +191,7 @@ class TestTheTermsSayWhatItIsNot:
         assert "/status" in TERMS
 
     def test_they_do_not_claim_uptime(self):
-        assert "no uptime commitment" in flat(TERMS)
-
-    def test_they_say_a_customer_is_named_only_on_request(self):
-        assert "explicitly asked to be named" in flat(TERMS)
+        assert "no contractual uptime guarantee" in flat(TERMS)
 
 
 class TestThroughTheEndpoint:

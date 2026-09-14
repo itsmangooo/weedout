@@ -1,24 +1,8 @@
-"""The terms and the privacy policy.
+"""The terms and privacy policy shown by the hosted service.
 
-Kept in the repository rather than the database, unlike the documentation
-pages. Two reasons, and the second is the one that matters:
-
-1. They change rarely, and when they do the change should go through review
-   like any other change to what the product promises.
-2. `git log` is the version history. "What did the privacy policy say on the
-   day I signed up?" is a question that can be asked in earnest, and an admin
-   panel that overwrites in place has no answer to it.
-
-**Every factual claim below was checked against the code**, not written from an
-impression of it. Where the policy says a scan reaches no third party, that is
-because `scan_service` matches against a local mirror and makes no outbound
-call. Where it says there is no analytics, that is because there is no
-analytics — no script, no pixel, no identifier. Those are the sentences worth
-getting right, because they are the ones somebody may rely on.
-
-Anything requiring a legal or business decision is marked `[[...]]` and must be
-replaced before these pages are published. `test_legal_pages.py` fails while
-any placeholder remains, so it is not possible to ship them half-finished.
+These documents live in the repository so changes are reviewed and their
+history remains available in Git. Factual product claims are covered by the
+legal-page tests where the implementation can verify them.
 """
 
 from __future__ import annotations
@@ -27,291 +11,482 @@ __all__ = ["PLACEHOLDER_PATTERN", "PRIVACY", "TERMS", "unresolved_placeholders"]
 
 import re
 
-#: The marker for a decision that is not ours to make.
 PLACEHOLDER_PATTERN = re.compile(r"\[\[([^\]]+)\]\]")
 
 
 def unresolved_placeholders(text: str) -> list[str]:
-    """Every `[[...]]` still in a document."""
+    """Return any unresolved ``[[...]]`` decisions in a document."""
     return PLACEHOLDER_PATTERN.findall(text)
 
 
-TERMS = """
-_Last updated: [[DATE]]_
+TERMS = r"""
+*Last updated: 14 September 2026*
 
-These terms cover your use of Weedout at weedout.dev, the Weedout API, and the
-Weedout command-line tool. Using any of them means agreeing to them.
+These Terms cover use of Weedout at weedout.dev, the Weedout API, and the
+Weedout command-line tool.
 
-Weedout is operated by [[LEGAL ENTITY NAME]], [[REGISTERED ADDRESS]],
-registered in [[JURISDICTION]] under number [[COMPANY NUMBER]]. "We" and "us"
-mean that entity; "you" means the person or organisation using the service.
+By using Weedout, you agree to these Terms.
 
-## What the service does
+Weedout is operated from Bosnia and Herzegovina.
 
-Weedout watches the dependencies you tell it about and reports vulnerabilities
-that are either being exploited in the wild or are severe and reachable in code
-that ships. It deliberately does not report everything it finds — that is the
-product, not a limitation, and the reasoning is public in our documentation.
+Support contact: support@weedout.dev
 
-## What it is not
+## What Weedout does
 
-**Weedout is not a guarantee that your software is secure.** It is one tool
-that reads public advisory data and compares it to a list of dependencies you
-provide. It will miss things. Specifically and by design, it will not tell you
-about:
+Weedout analyses dependencies you provide and uses vulnerability and project
+context to identify security findings that may deserve attention.
 
-- Vulnerabilities that no advisory has been published for.
-- Vulnerabilities in code you wrote, in your configuration, or in your
-  infrastructure.
-- Dependencies you did not tell us about, including anything resolved at
-  runtime or vendored without a manifest entry.
-- Findings your own rules told it to suppress.
-- Anything at all, during a period when an upstream advisory feed is stale or
-  our service is unavailable. We publish feed freshness at
-  [weedout.dev/status](/status) so you can check this rather than assume it.
+Depending on the type of scan, this may include advisory information,
+dependency paths, known exploitation information, severity, supported
+reachability analysis, fixed versions and other evidence available to Weedout.
 
-Do not use Weedout as your only control, and do not treat a clean scan as
-evidence of anything beyond what it says.
+Weedout deliberately prioritises findings instead of presenting every possible
+advisory as equally important.
+
+## What Weedout does not do
+
+**Weedout does not guarantee that your software is secure.**
+
+It is one security tool and should not be treated as your only security control.
+
+Among other things, Weedout may not identify:
+
+- vulnerabilities for which no usable advisory exists
+- vulnerabilities in your own application code
+- configuration or infrastructure vulnerabilities
+- dependencies that were not included in the information supplied to Weedout
+- findings suppressed by rules you configured
+- issues outside the ecosystems or analysis methods supported by Weedout
+- findings that cannot be identified while an upstream advisory source or the
+  Weedout service is unavailable or stale
+
+A clean Weedout scan means only that Weedout did not surface a finding under the
+rules and data available to that scan.
+
+Feed and service state may be published at:
+
+https://weedout.dev/status
 
 ## Your account
 
-You need an account, and you are responsible for what happens under it. Keep
-your password and your API keys to yourself. Tell us promptly if you think
-either has been exposed — you can revoke keys and sign machines out yourself
-from your account settings at any time.
+You are responsible for activity performed through your Weedout account and for
+keeping your password, API keys and authentication credentials secure.
 
-One account is one account. It may belong to a company, but it is a single
-login and not a multi-user team, and sharing one set of credentials among
-several people is your decision and your risk.
+If you believe a credential has been exposed, revoke it or terminate affected
+sessions as soon as possible.
 
-You must be old enough to enter a contract where you live, and you must not use
-Weedout to scan software you have no right to scan.
+A Weedout account is currently a single account rather than a multi-user team
+workspace. If credentials are voluntarily shared with other people, you are
+responsible for the risks created by that sharing.
+
+You must have the legal capacity required to agree to these Terms where you
+live.
+
+You may only submit software, manifests, source files or other information that
+you have the right to analyse and provide to Weedout.
 
 ## Price
 
-Weedout has one Free plan. It costs nothing and requires no payment card.
-Historical subscription and invoice records may be retained where financial
-recordkeeping law requires it, but they do not change product access.
+Weedout currently provides one **Free** plan.
+
+It costs nothing and does not require a payment card.
+
+Features, limits or pricing may change in the future, but a paid service will
+not be silently imposed on an existing account without clearly informing the
+user first.
+
+Historical billing records from previous payment functionality do not change
+access to the current Free plan.
 
 ## Acceptable use
 
-Do not:
+You must not:
 
-- Attempt to break, overload, or gain unauthorised access to the service.
-- Use it to scan or attack systems you do not have permission to.
-- Resell access, or run it as a service for third parties. (The source is
-  [AGPL-3.0](https://github.com/itsmangooo/weedout) if you want to run your
-  own — that licence, not these terms, governs what you may do with the code.)
-- Automate the interface in a way that materially degrades it for others. The
-  API exists; use it, within its published rate limits.
+- attempt to gain unauthorised access to Weedout or another user's account
+- intentionally disrupt, overload or damage the service
+- use Weedout to analyse systems or software where doing so would violate the
+  rights of another person
+- use the service as part of unlawful activity
+- deliberately circumvent published service limits or security protections
+- automate the website in a way that materially disrupts service for others
+  when an API or CLI is provided for that purpose
 
-We may suspend an account that is doing any of the above. Where the situation
-allows it, we will tell you first.
+We may restrict or suspend access where reasonably necessary to protect Weedout,
+its infrastructure or other users.
+
+Where practical and appropriate, we will explain the reason.
+
+## Open-source software
+
+Open-source components of Weedout are governed by the licence applicable to
+that code rather than these Terms.
+
+The Weedout CLI and any other code published in Weedout's repositories remain
+subject to the licence included with that repository.
+
+These Terms govern the hosted service at weedout.dev; they do not replace an
+open-source licence.
 
 ## Availability
 
-We try to keep the service running and we do not promise that it always will
-be. There is no uptime commitment on any plan. Current state is at
-[weedout.dev/status](/status).
+We try to keep Weedout operational, but the Free service has no contractual
+uptime guarantee or service-level agreement.
+
+The service may occasionally be unavailable because of maintenance, failures,
+security incidents, upstream data-source problems or circumstances outside our
+control.
+
+Current service information may be published at:
+
+https://weedout.dev/status
 
 ## Your content
 
-Manifests, project names, and rules you upload remain yours. You give us
-permission to store and process them only so far as running the service
-requires. We do not use your dependency data to train anything, sell it, or
-share it with anyone — see the [privacy policy](/privacy).
+Project names, manifests, rules and other content that you submit remain yours.
 
-We name a customer on our website only if that customer explicitly asked to be
-named, and we remove a name immediately on request.
+You give Weedout permission to receive, store and process that content only as
+needed to:
 
-## Ending it
+- provide the service
+- perform requested scans and analysis
+- retain your findings and settings
+- secure and operate the service
+- provide features that you explicitly configure
 
-Delete your account whenever you like, from your settings. That removes your
-projects, findings, keys and manifests. Some records — invoices, and audit
-entries for administrative actions — are kept where the law requires or where
-they are the only record that something happened.
+We do not sell your dependency information or use it to train machine-learning
+models.
 
-We may close an account that breaks these terms, or with [[NOTICE PERIOD]]
-notice for any reason. If we close your account for a reason other than a
-breach by you, we will refund the unused part of anything you have paid.
+More information is available in the Privacy Policy:
+
+https://weedout.dev/privacy
+
+## Security results
+
+Vulnerability information can be incomplete, incorrect, stale, ambiguous or
+affected by upstream data.
+
+Reachability analysis and dependency analysis are technical estimates and may
+produce false positives or false negatives.
+
+You remain responsible for deciding whether and how to modify, deploy or secure
+your own software.
+
+Recommendations such as upgrading a dependency are informational and should be
+reviewed in the context of your project before being applied.
+
+## Ending your use of Weedout
+
+You may stop using Weedout at any time and may delete your account through the
+available account controls.
+
+Account deletion removes active account and project information subject to the
+retention obligations and backup limitations described in the Privacy Policy.
+
+We may suspend or close an account where necessary because of:
+
+- a material violation of these Terms
+- abuse of the service
+- a security risk
+- a legal obligation
+
+We may also discontinue the Free hosted service.
+
+Where reasonably possible, we will provide at least **30 days' notice** before
+a planned discontinuation that is not caused by abuse, an emergency or a legal
+requirement.
+
+## No warranty
+
+To the maximum extent permitted by applicable law, Weedout is provided on an
+**"as is"** and **"as available"** basis.
+
+We do not promise that:
+
+- Weedout will find every vulnerability
+- every finding will be correct
+- the service will always be available
+- upstream vulnerability information will always be complete or current
+- following a Weedout recommendation will make a system secure
+
+Nothing in these Terms excludes rights or warranties that applicable law does
+not allow to be excluded.
 
 ## Liability
 
-To the extent the law allows:
+To the extent permitted by applicable law, we are not responsible for indirect,
+incidental or consequential losses arising solely from use of or inability to
+use the Free service.
 
-- The service is provided as it is, without warranty of any kind.
-- We are not liable for indirect or consequential loss, lost profits, lost
-  data, or a security incident that Weedout did not warn you about.
-- Our total liability in any twelve-month period is limited to what you paid us
-  in that period.
+Because Weedout is currently provided without charge, no clause in these Terms
+is intended to remove or reduce liability that applicable law does not permit
+to be limited, including liability arising from fraud or other liability that
+cannot legally be excluded.
 
-Nothing here limits liability for anything that cannot lawfully be limited,
-including fraud and death or personal injury caused by negligence.
+## Changes to these Terms
 
-## Changes
+We may update these Terms as the service changes.
 
-We may change these terms. Material changes will be announced by email to the
-address on your account at least [[NOTICE PERIOD]] before they take effect.
-Continuing to use the service after that means accepting them.
+For a material change, we will provide reasonable advance notice where
+practical. We currently aim to provide at least **30 days' notice** for material
+changes that are not required immediately for security, abuse prevention or
+legal compliance.
 
-## Law
+Continued use of Weedout after the effective date of updated Terms means the
+updated Terms apply to later use, subject to rights that applicable law gives
+you.
 
-These terms are governed by the law of [[JURISDICTION]], and its courts have
-exclusive jurisdiction.
+## Governing law
+
+These Terms are governed by the laws of **Bosnia and Herzegovina**, except where
+mandatory consumer or other applicable law requires otherwise.
+
+Disputes are subject to the competent courts determined by applicable law.
 
 ## Contact
 
-[[SUPPORT EMAIL]], or the [contact form](/contact).
+For support or questions about these Terms:
+
+**support@weedout.dev**
+
+You may also use:
+
+https://weedout.dev/contact
 """
 
 
-PRIVACY = """
-_Last updated: [[DATE]]_
+PRIVACY = r"""
+*Last updated: 14 September 2026*
 
-This describes what Weedout collects, why, and what happens to it. It is
-written from what the software actually does, and the specific claims in it are
-checkable against the source, which is public.
+This Privacy Policy explains what Weedout collects, why we collect it, how long
+we keep it, and who may receive it.
 
-The data controller is [[LEGAL ENTITY NAME]], [[REGISTERED ADDRESS]],
-[[JURISDICTION]]. Contact: [[PRIVACY CONTACT EMAIL]].
+Weedout is operated from Bosnia and Herzegovina.
+
+Privacy contact: privacy@weedout.dev
 
 ## The short version
 
-- **There is no analytics, no tracking pixel, and no advertising identifier.**
-  Not a reduced set — none at all. No Google Analytics, no session recorder, no
-  third-party script of any kind runs on these pages.
-- **Your dependency list never leaves our servers during a scan.** We mirror
-  the public advisory databases and match locally. Scanning does not tell OSV,
-  GitHub, or anybody else what you depend on.
-- **We do not sell, rent or share your data**, and we do not use it to train
-  anything.
+- **There is currently no analytics, tracking pixel, advertising identifier or
+  session recorder on Weedout.**
+- **Your dependency list is matched against advisory data on Weedout's
+  infrastructure.** Scanning does not send your dependency list to OSV, CISA,
+  GitHub, or other advisory providers.
+- **We do not sell or rent personal data**, and we do not use your data to train
+  machine-learning models.
+- Weedout is currently a free service and does not require payment details.
 
 ## What we collect
 
-### Because you gave it to us
+### Information you give us
 
 | What | Why |
 |---|---|
-| Email address | To identify your account and send the alerts you asked for |
-| Password | Stored only as an Argon2 hash. We cannot read it |
-| Two-factor secret and backup codes, if you enable them | To verify your second factor |
-| Company name and website, if you enter them | To address invoices and email correctly |
-| Project names, manifests and lockfiles you upload | To scan them, which is the service |
-| Scan rules, ignore rules and their reasons | To apply them, and so you can review your own decisions later |
-| A webhook URL, if you set one | To deliver alerts to it |
-| Messages you send us through the contact form | To reply |
+| Email address | To identify your account and send service or security alerts you request |
+| Password | Stored only as a password hash; the original password is not stored |
+| Two-factor authentication secret and backup codes, if enabled | To verify your second factor |
+| Company name and website, if you provide them | To identify your account or organisation |
+| Project names, manifests and lockfiles | To perform dependency vulnerability analysis |
+| Supported source files submitted by the CLI for reachability analysis | To determine whether supported vulnerable dependencies appear reachable |
+| Scan rules, ignore rules and their reasons | To apply your configuration and retain your previous decisions |
+| Webhook URL, if configured | To deliver alerts you requested |
+| Messages submitted through the contact form | To respond to you |
 
-### Because using a website produces it
+### Information produced when you use the service
 
-| What | Why | Kept for |
+| What | Why | Retention |
 |---|---|---|
-| IP address and browser user-agent, on each session | To show you your own signed-in sessions so you can spot one you do not recognise, and to rate-limit abuse | Until the session expires or you revoke it; expired sessions are purged after 30 days |
-| IP address, on sign-in and password-reset attempts | To rate-limit guessing | Short-lived; rate-limit records are purged automatically |
-| IP address and machine name, on a `weedout auth` request | So you can tell your own laptop from a request you did not make, on the approval screen | Deleted with the request, within a day of it expiring |
-| Server logs | To operate and debug the service | [[LOG RETENTION PERIOD]] |
+| IP address and browser user-agent associated with a session | Session security, showing recognised sessions, and abuse prevention | Until the session expires or is revoked; expired session records are purged after 30 days |
+| IP address used for sign-in and password-reset attempts | Rate limiting and abuse prevention | Temporary rate-limit data is removed automatically |
+| IP address and machine name supplied during `weedout auth` | So you can identify the device requesting CLI access | Removed with the authentication request after it expires |
+| Application and security logs | Operating, securing and debugging Weedout | Kept only for the operational retention configured on the production system |
 
-Our request logs deliberately exclude query strings, because those can contain
-password-reset tokens. Access logging from the web server is switched off for
-that reason.
+Application request logging deliberately avoids query strings where they may
+contain sensitive tokens.
 
-### Cookies
+Web-server access logging is not used as a behavioural analytics system.
 
-Three, all strictly necessary, none for tracking:
+## Cookies and local storage
+
+Weedout uses only cookies required for the application to work.
 
 | Cookie | Purpose |
 |---|---|
-| `weedout_session` | Keeps you signed in. Opaque; it is a lookup key, not your data |
-| `weedout_csrf` | Prevents another site submitting forms as you |
-| `weedout_mfa` | Short-lived, only during two-factor sign-in |
+| `weedout_session` | Keeps you signed in. It contains an opaque session identifier |
+| `weedout_csrf` | Protects forms against cross-site request forgery |
+| `weedout_mfa` | Short-lived state used during two-factor sign-in |
 
-Your theme preference is kept in your browser's local storage and never sent to
-us.
+Theme preference may be stored locally in your browser.
 
-Because none of these are used for analytics or advertising, there is no
-consent banner. There is nothing to consent to.
+These mechanisms are not used for advertising or behavioural tracking.
+
+Because Weedout currently does not use optional analytics or advertising
+cookies, no analytics/advertising consent cookie is required.
+
+## Dependency and source-code processing
+
+A browser-based manifest scan submits the dependency information required for
+the scan.
+
+The Weedout CLI may additionally submit a bounded set of supported JavaScript
+and TypeScript files when reachability analysis is requested.
+
+Those files are analysed for the purpose of producing reachability evidence.
+Weedout does not intentionally retain complete raw source files after that
+analysis.
+
+Stored analysis results may include:
+
+- reachability state
+- relevant evidence snippets
+- analysis completeness
+- analysis notes
+- dependency and finding metadata
+
+Weedout downloads public vulnerability/advisory information independently and
+matches project information against that data on Weedout's infrastructure.
+
+Your dependency list is not sent to advisory providers as part of a scan.
 
 ## What we do not collect
 
-- Payment card details. Historical checkout happened at [[PAYMENT PROVIDER]];
-  we received only a customer reference and subscription status.
-- Raw source code after a scan. The CLI sends a bounded set of supported
-  JavaScript and TypeScript files for reachability analysis. The server analyses
-  them in memory and stores only reachability states, evidence snippets,
-  completeness, and analysis notes. Browser-only manifest scans send no source.
-- Anything about who you are beyond your email address and, if you enter it,
-  your company name.
+Weedout does not currently collect payment card information.
 
-## Who else sees it
+Previous versions of the service contained integration support for Dodo
+Payments. Historical customer or subscription references may remain where they
+were created while that functionality was active, but the current Weedout
+product uses a Free plan and does not require a payment card.
 
-| Who | What they get | Why |
-|---|---|---|
-| [[HOSTING PROVIDER]] | Everything, as our infrastructure provider | The service runs there |
-| [[EMAIL PROVIDER]] | Your email address, and the content of alerts sent to you | To deliver them |
-| [[PAYMENT PROVIDER]] | Your email address and payment details you give them directly | To take payment |
-| Discord, or a URL you configure | The alert content you asked to be sent there | Because you asked |
+We do not intentionally collect demographic profiles, advertising identifiers,
+or cross-site browsing histories.
 
-That is the whole list. We do not use advertising networks, data brokers, or
-analytics providers, because we do not use analytics.
+## Service providers and external recipients
 
-We fetch advisory data *from* OSV, CISA and others. That is outbound and
-anonymous: we download their public catalogues on a schedule. Nothing about you
-or your dependencies goes with those requests.
+Some data may be processed by infrastructure providers that are necessary to
+operate Weedout.
 
-## How long we keep it
+These may include:
 
-- **Your account and its data:** until you delete it.
-- **Findings and scan history:** while the project exists. The archive of
-  resolved and dismissed findings is available for one year. Open findings are
-  never aged out.
-- **Sessions:** until they expire or you revoke them; purged 30 days after.
-- **Password reset tokens:** an hour, then purged within 7 days.
-- **Invoices and billing records:** as long as tax law requires, which is
-  [[FINANCIAL RECORD RETENTION]].
-- **Administrative audit entries** (a support action taken on your account):
-  kept after account deletion, with your email address, because the record of
-  who did what to an account is worthless if it disappears with the account.
+- the infrastructure provider hosting the Weedout server and database
+- the email delivery infrastructure used to send account and alert emails
+- a notification destination such as Discord or a webhook URL that **you**
+  configure
+- Dodo Payments only in relation to historical payment/subscription records
+  created when payment functionality was active
+
+We do not provide personal data to advertising networks or data brokers.
+
+The production deployment includes its own mail relay. Depending on the
+deployment configuration, outbound mail may be delivered directly or through a
+configured SMTP/email provider.
+
+Weedout retrieves public advisory information from sources such as OSV and
+CISA. Those catalogue downloads do not include your account or dependency
+information.
+
+## How long we keep information
+
+- **Account and project data:** until you delete the account or project, except
+  where another retention rule below applies.
+- **Open findings:** retained while their project exists.
+- **Resolved or dismissed finding history:** may be retained for up to one year
+  so previous security decisions remain reviewable.
+- **Sessions:** until expiry or revocation, with expired session records purged
+  after 30 days.
+- **Password-reset tokens:** valid for approximately one hour and subsequently
+  purged by maintenance processes.
+- **CLI authentication requests:** removed after expiry.
+- **Historical billing records:** retained only for as long as required by
+  applicable accounting, tax, or legal obligations.
+- **Administrative audit records:** may be retained after account deletion where
+  necessary to preserve the security and accountability record of an
+  administrative action.
+- **Backups:** may temporarily contain information deleted from the live
+  database until the relevant backup expires under the configured backup
+  retention schedule.
 
 ## Your rights
 
-Wherever you are, you can:
+Subject to applicable law, you may:
 
-- **See it.** Everything we hold is visible in the interface or the API.
-- **Correct it.** Email and company details are editable in settings.
-- **Delete it.** Account deletion is self-service and immediate.
-- **Take it with you.** Findings, dependencies and rules are all available as
-  JSON from the API.
-- **Object to email.** Turn alerts off in settings. We send no marketing email
-  you did not ask for.
+- access personal data associated with your account
+- correct account information
+- delete your account and projects
+- obtain available project, dependency, finding and rule data through Weedout's
+  interface or API
+- disable optional alerts and notifications
+- object to or request restriction of certain processing where the law provides
+  that right
 
-If you are in the UK or the EU, the legal bases we rely on are: **contract**
-for everything needed to run the service you signed up for, **legitimate
-interests** for security and abuse prevention, and **legal obligation** for
-financial records. You may complain to your local supervisory authority —
-[[SUPERVISORY AUTHORITY]] — though we would rather you told us first.
+Weedout does not send unrelated advertising email as part of the service.
 
-## Where it is processed
+For processing necessary to provide Weedout, the legal basis may be performance
+of the service requested by you. Security, fraud prevention and service
+protection may rely on legitimate interests. Information that must be kept by
+law is processed to comply with the relevant legal obligation.
 
-[[HOSTING REGION]]. [[INTERNATIONAL TRANSFER BASIS, IF ANY]].
+If you are in Bosnia and Herzegovina, the competent supervisory authority is:
+
+**Personal Data Protection Agency in Bosnia and Herzegovina\
+Dubrovačka 6\
+71000 Sarajevo\
+Bosnia and Herzegovina**
+
+You may also contact the relevant supervisory authority where applicable to
+you.
+
+## International processing
+
+Weedout is operated from Bosnia and Herzegovina.
+
+Infrastructure or email providers may process data in another country depending
+on the provider configured for the production deployment. Where applicable,
+international transfers must use a transfer mechanism permitted by applicable
+data-protection law.
 
 ## Security
 
-Passwords are hashed with Argon2. API keys, session tokens and reset tokens are
-stored only as SHA-256 hashes — we cannot show you a key twice because we do
-not have it. Two-factor authentication is available. Traffic is HTTPS-only, and
-cookies are `Secure`, `HttpOnly` and `SameSite`.
+Weedout uses security controls including password hashing, hashed authentication
+tokens, two-factor authentication support, secure cookies and HTTPS in
+production.
 
-None of that makes a breach impossible. If one happens and it affects you, we
-will tell you within [[BREACH NOTIFICATION PERIOD]] of finding out, and we will
-tell you what we actually know rather than waiting until the picture is
-comfortable.
+API keys, session tokens and password-reset tokens are designed to be stored in
+a form that does not permit the original secret to be recovered from the stored
+value.
+
+No security measure makes a breach impossible.
+
+If a personal-data breach occurs, Weedout will notify the competent supervisory
+authority within the period required by applicable law where notification is
+required. Under the Bosnia and Herzegovina Personal Data Protection Law, this
+may require notification to the Agency without undue delay and, where
+applicable, within 72 hours after becoming aware of the breach.
+
+Where a breach is likely to result in a high risk to affected individuals, we
+will notify affected users without undue delay as required by applicable law.
+
+## Analytics
+
+Weedout currently runs without website analytics.
+
+If analytics or another non-essential tracking technology is introduced later,
+this Privacy Policy will be updated before or when that processing begins and
+any legally required consent mechanism will be implemented.
 
 ## Changes
 
-Material changes will be announced by email before they take effect. The
-history of this page is public in our source repository, so you can see exactly
-what changed and when.
+We may update this Privacy Policy when Weedout, its infrastructure or applicable
+law changes.
+
+Material changes that significantly affect how personal data is processed will
+be communicated through the service or by email where appropriate.
 
 ## Contact
 
-[[PRIVACY CONTACT EMAIL]], or the [contact form](/contact).
+For privacy questions or requests:
+
+**privacy@weedout.dev**
+
+You may also use the contact form:
+
+https://weedout.dev/contact
 """
