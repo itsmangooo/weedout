@@ -7,6 +7,8 @@ cannot accidentally leak a draft by forgetting a predicate.
 
 from __future__ import annotations
 
+import hashlib
+
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -175,6 +177,45 @@ SUPERSEDED_SLUGS: dict[str, str] = {
     "ci-integration": "gate-your-pipeline",
 }
 
+# Exact bodies shipped by the previous release. On startup, a stored page that
+# still has one of these hashes is safe to update: nobody has edited its copy.
+# A different hash is treated as administrator-owned content and left alone.
+# Keep prior hashes when adding a new documentation revision so an older
+# deployment can move directly to the current release.
+PREVIOUS_STARTER_CONTENT_HASHES: dict[str, frozenset[str]] = {
+    "getting-started": frozenset(
+        {"02ac343ff63264f9dec22bbe2cbd69d251a02707c5976187aad603a7de58bbf4"}
+    ),
+    "scanning-your-project": frozenset(
+        {"8a43abdcf0ec446cb917fe192cfbff7816b87cf765d5a5290d615323813be7e4"}
+    ),
+    "understanding-severity-tiers": frozenset(
+        {"40409deb7803fb6b276a73f22623b06e8099e5f934c8e694b72a7d093f11438d"}
+    ),
+    "gate-your-pipeline": frozenset(
+        {"212bf400af67fe93176c13512f0b3474c56dbd79e932fd18f2bca6c2f9086e8a"}
+    ),
+    "the-cli": frozenset({"6c0fb62330c5b563998fdd47a0c57ffe4d8af281a41ec86d0703652bdb78207e"}),
+    "scan-rules": frozenset({"599a8c006d3ce21c3c869a683ab74c84470fc3d7562375e492b0fe4c3ef5b54a"}),
+    "api-keys-and-scopes": frozenset(
+        {"dc08c6eb61438cc9009f48568d2693e9879f5d010c936d975523454ba8af22f8"}
+    ),
+}
+
+PREVIOUS_STARTER_POSITIONS = {
+    "getting-started": 1,
+    "scanning-your-project": 2,
+    "understanding-severity-tiers": 3,
+    "gate-your-pipeline": 4,
+    "the-cli": 5,
+    "scan-rules": 6,
+    "api-keys-and-scopes": 7,
+}
+
+
+def _starter_digest(content: str) -> str:
+    return hashlib.sha256(content.strip().encode("utf-8")).hexdigest()
+
 
 async def retire_superseded_pages(db: AsyncSession) -> int:
     """Unpublish starter pages that a newer page replaces.
@@ -216,11 +257,10 @@ async def retire_superseded_pages(db: AsyncSession) -> int:
 async def starter_page_drift(db: AsyncSession) -> list[tuple[str, bool]]:
     """Which starter pages differ from the content this release would seed.
 
-    Seeding is idempotent by slug and deliberately never overwrites, so an
-    improvement to the starter copy does not reach a deployment that already has
-    the page. That is the right default — an administrator's edits are theirs —
-    but it means "the docs were improved" and "the docs on the site improved"
-    are two different statements.
+    Normal seeding creates missing pages and upgrades a page only when its
+    content exactly matches a previously shipped built-in body. Administrator
+    edits remain untouched. This report identifies every stored page that still
+    differs from the current release, including intentional customizations.
 
     Returns `(slug, exists)` for every page whose stored content is not byte-for
     byte what `STARTER_PAGES` now holds.
@@ -290,20 +330,30 @@ async def reseed_starter_pages(db: AsyncSession) -> list[str]:
 async def seed_starter_pages(db: AsyncSession) -> int:
     """Create the starter documentation if it is absent.
 
-    Idempotent by slug, so it can run on every boot without duplicating pages
-    or overwriting edits the administrator has made to them. Returns the number
-    of pages created.
+    Idempotent by slug, so it can run on every boot without duplicating pages.
+    An untouched built-in page is upgraded by exact content hash; a page with
+    any administrator edit is left alone. Returns the number of pages created.
     """
     existing = {
-        slug
-        for (slug,) in (
-            await db.execute(select(DocPage.slug).where(DocPage.slug.in_(STARTER_SLUGS)))
-        ).all()
+        page.slug: page
+        for page in (await db.scalars(select(DocPage).where(DocPage.slug.in_(STARTER_SLUGS)))).all()
     }
 
     created = 0
+    upgraded: list[str] = []
     for position, page in enumerate(STARTER_PAGES, start=1):
-        if page["slug"] in existing:
+        stored = existing.get(page["slug"])
+        if stored is not None:
+            previous = PREVIOUS_STARTER_CONTENT_HASHES.get(page["slug"], frozenset())
+            if _starter_digest(stored.content) not in previous:
+                continue
+
+            stored.title = page["title"]
+            stored.summary = page["summary"]
+            stored.content = page["content"].strip()
+            if stored.position == PREVIOUS_STARTER_POSITIONS.get(page["slug"]):
+                stored.position = position
+            upgraded.append(page["slug"])
             continue
         db.add(
             DocPage(
@@ -317,118 +367,175 @@ async def seed_starter_pages(db: AsyncSession) -> int:
         )
         created += 1
 
-    if created:
+    if created or upgraded:
         await db.flush()
-        log.info("docs.starter_pages_seeded", created=created)
+        log.info("docs.starter_pages_seeded", created=created, upgraded=len(upgraded))
 
     await retire_superseded_pages(db)
     return created
 
 
-# Content is lifted from the README and `docs/reachability.md` rather than
-# rewritten, so there is one explanation of the product's behaviour and it does
-# not drift between the repository and the site.
+# Public product documentation, audited against the backend and the standalone
+# Go CLI. Tests below the service guard the command surface and scanner formats
+# that are easiest for prose to let drift.
 STARTER_PAGES: list[dict[str, str]] = [
     {
         "slug": "getting-started",
         "title": "Getting started",
-        "summary": "One command from your project directory to your first scan.",
+        "summary": "Install the standalone CLI, connect a project, and read your first prioritized scan.",
         "content": """
-Weedout watches your dependencies and tells you about two kinds of
-vulnerability: the ones attackers are exploiting right now, and the ones that
-are severe and reachable in the code you actually ship. Everything else is
-recorded, counted, and left alone — visible, with the reason attached, but not
-in your way.
+Weedout scans project dependencies, matches them against mirrored vulnerability
+catalogues, and adds project context before deciding which findings need
+attention. It keeps the rest visible as filtered findings with a reason. Source
+reachability is separate evidence; it never replaces severity or exploitation
+status.
 
-## 1. Create an account
+## The shortest path
 
-Sign up with an email address and a password of at least 10 characters. The free
-plan tracks one project, checks it daily, and sends email alerts. No card.
-
-If the account belongs to a company, add the name in **Settings**. It changes
-nothing about the plan or the limits — invoices and emails just use the name
-instead of your address. It is not a team account: one login, no members.
-
-## 2. Add the project
-
-Adding a project is what creates the thing an API key can push to. Either:
-
-- **Run the CLI**: `weedout auth` to sign the machine in, then `weedout create`
-  in the project directory. It makes the project and saves a key for that
-  directory in one step — nothing is copied or pasted.
-- Or paste the contents on **Add a project** if you would rather not install
-  anything yet.
-
-| File | Ecosystem | Versions |
-|---|---|---|
-| `package-lock.json` | npm | Exact |
-| `package.json` | npm | Ranges — resolved to a floor |
-| `requirements.txt` | PyPI | Exact when pinned with `==` |
-| `go.mod` | Go | Exact |
-
-## 3. Create an API key
-
-**Settings → API keys → Create key.** Pick the project it belongs to.
-
-The key is shown once and stored only as a hash, so copy it now. Each key works
-for a single project: one leaked from a build log can only push results for the
-repository that build was for, which is why there is no account-wide key.
-
-## 4. Scan from your terminal
+The CLI is a standalone Go binary. It does not require Python, pip, Node, or a
+runtime installed beside it.
 
 ```bash
 curl -sSL https://weedout.dev/install.sh | sh
-export WEEDOUT_API_KEY=wo_...
+weedout auth
+cd path/to/project
+weedout create
 weedout scan
 ```
 
-`weedout scan` finds the right file in the current directory, checks it, and
-prints what came back:
+`weedout auth` prints a short code and opens a browser approval page. Confirm
+that the browser shows the same code. The resulting machine credential can
+create projects and issue project keys, but it cannot read a project's
+findings.
 
+`weedout create` detects the project, creates it in Weedout, and stores a
+project key for this directory. If the project already exists, use `weedout
+link` instead. From then on, `weedout scan` uses the stored project key.
+
+That is the normal local flow:
+
+```text
+weedout auth ? weedout create / link ? weedout scan
 ```
-demo-app  ./package-lock.json
-412 dependencies scanned · 33 filtered out as noise
 
-  1 exploited  ·  1 critical
+## What a scan returns
 
-  ! systeminformation@5.0.0  CVE-2021-21315  → 5.3.1
-  • minimist@1.2.5           CVE-2021-44906  → 1.2.6
+A scan records every matching advisory and separates the result into:
 
-  https://weedout.dev/targets/12
-```
+- **Actionable findings** that clear the project's alerting rules.
+- **Filtered findings** that remain inspectable with the reason they were set
+  aside.
+- **Resolved findings** that were present before and no longer match the current
+  dependency tree.
 
-Two numbers matter on that first line. **Dependencies scanned** is the size of
-the problem; **filtered out as noise** is how much of it Weedout decided not to
-interrupt you about. The second number is usually much larger than the list
-above it — that is the product working, and every filtered advisory is one click
-away with its reason.
+Each finding can include the advisory or CVE, affected package and version,
+severity, CISA KEV status, direct or transitive path, production or development
+scope, automated reachability evidence where supported, fixed version, and the
+reason Weedout raised or filtered it.
 
-`weedout init` writes the key from `WEEDOUT_API_KEY` (recommended), or an
-explicit `--api-key`, to a `.weedout` file. It never prompts for or echoes the
-credential. **Add that file to `.gitignore`** — it holds a credential.
+## Try it in the browser
 
-## 5. Wire it into CI
+Use **Add a project** to upload or paste a supported manifest without installing
+anything. The project page shows its dependency count, scan history, open and
+filtered findings, rules, API keys, and notification configuration.
+
+A browser upload contains the manifest only. For Node reachability evidence,
+run the CLI from the checkout so it can submit its bounded supported-source
+inventory with the scan.
+
+## Put it in CI
+
+Store a scan-scoped project key as `WEEDOUT_API_KEY`, then run:
 
 ```bash
 weedout scan --ci
 ```
 
-`--ci` exits non-zero when something critical or actively exploited turns up.
-Without it, findings are reported and the command still succeeds — so you can
-add the step today and decide about gating later. See
-*Gate your pipeline* for a complete workflow.
+Without `--ci`, Weedout reports findings and exits `0`. With `--ci`, exit `1`
+means the scan ran and found something that blocks at the selected threshold;
+exit `2` means the scan did not run. See [CI integration](/docs/gate-your-pipeline)
+before turning the result into a deployment gate.
 
-## What happens after that
+## What happens next
 
-Your stored manifest is re-checked every four hours, so you get alerted about
-advisories published *after* your last scan without doing anything.
+Free currently includes unlimited projects, the full dependency tree, custom
+rules and profiles, email and webhook alerts, one year of finding history, and
+scheduled checks every four hours.
 
-You get **one digest email per scan**, covering only findings that are new. A
-finding you have already seen is never emailed twice, a finding you dismiss
-stays dismissed, and a scan you ran yourself never also arrives by email.
+A scheduled check reuses the stored manifest. Run the CLI after dependency
+changes so the stored tree stays current. New actionable findings are notified
+once. Dismissals survive later scans. A finding that disappears is marked
+resolved; if it returns or moves from filtered to actionable, it becomes new
+attention again.
+""",
+    },
+    {
+        "slug": "installing-the-cli",
+        "title": "Installing the CLI",
+        "summary": "Install the standalone Go binary from the verified script, Go toolchain, or a release asset.",
+        "content": """
+The Weedout CLI is a standalone Go binary. Running it does not require Python,
+pip, Node, npm, or another language runtime.
 
-Upgrade a dependency past the fix and the next scan marks the finding resolved
-rather than deleting it, so the history survives.
+## Install script
+
+On macOS or Linux:
+
+```bash
+curl -sSL https://weedout.dev/install.sh | sh
+```
+
+On Windows PowerShell:
+
+```powershell
+irm https://weedout.dev/install.ps1 | iex
+```
+
+The scripts select the release for the current operating system and
+architecture, verify it against the published SHA-256 checksum, and install the
+binary on `PATH`. Read the scripts before piping them into a shell if that is
+your policy.
+
+## Install with Go
+
+If Go is already installed:
+
+```bash
+go install github.com/itsmangooo/weedout-cli@latest
+```
+
+This builds the command into `GOBIN`, or `GOPATH/bin` when `GOBIN` is unset.
+
+## Download a release binary
+
+Every tagged build is published on the [weedout-cli GitHub Releases page](https://github.com/itsmangooo/weedout-cli/releases)
+with `checksums.txt`. Download the archive for the operating system and
+architecture, verify the checksum, extract `weedout` or `weedout.exe`, and put
+it on `PATH`.
+
+Confirm the installation:
+
+```bash
+weedout version
+weedout help
+```
+
+## Keep it current
+
+```bash
+weedout update           # check, confirm, then install
+weedout update --check   # report only
+weedout update --yes     # install without an interactive confirmation
+```
+
+Updates come only from this CLI repository's GitHub Releases and require a
+matching published checksum. There is no background updater. A release notice
+may be checked at most once a day, but installing is always explicit. Update
+checks and installation prompts are suppressed in CI, JSON, and quiet modes.
+A locally built binary whose version is `dev` is not self-updated.
+
+For reproducible CI, pin the GitHub Action or release version instead of
+changing the scanner during a build.
 """,
     },
     {
@@ -507,13 +614,24 @@ The CLI exists to close that gap.
 
 This matters more than which method you use.
 
-### A lockfile states a fact
+### Prefer resolved versions
 
-`package-lock.json` and `go.mod` record the version that is actually installed.
-A finding derived from one is a statement about your real dependency tree.
+`package-lock.json`, `Cargo.lock`, Gradle lockfiles and `build.sbt.lock` state
+resolved versions. `go.mod` also names exact module versions, including entries
+marked `// indirect`. Findings from those files use those versions as facts.
 
-`weedout scan` prefers a lockfile automatically when it finds one, so running
-it after your install step gets you the exact answer without thinking about it.
+`package.json`, unpinned `requirements.txt` entries, and `pom.xml` declarations
+can contain ranges or unresolved values. Weedout uses a conservative supported
+floor and marks the result inexact rather than presenting an inferred version
+as installed fact.
+
+Directory auto-detection in the current CLI looks for `package-lock.json`,
+`package.json`, `requirements.txt`, and `go.mod` up to two levels below the
+starting directory. It ranks `package-lock.json` ahead of `package.json`, then
+prefers the shallower stable path. Point `weedout scan` at a specific supported
+file when you need another file or a particular manifest in a monorepo. See
+[Supported ecosystems](/docs/supported-ecosystems) for the complete backend and
+CLI distinction.
 
 For Node projects, the CLI also uploads a bounded inventory of supported
 JavaScript and TypeScript source. The server analyses static imports and
@@ -566,95 +684,187 @@ gets you the same benefit.
     },
     {
         "slug": "understanding-severity-tiers",
-        "title": "Understanding severity tiers",
-        "summary": "The three rules that decide whether a vulnerability interrupts you, and what gets filtered instead.",
+        "title": "Understanding findings",
+        "summary": "Why a finding is actionable or filtered, what evidence it carries, and how its status changes.",
         "content": """
-Most advisories touching your dependency tree will never be exploited against
-you. A tool that reports all of them trains you to ignore it. So a match is
-promoted to an alert only when one of three things is true.
+A vulnerability match is the start of Weedout's decision, not the end. Weedout
+combines advisory data with the dependency's version, position and scope, CISA
+KEV, optional EPSS policy, project rules, and source reachability evidence where
+supported.
 
-## What gets through
+## What becomes actionable
 
-### 1. Exploited in the wild
+The built-in alerting policy raises a finding when one of these applies:
 
-The CVE is in [CISA's Known Exploited Vulnerabilities catalog][kev]. This
-overrides everything else — severity, dependency depth, even dev-only scope.
-If someone has a working exploit, "it only runs in CI" is thin comfort.
+1. **Malicious package.** The package is itself malware. It is actionable at any
+   severity and cannot be silenced by an ignore rule.
+2. **Known exploitation.** A CVE alias appears in CISA's Known Exploited
+   Vulnerabilities catalogue. KEV overrides severity, dependency depth,
+   development-only scope, and an existing ignore.
+3. **An enabled EPSS threshold is crossed.** EPSS is shown when available but
+   does not gate by default. A project or profile must opt into a threshold.
+4. **The severity floor is met.** By default that is high for a direct runtime
+   dependency and critical for a transitive runtime dependency. Development-only
+   dependencies are filtered unless the project sets a development threshold.
 
-### 2. Critical and shipping
+A publisher-withdrawn advisory is filtered before those rules because the
+source has retracted it.
 
-Critical severity in a package that reaches production, direct or transitive.
-No evidence of exploitation is required; critical findings in running code
-clear the bar on their own.
+## What becomes filtered
 
-### 3. High severity in a direct dependency
+Filtered does not mean deleted. The finding remains available with a reason such
+as:
 
-High severity in a package your project declares itself. Direct dependencies
-are the ones you can upgrade today, which is what makes them actionable rather
-than merely true.
+- development-only dependency;
+- transitive and below the transitive threshold;
+- below the configured severity floor;
+- ignored by advisory identifier or package rule;
+- publisher-withdrawn advisory.
 
-[kev]: https://www.cisa.gov/known-exploited-vulnerabilities-catalog
+Rules can change the direct, transitive and development thresholds, opt into an
+EPSS floor, or ignore an advisory or package glob. Malware and a later KEV
+listing still surface; Weedout records when an ignore was overridden.
 
-## What gets filtered
+## What a finding explains
 
-Everything else is recorded with the reason attached, and is one tab away:
+The detail view can show:
 
-| Reason | Meaning |
-|---|---|
-| Dev-only dependency | Build or test tooling that never ships to production |
-| Transitive, not exploited | Pulled in indirectly, and nobody is exploiting it |
-| Below severity threshold | Moderate, low or unrated, with no exploitation evidence |
-| Advisory withdrawn | The publisher retracted it |
+- primary CVE and source advisory identifiers;
+- package, assessed version, original version specification, and whether the
+  version is exact or inferred;
+- severity and the available score/vector source;
+- CISA KEV and EPSS context;
+- direct or transitive position, production or development scope, dependency
+  depth, and the path that introduced it;
+- automated reachability state and inspectable import evidence where supported;
+- fixed version when the advisory publishes one;
+- the actionable or filtering reason, first-seen time, and current status.
 
-Nothing is discarded. The count of advisories Weedout did *not* interrupt you
-with is shown on your dashboard, because a claim you cannot inspect is a claim
-you have to take on faith.
+A fixed version is advisory data, not proof that the project was upgraded. A
+later scan marks the finding resolved only when the current dependency tree no
+longer matches it.
 
-## How severity is decided
+## Open, dismissed, filtered and resolved
 
-A CVSS v3.1 base score is computed from the vector when the advisory has one,
-because it is precise and comparable. When there is no scorable vector, the
-publisher's qualitative label is used — folding vocabularies like GitHub's
-`MODERATE` and Red Hat's `IMPORTANT` onto the same ladder.
+- **Open** means actionable and awaiting a decision.
+- **Dismissed** is a user's decision with an optional note. A rescan preserves
+  it until the user reopens it.
+- **Filtered** is Weedout's policy decision and remains auditable.
+- **Resolved** is set by a scan when the advisory no longer applies; it cannot
+  be claimed manually.
 
-When there is neither, the severity is **unknown**, which sits below every
-threshold. An unrated advisory only surfaces if it is on the KEV list.
+A newly actionable finding is notified once. If a filtered finding becomes
+actionable, or a resolved finding returns after a downgrade or reverted update,
+its notification state resets because that change is new information.
 
-## What `--ci` fails on
+## Reachability is separate
 
-The three rules above decide what appears on your dashboard and in your email.
-`weedout scan --ci` uses a **narrower** rule for failing a build: rules 1 and 2
-only.
+`reachable`, `potentially_reachable`, `not_observed`, and `unknown` describe
+what the bounded source analysis observed. They do not change the CVSS severity
+and are not currently an independent built-in alert or CI threshold. Read
+[Reachability analysis](/docs/reachability-analysis) for the supported source
+forms and limits.
 
-| | Dashboard + email | Fails `--ci` |
-|---|---|---|
-| Exploited in the wild | yes | **yes** |
-| Critical, ships to production | yes | **yes** |
-| High severity, direct dependency | yes | no |
+## What `weedout scan --ci` fails on
 
-High-severity findings are worth reading this week. They are not worth blocking
-a deploy at 6pm, and a gate that fires often is a gate people learn to route
-around. If your team wants those blocking too, fail on the count yourself — the
-scan API returns severity counts as JSON.
+The CLI gate is deliberately explicit:
 
-## What automated reachability means here
+| Finding | Default `--fail-on critical` | `--fail-on high` |
+|---|---:|---:|
+| Malicious package | fail | fail |
+| Confirmed exploited / CISA KEV | fail | fail |
+| Critical severity | fail | fail |
+| High severity | pass | fail |
+| Medium, low or unknown severity | pass | pass |
 
-Node CLI scans observe static package imports and report one of four states:
-`reachable`, `potentially_reachable`, `not_observed`, or `unknown`. A positive
-result includes the source file, line, import kind and dependency path. A
-non-literal dynamic import, incomplete source inventory, or missing dependency
-path keeps a negative conclusion `unknown`.
+This gate is evaluated only when `--ci` is present. A normal `weedout scan`
+prints the same result and exits `0` when it ran successfully.
+""",
+    },
+    {
+        "slug": "reachability-analysis",
+        "title": "Reachability analysis",
+        "summary": "What Node source analysis observes, the four states it reports, and where uncertainty remains.",
+        "content": """
+Reachability is source evidence about whether project code imports a dependency.
+It is separate from severity, exploitation status, and the manifest-level facts
+that a package is direct, transitive, production, or development-only.
 
-This is conservative package-import evidence, not vulnerable-function
-call-graph proof. Direct/transitive relationship and dev/production scope remain
-separate manifest facts, and severity never stands in for reachability. See
-*Scanning your project* for upload limits and privacy behavior.
+## Current support
+
+Automated source reachability currently runs for npm dependencies when a CLI
+scan supplies JavaScript or TypeScript source. The CLI collects these suffixes:
+
+```text
+.js  .jsx  .mjs  .cjs  .ts  .tsx  .mts  .cts
+```
+
+It skips dependency, build, coverage, cache, hidden and vendor directories,
+does not follow source symlinks, and applies three bounds:
+
+- at most 512 source files;
+- at most 512 KiB for one source file;
+- at most 4 MiB of source in one scan.
+
+A read failure or exceeded bound makes the source inventory incomplete. Positive
+observations remain useful; missing observations become `unknown` instead of a
+false negative. Raw source is analysed in memory and is not retained after the
+resulting state and evidence are stored.
+
+Browser manifest uploads do not include source. Other ecosystems currently keep
+automated reachability `unknown`.
+
+## The four states
+
+### `reachable`
+
+Supported production source contains a static ESM import/export, literal dynamic
+import, or literal `require` / `require.resolve` for the affected direct package.
+The evidence names the source file, line, import kind, package and dependency
+path.
+
+### `potentially_reachable`
+
+Weedout observed the package only in a test, spec, fixture, script or config
+source; or it observed an imported direct dependency whose known dependency path
+leads to the affected transitive package. This is useful evidence with a weaker
+claim than a direct production import.
+
+### `not_observed`
+
+The complete supported source inventory contained no supported import form for
+the package, and the dependency graph was sufficient to make that negative
+observation. It means "not observed by this analysis", not "unreachable".
+
+### `unknown`
+
+The scan had no source, an incomplete inventory, a non-literal dynamic import or
+require, an unsupported source form, or insufficient dependency-path evidence.
+Weedout keeps uncertainty visible rather than turning it into `not_observed`.
+
+## What the analyser does not prove
+
+The analyser does not execute project code, resolve arbitrary runtime paths, or
+build a vulnerable-function call graph. Observing a package import does not
+prove the vulnerable function executes. Failing to observe a supported import
+does not prove the package can never be loaded.
+
+Severity is still the advisory's severity. Reachability is still source
+evidence. Neither field is rewritten to imitate the other, and the default CI
+gate does not fail solely because a state is `reachable`.
+
+## Scheduled checks
+
+Weedout does not retain raw source. A scheduled check of an unchanged dependency
+identity reuses the last stored reachability result and evidence. An explicit
+API scan that supplies no source resets unsupported negative conclusions to
+`unknown`; it does not silently claim `not_observed`.
 """,
     },
     {
         "slug": "gate-your-pipeline",
-        "title": "Gate your pipeline",
-        "summary": "Fail a build on what is actually exploited or actually critical — and nothing else.",
+        "title": "CI integration",
+        "summary": "Run the published GitHub Action or weedout scan --ci, and distinguish blocking findings from scan failures.",
         "content": """
 Weedout re-checks your stored manifest on a schedule, so alerts arrive whether
 or not you do anything. Wiring it into CI buys two things on top of that: the
@@ -846,7 +1056,7 @@ something to leave in one.
 | Code | Meaning |
 |---|---|
 | `0` | The scan ran. Nothing blocking. |
-| `1` | The scan ran and found something critical or actively exploited. |
+| `1` | The scan ran and found a blocking finding: malicious, CISA KEV, or at the selected severity floor. |
 | `2` | The scan did **not** run — bad key, unreachable service, no manifest found. |
 
 The gap between 1 and 2 is worth respecting. A pipeline that treats every
@@ -869,9 +1079,9 @@ Until you do, the check is advice. After you do, it is a rule.
 
 ## What should actually block
 
-By default `--ci` fails on two things and no more: critical severity, and
-confirmed exploitation from CISA's KEV catalog. High-severity findings appear
-in the output and on your dashboard but do not fail the build.
+By default `--ci --fail-on critical` fails on malicious packages, confirmed
+exploitation from CISA's KEV catalog, and critical findings. High-severity
+findings appear in the output and on your dashboard but do not fail the build.
 
 If that is too permissive for what you ship, raise the floor:
 
@@ -882,9 +1092,9 @@ If that is too permissive for what you ship, raise the floor:
     fail-on: high
 ```
 
-or `weedout scan --ci --fail-on high` directly. Confirmed exploitation fails at
-either setting — a vulnerability with working public exploitation is not a
-medium problem because a scoring rubric said so.
+or `weedout scan --ci --fail-on high` directly. The `high` setting adds high
+severity to the same malicious, KEV, and critical blockers. Exploitation and
+malware block at either setting regardless of their numeric severity.
 
 There is no `medium` or `low`. A gate that fires on everything is a gate
 somebody disables, and a disabled gate reports nothing at all.
@@ -908,8 +1118,8 @@ pipeline needs and low enough that a misconfigured loop cannot run away.
     },
     {
         "slug": "the-cli",
-        "title": "The CLI, command by command",
-        "summary": ("Scan, read and change what gets reported — without opening the dashboard."),
+        "title": "CLI reference",
+        "summary": "Every implemented command, flag, credential type, reading mode, and update control.",
         "content": """
 The CLI is a single static binary with no dependencies. It does three kinds of
 thing: it scans, it reads what the dashboard would show you, and it changes
@@ -918,13 +1128,19 @@ scope — see [API keys and scopes](/docs/api-keys-and-scopes).
 
 ## Install
 
+The CLI is a standalone Go binary. It does not require Python, pip, Node, npm,
+or another runtime.
+
 ```bash
 curl -sSL https://weedout.dev/install.sh | sh
+go install github.com/itsmangooo/weedout-cli@latest
 ```
 
-On Windows, `irm https://weedout.dev/install.ps1 | iex`. Both scripts verify
-the checksum of the release they download. There is no package manager step and
-nothing lands in your project's dependency tree.
+On Windows, `irm https://weedout.dev/install.ps1 | iex`. The install scripts
+verify the checksum of the release they download. You can also download and
+verify a binary from the [GitHub Releases page](https://github.com/itsmangooo/weedout-cli/releases).
+See [Installing the CLI](/docs/installing-the-cli) for platform and update
+details.
 
 ## Point it at a project
 
@@ -1606,14 +1822,23 @@ breaking a repository on every upgrade would be the wrong trade.
     },
     {
         "slug": "api-keys-and-scopes",
-        "title": "API keys and scopes",
-        "summary": "What each kind of key can do, and why a CI key should be the weakest one.",
+        "title": "API keys and authentication",
+        "summary": "Machine sign-in, per-project key scopes, CI credentials, rotation, and revocation.",
         "content": """
-Every key belongs to **one project** and carries **one scope**. Create them in
-Settings, on the project they are for.
+Weedout deliberately separates two credentials. `weedout auth` creates a
+machine credential for account-level actions such as listing and creating
+projects. `weedout create` or `weedout link` then issues a key for one project.
+A machine credential cannot scan or read findings; a project key cannot roam
+across the account.
 
-A key is shown once, when you create it. We store only a hash, so we cannot
-show it to you again and neither can anyone who reads our database.
+Every project key belongs to **one project** and carries **one scope**. Create
+one in the project's settings or through an authenticated CLI flow. CI reads a
+scan-scoped project key from `WEEDOUT_API_KEY`; it does not use browser auth.
+
+A key is shown once, when you create it. Weedout stores only a hash, so it
+cannot show the value again. `weedout logout` removes the local machine
+credential; it does not revoke project keys saved in individual directories.
+Revoke signed-in machines and project keys independently from Settings.
 
 ## The three scopes
 
@@ -1656,6 +1881,285 @@ Revoke the old key, create a new one, update the secret. There is no grace
 period and no partial state: a revoked key stops working on the next request.
 """,
     },
+    {
+        "slug": "account-security",
+        "title": "Account security, MFA, and sessions",
+        "summary": "Control browser sessions, CLI machines, password changes, TOTP MFA, and one-time backup codes.",
+        "content": """
+Account security has two separate session lists: browser sessions for the web
+application and signed-in machines created by `weedout auth`. Revoking one does
+not silently revoke the other.
+
+## Browser sessions
+
+Settings shows each active browser session with its device context and recent
+activity. You can revoke another session immediately. Changing your password
+requires the current password and signs out the other browser sessions while
+keeping the session that performed the change.
+
+## Signed-in CLI machines
+
+`weedout auth` displays a short code, opens the browser, and waits for approval.
+Confirm the code shown in the browser before approving. The CLI stores the
+resulting machine credential in its user configuration, separate from every
+project key. Machine credentials expire after 180 days and appear under
+**Signed-in machines**, where each can be revoked.
+
+```bash
+weedout whoami
+weedout logout
+```
+
+`weedout whoami` identifies the account behind the local machine credential.
+`weedout logout` removes that credential from the current machine. It does not
+revoke project keys already saved in `.weedout` files. To invalidate the
+server-side machine credential too, revoke that machine in Settings.
+
+## Multi-factor authentication
+
+Weedout supports authenticator-app MFA using TOTP. Setup is not active until a
+valid current code confirms the shared secret. After confirmation, Weedout
+shows a set of one-time backup codes; store them outside the account because
+each code works once and the plaintext is not shown again.
+
+Regenerating backup codes invalidates the previous set. Disabling MFA requires
+the account password. A backup code is for account sign-in recovery; it is not
+an API key and cannot be used by the CLI or CI.
+
+## Account settings
+
+Settings also contains profile and account controls. Security-sensitive changes
+use the authenticated session and CSRF protection; API and CLI credentials keep
+the narrower capabilities described in
+[API keys and authentication](/docs/api-keys-and-scopes).
+""",
+    },
+    {
+        "slug": "notifications",
+        "title": "Notifications",
+        "summary": "Choose email, Discord, or custom webhook delivery and understand when Weedout sends a finding again.",
+        "content": """
+Weedout notifies on a change that needs attention, not on every scheduled run.
+The account-level email switch controls email delivery. Discord and custom
+webhook destinations are configured per project, and each destination can be
+tested or removed from project settings.
+
+## When a notification is sent
+
+A scan groups newly actionable findings into one delivery. Viewing the result
+from a manual scan marks that scan as delivered so the scheduled worker does
+not send a duplicate email for the same findings.
+
+Filtered findings do not notify. A user-dismissed finding stays dismissed across
+rescans. A finding that disappears is marked resolved. If that finding later
+returns, or if a filtered finding becomes actionable because the advisory or
+project context changed, Weedout resets its notification state and alerts again.
+
+## Scheduled checks
+
+Active projects are checked every four hours using the last stored manifest.
+That catches advisory and exploitation-feed changes without a new commit. It
+does not discover dependency changes that were never uploaded: run the CLI or
+upload the current manifest after the dependency tree changes.
+
+## Delivery status
+
+Project settings show configured destinations and expose test actions so a bad
+URL can be found before a real finding depends on it. The application records
+delivery outcomes for inspection. A notification failure does not turn the scan
+itself into a failed scan or hide its findings from the project page.
+""",
+    },
+    {
+        "slug": "supported-ecosystems",
+        "title": "Supported ecosystems and files",
+        "summary": "The eight manifest formats the scanner parses, what is exact, and what directory auto-detection can find.",
+        "content": """
+The backend currently parses eight manifest formats across npm, PyPI, Go,
+crates.io, and Maven-family projects.
+
+| File | Ecosystem | Version precision |
+|---|---|---|
+| `package-lock.json` | npm | Resolved versions and dependency paths. Preferred over `package.json`. |
+| `package.json` | npm | Declared ranges; Weedout uses a conservative supported floor and marks it inferred. Production and development scope are preserved. |
+| `requirements.txt` | PyPI | `==` pins are exact. Supported ranges use an inferred floor. The format has no production/development distinction. |
+| `go.mod` | Go | Exact module versions, including `// indirect` modules. Local-path replacements cannot be assessed as published versions. |
+| `Cargo.lock` | crates.io | Resolved versions and dependency graph. Cargo lock data does not provide Weedout a reliable production/development scope split. |
+| `pom.xml` | Maven | Direct declarations; property, inherited, or ranged versions may be inferred or unavailable. |
+| `gradle.lockfile` | Maven | Resolved Gradle dependency versions. The backend also recognizes filenames ending in `gradle.lockfile` and `dependencies.lock`. |
+| `build.sbt.lock` | Maven | Resolved sbt dependency versions. Plain `build.sbt` is not a supported manifest. |
+
+An exact version came from a resolved or pinned declaration. An inferred version
+is a conservative lower bound from a supported range; it is clearly labelled
+because it may differ from what is installed. Prefer a lockfile when the
+ecosystem produces one.
+
+## CLI directory auto-detection
+
+When `weedout scan` receives a directory, the current CLI searches that
+directory and at most two levels below it for:
+
+1. `package-lock.json`
+2. `package.json`
+3. `requirements.txt`
+4. `go.mod`
+
+The ranking above is stable: `package-lock.json` wins over `package.json`, then
+the shallower path wins. If a monorepo has more than one candidate, pass the
+specific file or project directory you mean. An explicit file path can upload
+any of the eight backend-supported formats even when directory auto-detection
+does not search for it.
+
+## Recognized but unsupported lockfiles
+
+The CLI names common unsupported files and points to the supported alternative:
+
+| Unsupported | Use instead |
+|---|---|
+| `yarn.lock` | `package.json` |
+| `pnpm-lock.yaml` | `package.json` |
+| `poetry.lock` | `requirements.txt` |
+| `Pipfile.lock` | `requirements.txt` |
+| `go.sum` | `go.mod` |
+
+These alternatives can provide less exact dependency information than the
+unsupported lockfile would. Weedout reports that limitation instead of claiming
+to parse a format it does not implement.
+""",
+    },
+    {
+        "slug": "security-and-privacy",
+        "title": "Security and privacy",
+        "summary": "What scan data is stored, how advisory matching works, and what Weedout does not collect or reuse.",
+        "content": """
+Weedout needs dependency data to scan a project, so the useful privacy boundary
+is specific: what is submitted, where it is matched, and what remains after the
+scan.
+
+## Advisory matching stays inside Weedout
+
+The scanner matches dependencies against locally mirrored vulnerability
+catalogues, including OSV data and CISA KEV context. It does not send a
+project's dependency list to OSV or CISA during a scan. Feed freshness is shown
+through the service status/readiness information; an empty required advisory
+mirror fails the scan instead of reporting a misleading clean result.
+
+## Stored project data
+
+Weedout stores the project identity, submitted manifest, parsed dependency tree,
+scan history, findings, rules, and the evidence needed to explain a result. It
+uses the stored manifest for scheduled checks every four hours. Delete or
+replace project data through the available project/account controls according
+to the product and legal retention rules.
+
+For Node reachability, the CLI may submit a bounded inventory of supported
+JavaScript and TypeScript source. The server analyses that source in memory and
+does not intentionally retain the raw source text. It stores the reachability
+state and concise import evidence needed to explain the finding.
+
+## Credentials
+
+Project API keys and machine credentials are shown only when issued. The server
+stores hashes rather than recoverable plaintext values. Scope each CI key to
+`scan`, keep `.weedout` out of version control, and revoke a key or signed-in
+machine when it is no longer needed.
+
+## Data use
+
+Weedout does not currently use analytics or tracking cookies. Project dependency
+data is not sold or rented and is not used to train models. Current legal terms
+and retention details remain authoritative on the Privacy and Terms pages.
+""",
+    },
+    {
+        "slug": "troubleshooting",
+        "title": "Troubleshooting",
+        "summary": "Diagnose missing manifests, credential errors, profile failures, stale scans, reachability gaps, and CLI updates.",
+        "content": """
+Start with verbose output and the exit code:
+
+```bash
+weedout scan --verbose
+```
+
+Exit `1` means a `--ci` scan completed and found a blocker. Exit `2` means the
+scan did not run, so no security conclusion was produced. A normal scan without
+`--ci` reports findings and exits `0`; operational failures still exit `2`.
+
+## No manifest found
+
+Directory auto-detection searches only `package-lock.json`, `package.json`,
+`requirements.txt`, and `go.mod`, at most two levels down. Pass an explicit
+supported file for Cargo, Maven, Gradle, or sbt projects. If the CLI reports
+`yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `Pipfile.lock`, or `go.sum`, use
+the supported alternative named in the message. See
+[Supported ecosystems](/docs/supported-ecosystems).
+
+## Authentication and permission errors
+
+A missing, malformed, unknown, revoked, or suspended project key returns `401`.
+A valid key without the required scope returns `403`. `--api-key` overrides
+`WEEDOUT_API_KEY`, which overrides the key in the nearest `.weedout` file, so
+verbose output is useful when the wrong project appears to be selected.
+
+Use `weedout whoami` to check the machine sign-in used by account-level
+commands. Run `weedout auth` again after expiry or revocation. `weedout logout`
+removes the local machine credential; it does not repair or revoke a project
+key. Relink or regenerate the project key separately.
+
+## Rules or profiles
+
+A `.weedout.yml` parse error is reported, but the scan continues with the
+remaining/default policy so a typo cannot silently reduce alerts. A requested
+profile that does not exist stops the scan with exit `2`, because running under
+a different policy would be misleading.
+
+## The dashboard looks stale
+
+Scheduled checks reuse the last submitted manifest. After dependencies change,
+run `weedout scan` from the current checkout or upload the current file. Check
+scan history to distinguish the latest dependency upload from a later scheduled
+advisory recheck.
+
+## Reachability is unknown
+
+Browser uploads contain no source. CLI source collection supports JavaScript
+and TypeScript files within fixed file and size limits; dynamic or non-literal
+loading can make a negative result inconclusive. Read the recorded state and
+evidence rather than treating `unknown` as unreachable.
+
+## CLI version or service status
+
+```bash
+weedout version
+weedout update --check
+```
+
+Use `weedout update` to install a verified release. If scans fail despite a
+current CLI and valid key, check Weedout's status/feed freshness. A required
+advisory feed that is unavailable or empty should produce a failed scan, not a
+clean report.
+""",
+    },
 ]
+
+STARTER_ORDER = (
+    "getting-started",
+    "installing-the-cli",
+    "scanning-your-project",
+    "understanding-severity-tiers",
+    "reachability-analysis",
+    "scan-rules",
+    "gate-your-pipeline",
+    "the-cli",
+    "api-keys-and-scopes",
+    "account-security",
+    "notifications",
+    "supported-ecosystems",
+    "security-and-privacy",
+    "troubleshooting",
+)
+_STARTER_POSITION = {slug: position for position, slug in enumerate(STARTER_ORDER)}
+STARTER_PAGES.sort(key=lambda page: _STARTER_POSITION[page["slug"]])
 
 STARTER_SLUGS = [page["slug"] for page in STARTER_PAGES]

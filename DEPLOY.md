@@ -251,18 +251,19 @@ Migrations run as part of the web container's start command.
 
 ### Updating the built-in docs
 
-The four built-in documentation pages are seeded once and never overwritten, so
-that edits made in `/admin/docs` survive a deploy. The trade is that improved
-starter copy in a new release does not reach a deployment that already has the
-pages.
+The 14 built-in documentation pages are checked at web startup. Missing pages
+are created. A page whose body exactly matches a previously shipped built-in
+version is upgraded to the current copy, so untouched production docs follow a
+deploy. Any page edited in `/admin/docs` has a different content hash and is
+left alone.
 
-Check and apply it deliberately:
+Check deliberate customizations and replace them only when that is intended:
 
 ```bash
 # Report which pages differ from this release. Changes nothing.
 docker compose --env-file .env.prod -f docker-compose.prod.yml   exec web python -m app.manage reseed-docs
 
-# Overwrite them. Discards any edits you made to those pages in /admin/docs.
+# Overwrite drifted pages. Discards edits made to those pages in /admin/docs.
 docker compose --env-file .env.prod -f docker-compose.prod.yml   exec web python -m app.manage reseed-docs --force
 ```
 

@@ -8,6 +8,7 @@ meaningful if there is no way to read one from outside.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from typing import ClassVar
@@ -544,11 +545,41 @@ class TestStarterSeed:
 class TestStarterContentUpdates:
     """Getting improved starter copy onto a deployment that already has it.
 
-    Seeding never overwrites, which is right — an administrator's edits are
-    theirs. The consequence is that "the docs were improved" and "the docs on
-    the site improved" are different statements, and closing that gap has to be
-    a deliberate act rather than a side effect of deploying.
+    Startup may replace only an exact previously shipped body. Any administrator
+    edit remains theirs; an explicit forced reseed is the escape hatch when that
+    customization should be discarded deliberately.
     """
+
+    async def test_startup_upgrades_an_untouched_previous_builtin(self, db, monkeypatch):
+        from app.services.docs_service import (
+            PREVIOUS_STARTER_CONTENT_HASHES,
+            STARTER_PAGES,
+        )
+
+        old_body = "The exact body shipped by an earlier release."
+        old_digest = hashlib.sha256(old_body.encode()).hexdigest()
+        monkeypatch.setitem(
+            PREVIOUS_STARTER_CONTENT_HASHES,
+            "scanning-your-project",
+            frozenset({old_digest}),
+        )
+        page = await create_page(
+            db,
+            slug="scanning-your-project",
+            title="Old title",
+            content=old_body,
+            published=False,
+            position=2,
+        )
+
+        await seed_starter_pages(db)
+        await db.refresh(page)
+
+        current = next(p for p in STARTER_PAGES if p["slug"] == page.slug)
+        assert page.title == current["title"]
+        assert page.content == current["content"].strip()
+        assert page.position == 3
+        assert page.published is False
 
     async def test_a_fresh_deployment_reports_every_page_as_missing(self, db):
         from app.services.docs_service import STARTER_PAGES, starter_page_drift
@@ -881,3 +912,95 @@ class TestStarterContentIsCliFirst:
 
         body = (await client.get("/api/internal/docs/understanding-severity-tiers")).text
         assert "--ci" in body
+
+
+class TestCurrentProductDocumentation:
+    """High-value seams between the database-backed prose and the product."""
+
+    @staticmethod
+    def _pages() -> dict[str, str]:
+        from app.services.docs_service import STARTER_PAGES
+
+        return {page["slug"]: page["content"] for page in STARTER_PAGES}
+
+    def test_catalog_has_the_complete_public_structure_in_order(self):
+        from app.services.docs_service import STARTER_ORDER
+
+        assert tuple(self._pages()) == STARTER_ORDER
+        assert len(STARTER_ORDER) == 14
+
+    async def test_every_seeded_page_renders_through_the_public_api(self, db, client):
+        from app.services.docs_service import STARTER_ORDER
+
+        await seed_starter_pages(db)
+        listing = (await client.get("/api/internal/docs")).json()["data"]["pages"]
+        assert [page["slug"] for page in listing] == list(STARTER_ORDER)
+
+        for slug in STARTER_ORDER:
+            response = await client.get(f"/api/internal/docs/{slug}")
+            assert response.status_code == 200, slug
+            assert "<h2" in response.json()["data"]["body_html"], slug
+
+    def test_installation_is_current_and_python_era_commands_are_gone(self):
+        pages = self._pages()
+        install = pages["installing-the-cli"]
+
+        assert "curl -sSL https://weedout.dev/install.sh | sh" in install
+        assert "go install github.com/itsmangooo/weedout-cli@latest" in install
+        assert "github.com/itsmangooo/weedout-cli/releases" in install
+        assert "standalone Go binary" in install
+
+        for slug, body in pages.items():
+            lowered = body.casefold()
+            assert "pip install weedout" not in lowered, slug
+            assert "python -m weedout" not in lowered, slug
+
+    def test_every_backend_manifest_kind_is_in_the_supported_files_page(self):
+        from app.core.types import ManifestKind
+
+        page = self._pages()["supported-ecosystems"]
+        for kind in ManifestKind:
+            assert f"`{kind.value}`" in page, kind.value
+
+        for unsupported in (
+            "yarn.lock",
+            "pnpm-lock.yaml",
+            "poetry.lock",
+            "Pipfile.lock",
+            "go.sum",
+        ):
+            assert f"`{unsupported}`" in page
+
+    def test_reachability_states_and_boundaries_are_explicit(self):
+        page = self._pages()["reachability-analysis"]
+
+        for state in ("reachable", "potentially_reachable", "not_observed", "unknown"):
+            assert f"`{state}`" in page
+        assert "512 source files" in page
+        assert "512 KiB" in page
+        assert "4 MiB" in page
+        assert "separate from severity" in page
+
+    def test_ci_contract_includes_malware_thresholds_and_operational_failure(self):
+        page = self._pages()["gate-your-pipeline"]
+
+        assert "weedout scan --ci" in page
+        assert "--fail-on high" in page
+        assert "malicious" in page
+        assert "CISA" in page
+        assert "| `1` |" in page
+        assert "| `2` |" in page
+        assert "did **not** run" in page
+
+    def test_web_security_and_notification_features_are_discoverable(self):
+        pages = self._pages()
+        account = pages["account-security"]
+        notifications = " ".join(pages["notifications"].split())
+        privacy = pages["security-and-privacy"]
+
+        for phrase in ("browser sessions", "Signed-in machines", "TOTP", "backup codes"):
+            assert phrase in account
+        for phrase in ("email", "Discord", "custom webhook", "four hours"):
+            assert phrase in notifications
+        for phrase in ("locally mirrored", "does not currently use analytics", "not used to train"):
+            assert phrase in privacy
