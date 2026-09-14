@@ -9,12 +9,12 @@
   --wo-space-8: 4rem;
   --wo-space-9: 6rem;
 
-  --wo-radius-xs: 0.25rem;
-  --wo-radius-sm: 0.375rem;
-  --wo-radius: 0.5rem;
-  --wo-radius-lg: 0.5rem;
-  --wo-radius-xl: 0.625rem;
-  --wo-radius-2xl: 0.625rem;
+  --wo-radius-xs: 0.4rem;
+  --wo-radius-sm: 0.6rem;
+  --wo-radius: 0.75rem;
+  --wo-radius-lg: 0.95rem;
+  --wo-radius-xl: 1.15rem;
+  --wo-radius-2xl: 1.4rem;
   --wo-page-max: 86rem;
   --wo-app-max: 96rem;
   --wo-measure: 66ch;
@@ -34,12 +34,12 @@
   --wo-duration-slow: 320ms;
 }
 
-:root[data-font="system"] { --wo-font-sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--wo-font-display:var(--wo-font-sans); }
-:root[data-font="editorial"] { --wo-font-sans:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--wo-font-display:var(--wo-font-sans); }
-:root[data-font="technical"] { --wo-font-sans:"Cascadia Mono","SFMono-Regular",Consolas,monospace;--wo-font-display:var(--wo-font-sans); }
-:root[data-scale="compact"] { font-size:15px; }
-:root[data-scale="default"] { font-size:16px; }
-:root[data-scale="large"] { font-size:18px; }
+:root[data-panel-font="system"] :is(.workspace-shell,.operations-shell) { --wo-font-sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--wo-font-display:var(--wo-font-sans); }
+:root[data-panel-font="editorial"] :is(.workspace-shell,.operations-shell) { --wo-font-sans:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--wo-font-display:var(--wo-font-sans); }
+:root[data-panel-font="technical"] :is(.workspace-shell,.operations-shell) { --wo-font-sans:"Cascadia Mono","SFMono-Regular",Consolas,monospace;--wo-font-display:var(--wo-font-sans); }
+:root[data-panel-scale="compact"] :is(.workspace-shell,.operations-shell) { font-size:15px; }
+:root[data-panel-scale="default"] :is(.workspace-shell,.operations-shell) { font-size:16px; }
+:root[data-panel-scale="large"] :is(.workspace-shell,.operations-shell) { font-size:18px; }
 
 @theme inline {
   --color-weedout-bg: var(--wo-bg);

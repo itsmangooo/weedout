@@ -58,7 +58,16 @@ export function DependencyField({ storyRef, progress, reducedMotion = false }) {
       let renderedX = 0;
       let renderedY = 0;
       let sceneVisible = true;
-      let dark = document.documentElement.dataset.theme === "dark";
+      let palette;
+      function readPalette() {
+        const styles = getComputedStyle(node);
+        palette = {
+          accent: styles.getPropertyValue("--wo-accent-strong").trim() || "#7d4028",
+          warning: styles.getPropertyValue("--wo-warning").trim() || "#9a5b1f",
+          muted: styles.getPropertyValue("--wo-text-dim").trim() || "#7a6e65",
+        };
+      }
+      readPalette();
       function draw(time = 0) {
         if (lost || cancelled) return;
         mix += (progressRef.current - mix) * 0.075;
@@ -73,7 +82,7 @@ export function DependencyField({ storyRef, progress, reducedMotion = false }) {
           object.position.set(point.x + (target.x - point.x) * mix, point.y + (target.y - point.y) * mix + pulse, point.z + (target.z - point.z) * mix);
           object.scale.setScalar((index < 3 ? 1 + mix * 1.6 : 1 - mix * 0.7) * (1 + Math.sin(phase * 5 + index) * 0.08));
           object.updateMatrix(); nodes.setMatrixAt(index, object.matrix);
-          color.set(index < 3 ? (index === 1 ? (dark ? "#e9a184" : "#a55734") : (dark ? "#c3d9af" : "#31573a")) : (dark ? "#778f6b" : "#7b8e70"));
+          color.set(index < 3 ? (index === 1 ? palette.warning : palette.accent) : palette.muted);
           nodes.setColorAt(index, color);
           const pathEndX = index < 3 ? 2.18 : Math.min(target.x + 0.34, 2.2);
           const pathEndY = index < 3 ? target.y : 1.25 - (index % 3) * 1.25;
@@ -82,7 +91,7 @@ export function DependencyField({ storyRef, progress, reducedMotion = false }) {
         nodes.instanceMatrix.needsUpdate = true;
         nodes.instanceColor.needsUpdate = true;
         linesGeometry.attributes.position.needsUpdate = true;
-        linesMaterial.color.set(dark ? "#b7cfaa" : "#496e39");
+        linesMaterial.color.set(palette.accent);
         linesMaterial.opacity = 0.16 + mix * 0.34 + Math.sin(phase * 3) * 0.025;
         renderer.render(scene, camera);
       }
@@ -113,7 +122,7 @@ export function DependencyField({ storyRef, progress, reducedMotion = false }) {
       story.addEventListener("analysis-progress", onProgress);
       const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(node);
       const renderObserver = new IntersectionObserver(([entry]) => { sceneVisible = entry.isIntersecting; }, { rootMargin: "100px" }); renderObserver.observe(node);
-      const themeObserver = new MutationObserver(() => { dark = document.documentElement.dataset.theme === "dark"; }); themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      const themeObserver = new MutationObserver(readPalette); themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-panel-scheme"] });
       resize();
       frame = window.requestAnimationFrame(animate);
       dispose = () => {

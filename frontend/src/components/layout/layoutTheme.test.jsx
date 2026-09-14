@@ -62,13 +62,14 @@ describe("layout theming", () => {
     expect(container.querySelector("[data-theme]")).toBeNull();
   });
 
-  it("writes the reader's choice to the document, not to a wrapper", async () => {
+  it("keeps panel theme controls out of the fixed public shell", () => {
+    renderShell(<FoundationLayout><p>content</p></FoundationLayout>);
+    expect(screen.queryByRole("radiogroup", { name: "Colour theme" })).not.toBeInTheDocument();
+  });
+
+  it("writes the panel reader's choice to the document, not to a wrapper", async () => {
     const user = userEvent.setup();
-    const { container } = renderShell(
-      <FoundationLayout>
-        <p>content</p>
-      </FoundationLayout>,
-    );
+    const { container } = renderShell(<AppShell />);
 
     await user.click(screen.getAllByRole("radio", { name: "Dark" })[0]);
 
@@ -82,11 +83,7 @@ describe("layout theming", () => {
        to be resolved before it is written — otherwise picking it would
        silently mean light whatever the machine says. */
     const user = userEvent.setup();
-    renderShell(
-      <FoundationLayout>
-        <p>content</p>
-      </FoundationLayout>,
-    );
+    renderShell(<AppShell />);
 
     await user.click(screen.getAllByRole("radio", { name: "Dark" })[0]);
     expect(document.documentElement.dataset.theme).toBe("dark");
@@ -99,11 +96,7 @@ describe("layout theming", () => {
   });
 
   it("starts on light for a reader who has never chosen", () => {
-    renderShell(
-      <FoundationLayout>
-        <p>content</p>
-      </FoundationLayout>,
-    );
+    renderShell(<AppShell />);
 
     expect(screen.getAllByRole("radio", { name: "Light" })[0]).toHaveAttribute(
       "aria-checked",
@@ -114,11 +107,7 @@ describe("layout theming", () => {
   it("restores a saved choice on the next render", () => {
     window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
 
-    renderShell(
-      <FoundationLayout>
-        <p>content</p>
-      </FoundationLayout>,
-    );
+    renderShell(<AppShell />);
 
     expect(screen.getAllByRole("radio", { name: "Dark" })[0]).toHaveAttribute(
       "aria-checked",

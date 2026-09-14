@@ -27,7 +27,7 @@ export function AppearanceSection() {
   const { appearance, setAppearance } = useAppearance();
   return <section aria-labelledby="appearance-title" className="settings-section appearance-settings">
     <h2 id="appearance-title"><Palette aria-hidden="true" size={18} weight="duotone" /> Appearance</h2>
-    <p className="settings-section__lede">Tune Weedout for the way you read and work. Preferences stay on this device and apply across public, workspace and admin views.</p>
+    <p className="settings-section__lede">Tune the workspace and admin panels for the way you read and work. Public and authentication pages keep their own fixed visual identity.</p>
 
     <fieldset className="appearance-fieldset"><legend>Colour scheme</legend><div className="scheme-options">
       {SCHEMES.map((option) => <label className="scheme-option" key={option.value}><input aria-label={option.label} className="visually-hidden" type="radio" name="colour-scheme" value={option.value} checked={appearance.scheme === option.value} onChange={() => setAppearance({ scheme: option.value })} />

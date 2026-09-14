@@ -26,10 +26,10 @@ export function readAppearance() {
 export function applyAppearance(value, { persist = true } = {}) {
   const next = validate(value);
   const root = document.documentElement;
-  root.dataset.scheme = next.scheme;
-  root.dataset.font = next.font;
-  root.dataset.scale = next.scale;
-  root.dataset.glass = next.glass ? "liquid" : "solid";
+  root.dataset.panelScheme = next.scheme;
+  root.dataset.panelFont = next.font;
+  root.dataset.panelScale = next.scale;
+  root.dataset.panelGlass = next.glass ? "liquid" : "solid";
   if (persist) {
     try { window.localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(next)); } catch { /* Applied for this page. */ }
   }
