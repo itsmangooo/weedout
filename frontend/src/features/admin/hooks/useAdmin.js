@@ -122,10 +122,11 @@ export function useAudit() {
  * before the first inbox load — a badge that guesses is worse than one that
  * appears a moment later.
  */
-export function useUnreadCount() {
+export function useUnreadCount({ enabled = true } = {}) {
   const query = useQuery({
     queryKey: [...adminKey, "inbox", "new"],
     queryFn: ({ signal }) => getInbox({ show: "new", signal }),
+    enabled,
     staleTime: 30_000,
   });
 

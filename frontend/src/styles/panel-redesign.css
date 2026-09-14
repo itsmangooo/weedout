@@ -1,7 +1,7 @@
 /* Shared workspace and operations language: quiet surfaces, clear dividers. */
 .workspace-shell,
 .operations-shell {
-  --panel-sidebar-width: 15.5rem;
+  --panel-sidebar-width: 14.5rem;
   min-height: 100vh;
   overflow: visible;
   background: var(--wo-bg);
@@ -95,7 +95,7 @@
 .workspace-rail,
 .operations-rail {
   min-width: 0;
-  padding: 1rem 0.75rem;
+  padding: 0.85rem 0.6rem;
   border-right: 1px solid var(--wo-border-strong);
   background: var(--wo-surface-low);
   color: var(--wo-text);
@@ -108,7 +108,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 2rem;
+  gap: 1.5rem;
   min-height: calc(100dvh - 6rem);
   padding: 0;
   border: 0;
@@ -120,27 +120,31 @@
 .workspace-label,
 .operations-label {
   margin: 0;
-  padding: 0.6rem 0.75rem 0.8rem;
+  padding: 0.35rem 0.65rem 0.45rem;
   color: var(--wo-text-dim);
 }
 
 .workspace-navigation nav,
 .operations-navigation nav {
   display: grid;
-  gap: 0.18rem;
+  gap: 1rem;
+}
+
+.dashboard-nav-list {
+  display: grid;
+  gap: 0.12rem;
 }
 
 .workspace-link,
-.operations-navigation nav a,
-.operations-back {
+.operations-navigation nav a {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  min-height: 2.65rem;
-  padding: 0.65rem 0.75rem;
+  gap: 0.6rem;
+  min-height: 2.4rem;
+  padding: 0.55rem 0.65rem;
   border: 0;
-  border-radius: 0.42rem;
+  border-radius: 0.25rem;
   background: transparent;
   color: var(--wo-text-muted);
   font: 500 0.74rem/1.3 var(--wo-font-sans);
@@ -149,8 +153,7 @@
 }
 
 .workspace-link svg,
-.operations-navigation nav a svg,
-.operations-back svg {
+.operations-navigation nav a svg {
   flex: 0 0 auto;
   color: var(--wo-text-dim);
 }
@@ -158,8 +161,7 @@
 .workspace-link:hover,
 .workspace-link.is-active,
 .operations-navigation nav a:hover,
-.operations-navigation nav a.is-active,
-.operations-back:hover {
+.operations-navigation nav a.is-active {
   border: 0;
   background: color-mix(in srgb, var(--wo-text) 5%, transparent);
   color: var(--wo-text);
@@ -192,6 +194,10 @@
   margin-left: auto;
 }
 
+.workspace-link .status-tag {
+  margin-left: auto;
+}
+
 .workspace-navigation__footer,
 .operations-navigation__footer {
   display: grid;
@@ -211,7 +217,19 @@
   gap: 0.45rem;
 }
 
-.panel-account-controls > .theme-control {
+.panel-appearance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-height: 2.4rem;
+  padding: 0.35rem 0.65rem;
+  color: var(--wo-text-muted);
+  font: 500 0.7rem/1.3 var(--wo-font-sans);
+}
+
+.panel-appearance .theme-control {
+  flex: 0 0 auto;
   margin: 0;
 }
 
@@ -220,7 +238,7 @@
   gap: 0.65rem;
   min-width: 0;
   margin: 0;
-  padding: 0.65rem 0.75rem;
+  padding: 0.55rem 0.65rem;
 }
 
 .workspace-account > div {
@@ -1175,8 +1193,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .workspace-link,
-  .operations-navigation nav a,
-  .operations-back {
+  .operations-navigation nav a {
     transition: none;
   }
 }

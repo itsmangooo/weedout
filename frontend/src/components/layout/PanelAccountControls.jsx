@@ -1,4 +1,3 @@
-import { ArrowLeft } from "@phosphor-icons/react/ArrowLeft";
 import { Gear } from "@phosphor-icons/react/Gear";
 import { SignOut } from "@phosphor-icons/react/SignOut";
 import { useState } from "react";
@@ -9,7 +8,7 @@ import { useAuthRefresh } from "../../features/auth/hooks/useCurrentUser";
 import { ThemeControl } from "../../features/theme/ThemeControl";
 import { InlineNotice } from "../ui/InlineNotice";
 
-export function PanelAccountControls({ showBackToApp = false, user }) {
+export function PanelAccountControls({ user }) {
   const navigate = useNavigate();
   const refresh = useAuthRefresh();
   const [error, setError] = useState("");
@@ -41,19 +40,15 @@ export function PanelAccountControls({ showBackToApp = false, user }) {
         </div>
       </div>
 
-      <ThemeControl />
-
       <div className="panel-account-actions">
         <Link className="workspace-link panel-account-action" to="/settings">
           <Gear size={16} aria-hidden="true" />
           <span>Settings</span>
         </Link>
-        {showBackToApp && (
-          <Link className="workspace-link panel-account-action" to="/dashboard">
-            <ArrowLeft size={16} aria-hidden="true" />
-            <span>Back to app</span>
-          </Link>
-        )}
+        <div className="panel-appearance">
+          <span>Appearance</span>
+          <ThemeControl />
+        </div>
         <button
           className="workspace-link panel-account-action signout"
           disabled={busy}

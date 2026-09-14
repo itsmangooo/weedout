@@ -1,8 +1,7 @@
 import { createBrowserRouter, createMemoryRouter } from "react-router";
 
 import { RouteErrorBoundary } from "../components/feedback/AppErrorBoundary";
-import { AdminShell } from "../components/layout/AdminShell";
-import { AppShell } from "../components/layout/AppShell";
+import { DashboardShell } from "../components/layout/DashboardShell";
 import { FoundationLayout } from "../components/layout/FoundationLayout";
 import { AdminRoute } from "../features/auth/components/AdminRoute";
 import { ProtectedRoute } from "../features/auth/components/ProtectedRoute";
@@ -173,7 +172,7 @@ export const appRoutes = [
         element: <ProtectedRoute />,
         children: [
           {
-            element: <AppShell />,
+            element: <DashboardShell />,
             children: [
               {
                 path: "dashboard",
@@ -235,8 +234,6 @@ export const appRoutes = [
                   return { Component: ProjectPage };
                 },
               },
-            ],
-          },
           {
             // The admin panel. Nested inside ProtectedRoute so an expired
             // session shows "sign in" rather than "not allowed", then behind
@@ -244,9 +241,6 @@ export const appRoutes = [
             // /api/internal/admin enforces the same rule in Python.
             element: <AdminRoute />,
             children: [
-              {
-                element: <AdminShell />,
-                children: [
                   {
                     path: "admin",
                     handle: { title: "Admin" },
@@ -349,8 +343,8 @@ export const appRoutes = [
                       return { Component: AdminAuditPage };
                     },
                   },
-                ],
-              },
+            ],
+          },
             ],
           },
         ],

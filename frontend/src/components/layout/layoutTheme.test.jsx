@@ -1,4 +1,4 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+﻿import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createQueryClient } from "../../app/queryClient";
 import { THEME_STORAGE_KEY } from "../../features/theme/useTheme";
-import { AppShell } from "./AppShell";
+import { DashboardShell } from "./DashboardShell";
 import { FoundationLayout } from "./FoundationLayout";
 
 /** Both shells read the current user for their nav, so they need a client. */
@@ -28,7 +28,7 @@ function renderShell(ui) {
 /**
  * One theme for the whole product, chosen by the reader.
  *
- * Each shell used to pin its own palette on a wrapper div — `"app"` on the
+ * Each shell used to pin its own palette on a wrapper div â€” `"app"` on the
  * dashboard, `"public"` on the marketing pages. That is why the dashboard
  * rendered as a dark island on a cream page: the attribute was on an inner
  * element, so the body kept the other palette and showed around the edges.
@@ -57,7 +57,7 @@ describe("layout theming", () => {
   });
 
   it("pins no palette on the application shell", () => {
-    const { container } = renderShell(<AppShell />);
+    const { container } = renderShell(<DashboardShell />);
 
     expect(container.querySelector("[data-theme]")).toBeNull();
   });
@@ -69,7 +69,7 @@ describe("layout theming", () => {
 
   it("writes the panel reader's choice to the document, not to a wrapper", async () => {
     const user = userEvent.setup();
-    const { container } = renderShell(<AppShell />);
+    const { container } = renderShell(<DashboardShell />);
 
     await user.click(screen.getAllByRole("radio", { name: "Dark" })[0]);
 
@@ -80,10 +80,10 @@ describe("layout theming", () => {
 
   it("resolves 'match system' to a concrete palette", async () => {
     /* The stylesheet has no rule for `data-theme="system"`, so the choice has
-       to be resolved before it is written — otherwise picking it would
+       to be resolved before it is written â€” otherwise picking it would
        silently mean light whatever the machine says. */
     const user = userEvent.setup();
-    renderShell(<AppShell />);
+    renderShell(<DashboardShell />);
 
     await user.click(screen.getAllByRole("radio", { name: "Dark" })[0]);
     expect(document.documentElement.dataset.theme).toBe("dark");
@@ -96,7 +96,7 @@ describe("layout theming", () => {
   });
 
   it("starts on light for a reader who has never chosen", () => {
-    renderShell(<AppShell />);
+    renderShell(<DashboardShell />);
 
     expect(screen.getAllByRole("radio", { name: "Light" })[0]).toHaveAttribute(
       "aria-checked",
@@ -107,7 +107,7 @@ describe("layout theming", () => {
   it("restores a saved choice on the next render", () => {
     window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
 
-    renderShell(<AppShell />);
+    renderShell(<DashboardShell />);
 
     expect(screen.getAllByRole("radio", { name: "Dark" })[0]).toHaveAttribute(
       "aria-checked",

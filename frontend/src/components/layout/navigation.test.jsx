@@ -1,4 +1,4 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+﻿import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -6,15 +6,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { currentUserQueryKey } from "../../features/auth/hooks/useCurrentUser";
 import { createQueryClient } from "../../app/queryClient";
-import { AdminShell } from "./AdminShell";
-import { AppShell } from "./AppShell";
+import { DashboardShell } from "./DashboardShell";
 import { FoundationLayout } from "./FoundationLayout";
 
 /**
  * Every destination is reachable at every width.
  *
  * The header used to drop all but its last link below 40rem with a
- * `display: none`, which is not a responsive layout — it is /cli and /docs
+ * `display: none`, which is not a responsive layout â€” it is /cli and /docs
  * becoming unreachable on a phone. CSS media queries cannot be asserted in
  * jsdom, so what is pinned here is the thing that actually broke: the narrow
  * layout must *contain* the same destinations as the wide one, not fewer.
@@ -157,16 +156,16 @@ describe("the public header", () => {
 
 describe("the application sidebar", () => {
   it("reaches the CLI page, which used to exist only on the marketing site", () => {
-    renderShell(<AppShell />);
+    renderShell(<DashboardShell />);
 
-    const nav = screen.getByRole("navigation", { name: "Application" });
+    const nav = screen.getByRole("navigation", { name: "Dashboard navigation" });
     expect(hrefsIn(nav)).toContain("/cli");
   });
 
   it("offers every section of the product", () => {
-    renderShell(<AppShell />);
+    renderShell(<DashboardShell />);
 
-    const nav = screen.getByRole("navigation", { name: "Application" });
+    const nav = screen.getByRole("navigation", { name: "Dashboard navigation" });
     expect(hrefsIn(nav)).toEqual([
       "/dashboard",
       "/dashboard?view=projects",
@@ -178,18 +177,18 @@ describe("the application sidebar", () => {
   });
 
   it("exposes only real analysis tools and gives Projects its own active state", () => {
-    renderShell(<AppShell />, { initialPath: "/dashboard?view=projects" });
+    renderShell(<DashboardShell />, { initialPath: "/dashboard?view=projects" });
     for (const label of ["Source code", "Secrets", "CI & config"]) expect(screen.queryByText(label)).not.toBeInTheDocument();
     expect(screen.getByRole("link", {name: "Projects"})).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", {name: "Overview"})).not.toHaveAttribute("aria-current");
   });
 
   it("shows the admin link only to an administrator", () => {
-    const { unmount } = renderShell(<AppShell />);
+    const { unmount } = renderShell(<DashboardShell />);
     expect(screen.queryByRole("link", { name: /Admin/ })).not.toBeInTheDocument();
     unmount();
 
-    renderShell(<AppShell />, { user: authResponse({ is_admin: true }) });
+    renderShell(<DashboardShell />, { user: authResponse({ is_admin: true }) });
     expect(screen.getByRole("link", { name: /Admin/ })).toHaveAttribute("href", "/admin");
   });
 
@@ -199,7 +198,7 @@ describe("the application sidebar", () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, "fetch");
 
-    renderShell(<AppShell />);
+    renderShell(<DashboardShell />);
     await user.click(screen.getByRole("button", { name: /Sign out/ }));
 
     await waitFor(() =>
@@ -213,17 +212,17 @@ describe("the application sidebar", () => {
   });
 
   it("puts the whole navigation in one panel the narrow layout can disclose", async () => {
-    /* The narrow layout hides `.app-sidebar__panel` and shows it again on the
+    /* The narrow layout hides `.dashboard-sidebar__panel` and shows it again on the
        disclosure. Anything left outside that panel would be missing from the
        phone layout entirely, which is what happened to the account block. */
     const user = userEvent.setup();
-    const { container } = renderShell(<AppShell />);
+    const { container } = renderShell(<DashboardShell />);
 
     await user.click(screen.getByRole("button", { name: "Open navigation" }));
 
-    const panel = container.querySelector(".app-sidebar__panel");
+    const panel = container.querySelector(".dashboard-sidebar__panel");
     expect(panel).not.toBeNull();
-    expect(within(panel).getByRole("navigation", { name: "Application" })).toBeInTheDocument();
+    expect(within(panel).getByRole("navigation", { name: "Dashboard navigation" })).toBeInTheDocument();
     expect(within(panel).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     expect(within(panel).getByRole("button", { name: /Sign out/ })).toBeInTheDocument();
     expect(within(panel).getByRole("radiogroup", { name: "Colour theme" })).toBeInTheDocument();
@@ -233,24 +232,25 @@ describe("the application sidebar", () => {
 
 describe("the admin sidebar", () => {
   it("uses the same rail-and-content structure as the product workspace", () => {
-    const { container } = renderShell(<AdminShell />, {
+    const { container } = renderShell(<DashboardShell />, {
       initialPath: "/admin",
       user: authResponse({ is_admin: true }),
     });
 
-    expect(container.querySelector(".operations-body > .operations-rail")).not.toBeNull();
-    expect(container.querySelector(".operations-body > .operations-content")).not.toBeNull();
-    expect(container.querySelector(".operations-shell .liquid-glass")).toBeNull();
+    expect(container.querySelector(".workspace-body > .workspace-rail")).not.toBeNull();
+    expect(container.querySelector(".workspace-body > .workspace-content")).not.toBeNull();
+    expect(container.querySelector(".operations-shell")).toBeNull();
   });
 
-  it("contains every real administration section and a route back to the product", () => {
-    renderShell(<AdminShell />, {
+  it("contains workspace and administration as normal navigation", () => {
+    renderShell(<DashboardShell />, {
       initialPath: "/admin",
       user: authResponse({ is_admin: true }),
     });
 
-    const nav = screen.getByRole("navigation", { name: "Admin sections" });
+    const nav = screen.getByRole("navigation", { name: "Dashboard navigation" });
     expect(hrefsIn(nav)).toEqual([
+      "/dashboard",
       "/admin",
       "/admin/users",
       "/admin/billing",
@@ -259,32 +259,32 @@ describe("the admin sidebar", () => {
       "/admin/docs",
       "/admin/audit",
     ]);
-    expect(screen.getByRole("link", { name: /Back to app/ })).toHaveAttribute(
-      "href",
-      "/dashboard",
-    );
+    expect(screen.getByRole("link", { name: "Workspace" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.queryByRole("link", { name: /Back to app/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     expect(screen.getByRole("button", { name: /Sign out/ })).toBeInTheDocument();
   });
 
-  it("keeps the complete admin navigation, theme control and back action in the mobile panel", async () => {
+  it("keeps the same navigation and account controls in the mobile panel", async () => {
     const user = userEvent.setup();
-    const { container } = renderShell(<AdminShell />, {
+    const { container } = renderShell(<DashboardShell />, {
       initialPath: "/admin",
       user: authResponse({ is_admin: true }),
     });
 
-    await user.click(screen.getByRole("button", { name: "Open admin navigation" }));
+    await user.click(screen.getByRole("button", { name: "Open navigation" }));
 
-    const shell = container.querySelector(".admin-shell");
-    const panel = container.querySelector(".admin-sidebar__panel");
+    const shell = container.querySelector(".dashboard-shell");
+    const panel = container.querySelector(".dashboard-sidebar__panel");
     expect(shell).toHaveClass("is-nav-open");
-    expect(within(panel).getByRole("navigation", { name: "Admin sections" })).toBeInTheDocument();
+    expect(within(panel).getByRole("navigation", { name: "Dashboard navigation" })).toBeInTheDocument();
     expect(within(panel).getByRole("radiogroup", { name: "Colour theme" })).toBeInTheDocument();
     expect(within(panel).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     expect(within(panel).getByRole("button", { name: /Sign out/ })).toBeInTheDocument();
     expect(within(panel).getByText("dev@example.com")).toBeInTheDocument();
-    expect(within(panel).getByRole("link", { name: /Back to app/ })).toBeInTheDocument();
+    expect(within(panel).getByText("Appearance")).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Workspace" })).toBeInTheDocument();
+    expect(within(panel).queryByRole("link", { name: /Back to app/ })).not.toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     await waitFor(() => expect(shell).not.toHaveClass("is-nav-open"));
@@ -294,7 +294,7 @@ describe("the admin sidebar", () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, "fetch");
 
-    renderShell(<AdminShell />, {
+    renderShell(<DashboardShell />, {
       initialPath: "/admin",
       user: authResponse({ is_admin: true }),
     });
