@@ -33,7 +33,7 @@ export function FoundationPage() {
       <div className="landing-hero__copy">
         <h1 id="landing-title" aria-label="Security findings with the context to fix them."><span className="text-mask"><span data-text-line>Security findings</span></span><span className="text-mask"><span data-text-line>with the context</span></span><span className="text-mask"><span data-text-line>to <em>fix them.</em></span></span></h1>
         <div className="landing-hero__intro" data-hero-copy>
-          <p>Weedout turns dependency alerts into a shortlist you can act on—complete with paths, evidence, fixed versions, and a clear next move.</p>
+          <p>Weedout scans your project dependencies, filters noisy vulnerability results, and shows you which findings actually need attention.</p>
           <div className="landing-hero__actions"><MagneticLink to="/signup">Start scanning free <ArrowRight size={18} aria-hidden="true" /></MagneticLink><a className="text-link" href="#analysis">See how it works <span aria-hidden="true">↓</span></a></div>
         </div>
       </div>
@@ -50,13 +50,13 @@ export function FoundationPage() {
     <AnalysisStory reducedMotion={reduced} />
 
     <section className="landing-inspect" id="context" data-section aria-labelledby="context-title">
-      <header className="landing-section-heading" data-reveal><p className="eyebrow">02 / Inspect the decision</p><h2 id="context-title">One finding.<br /><em>Every reason.</em></h2><p>Severity is the headline. The dependency path, observed evidence, available fix, and recommended action are the story.</p></header>
+      <header className="landing-section-heading" data-reveal><p className="eyebrow">02 / Inspect the decision</p><h2 id="context-title">One finding.<br /><em>Every reason.</em></h2><p>See the affected package, dependency path, evidence, fixed version, and why Weedout surfaced the issue.</p></header>
       <div className="landing-product-frame" data-reveal><div className="landing-product-frame__bar"><span>demo-app / findings</span><span>Interactive product demo</span></div><FindingExplorer /></div>
       <div className="evidence-note" data-reveal><span className="eyebrow">Precision includes limits.</span><p>Node reachability comes from static import and require observations; dynamic or incomplete analysis stays Unknown. Weedout does not claim that observing a package import proves a vulnerable function executes.</p><Link to="/docs">Understand the evidence <ArrowUpRight size={15} aria-hidden="true" /></Link></div>
     </section>
 
     <section className="landing-method" data-section aria-labelledby="workflow-title">
-      <div className="landing-method__heading" data-reveal><p className="eyebrow">03 / One connected workflow</p><h2 id="workflow-title">Project in.<br /><em>Decision out.</em></h2><p>Every step narrows the question until the next action is clear.</p></div>
+      <div className="landing-method__heading" data-reveal><p className="eyebrow">03 / One connected workflow</p><h2 id="workflow-title">Project in.<br /><em>Decision out.</em></h2><p>Scan a project, add context to what was found, and get a focused shortlist of what to investigate or fix first.</p></div>
       <ol className="method-rail">
         <li data-reveal><span className="method-rail__number">01</span><FileCode size={30} weight="duotone" aria-hidden="true" /><div><h3>Scan a project</h3><p>Upload a supported manifest or run the CLI from your project.</p><code>package-lock.json</code></div></li>
         <li data-reveal><span className="method-rail__number">02</span><GitBranch size={30} weight="duotone" aria-hidden="true" /><div><h3>Weedout adds context</h3><p>Advisories meet dependency paths, project rules, and bounded source evidence.</p><code>47 matches → 3 decisions</code></div></li>
@@ -65,7 +65,7 @@ export function FoundationPage() {
     </section>
 
     <section className="landing-terminal" id="terminal" data-section aria-labelledby="terminal-title">
-      <header data-reveal><p className="eyebrow">04 / Close to the code</p><h2 id="terminal-title">The answer,<br /><em>inside your flow.</em></h2><p>Use the supported CLI to scan locally or block CI at the project’s configured threshold.</p><Link className="button button--secondary" to="/cli">Read the CLI guide <ArrowUpRight size={16} aria-hidden="true" /></Link></header>
+      <header data-reveal><p className="eyebrow">04 / Close to the code</p><h2 id="terminal-title">The answer,<br /><em>inside your flow.</em></h2><p>Run the same analysis from your terminal and get prioritized findings without leaving your development workflow.</p><Link className="button button--secondary" to="/cli">Read the CLI guide <ArrowUpRight size={16} aria-hidden="true" /></Link></header>
       <div className="landing-terminal__body" data-reveal><CliDemo reducedMotion={reduced} /><div className="terminal-annotation"><span className="eyebrow">Real command. Useful exit code.</span><p><code>weedout scan --ci</code> fails on the configured blocking threshold, malicious packages, or known exploitation.</p></div></div>
     </section>
 

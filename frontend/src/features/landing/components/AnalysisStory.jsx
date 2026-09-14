@@ -4,7 +4,7 @@ import { LiquidGlass } from "../../../components/ui/LiquidGlass";
 import { DependencyField } from "./DependencyField";
 
 const STAGES = [
-  { label: "Raw alerts", title: "A match is only the beginning.", copy: "47 advisories. One project. A list of package names still leaves you with the hard part: deciding what matters.", count: 47, unit: "raw alerts" },
+  { label: "Raw alerts", title: "A long list of CVEs. Still no clear next move.", copy: "Most scanners tell you what exists. Weedout adds project context so you can focus on the findings that are actually relevant.", count: 47, unit: "raw alerts" },
   { label: "Add context", title: "Follow the dependency. Read the evidence.", copy: "Weedout adds dependency paths, advisory details and source-import evidence. Project rules determine which matches need attention.", count: null, unit: "analysis + project rules" },
   { label: "Clear action", title: "Three findings. Reasons attached.", copy: "Inspect the path, the observed evidence and the available fixed version. The other matches remain available for review.", count: 3, unit: "findings to review" },
 ];
