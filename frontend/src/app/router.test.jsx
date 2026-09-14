@@ -106,7 +106,7 @@ describe("frontend routes", () => {
     await user.click(screen.getByRole("link", { name: "Return home" }));
     expect(
       await screen.findByRole("heading", {
-        name: "Security findings with the context to fix them.",
+        name: "Dependency security that tells you what actually needs fixing.",
       }),
     ).toBeInTheDocument();
   });
@@ -120,7 +120,7 @@ describe("frontend routes", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Security findings with the context to fix them.",
+        name: "Dependency security that tells you what actually needs fixing.",
       }),
     ).toBeInTheDocument();
     expect(
