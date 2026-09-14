@@ -200,6 +200,21 @@
   border-top: 1px solid var(--wo-border);
 }
 
+.panel-account-controls,
+.panel-account-actions {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.panel-account-controls {
+  gap: 0.45rem;
+}
+
+.panel-account-controls > .theme-control {
+  margin: 0;
+}
+
 .workspace-account {
   display: flex;
   gap: 0.65rem;

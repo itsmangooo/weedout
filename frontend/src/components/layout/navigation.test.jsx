@@ -173,8 +173,8 @@ describe("the application sidebar", () => {
       "/alerts",
       "/targets/new",
       "/cli",
-      "/settings",
     ]);
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
   });
 
   it("exposes only real analysis tools and gives Projects its own active state", () => {
@@ -224,8 +224,10 @@ describe("the application sidebar", () => {
     const panel = container.querySelector(".app-sidebar__panel");
     expect(panel).not.toBeNull();
     expect(within(panel).getByRole("navigation", { name: "Application" })).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     expect(within(panel).getByRole("button", { name: /Sign out/ })).toBeInTheDocument();
     expect(within(panel).getByRole("radiogroup", { name: "Colour theme" })).toBeInTheDocument();
+    expect(within(panel).getByText("dev@example.com")).toBeInTheDocument();
   });
 });
 
@@ -261,6 +263,8 @@ describe("the admin sidebar", () => {
       "href",
       "/dashboard",
     );
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("button", { name: /Sign out/ })).toBeInTheDocument();
   });
 
   it("keeps the complete admin navigation, theme control and back action in the mobile panel", async () => {
@@ -277,9 +281,32 @@ describe("the admin sidebar", () => {
     expect(shell).toHaveClass("is-nav-open");
     expect(within(panel).getByRole("navigation", { name: "Admin sections" })).toBeInTheDocument();
     expect(within(panel).getByRole("radiogroup", { name: "Colour theme" })).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+    expect(within(panel).getByRole("button", { name: /Sign out/ })).toBeInTheDocument();
+    expect(within(panel).getByText("dev@example.com")).toBeInTheDocument();
     expect(within(panel).getByRole("link", { name: /Back to app/ })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     await waitFor(() => expect(shell).not.toHaveClass("is-nav-open"));
+  });
+
+  it("signs out directly from the admin panel", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    renderShell(<AdminShell />, {
+      initialPath: "/admin",
+      user: authResponse({ is_admin: true }),
+    });
+    await user.click(screen.getByRole("button", { name: /Sign out/ }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, options]) =>
+            String(url).includes("/api/internal/auth/logout") && options?.method === "POST",
+        ),
+      ).toBe(true),
+    );
   });
 });

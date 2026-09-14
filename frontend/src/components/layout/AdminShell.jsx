@@ -1,4 +1,3 @@
-import { ArrowLeft } from "@phosphor-icons/react/ArrowLeft";
 import { BookOpen } from "@phosphor-icons/react/BookOpen";
 import { ClipboardText as ClipboardList } from "@phosphor-icons/react/ClipboardText";
 import { CreditCard } from "@phosphor-icons/react/CreditCard";
@@ -12,9 +11,9 @@ import { X } from "@phosphor-icons/react/X";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { useUnreadCount } from "../../features/admin/hooks/useAdmin";
 import { useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
-import { ThemeControl } from "../../features/theme/ThemeControl";
 import { WeedoutLogo } from "../brand/WeedoutLogo";
 import { PageTransition } from "../motion/PageTransition";
+import { PanelAccountControls } from "./PanelAccountControls";
 import { useNavigationDisclosure } from "./useNavigationDisclosure";
 
 const LINKS = [
@@ -74,10 +73,7 @@ export function AdminShell() {
               </nav>
             </div>
             <div className="operations-navigation__footer">
-              <ThemeControl />
-              <NavLink className="operations-back" to="/dashboard">
-                <ArrowLeft size={14} aria-hidden="true" /> Back to app
-              </NavLink>
+              <PanelAccountControls showBackToApp user={data?.user} />
             </div>
           </div>
         </aside>

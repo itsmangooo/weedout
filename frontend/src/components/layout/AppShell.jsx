@@ -1,21 +1,16 @@
 import { Bell } from "@phosphor-icons/react/Bell";
 import { FolderSimple as FolderKanban } from "@phosphor-icons/react/FolderSimple";
 import { SquaresFour as LayoutDashboard } from "@phosphor-icons/react/SquaresFour";
-import { SignOut as LogOut } from "@phosphor-icons/react/SignOut";
 import { List as Menu } from "@phosphor-icons/react/List";
-import { Gear as Settings } from "@phosphor-icons/react/Gear";
 import { ShieldCheck } from "@phosphor-icons/react/ShieldCheck";
 import { Terminal } from "@phosphor-icons/react/Terminal";
 import { X } from "@phosphor-icons/react/X";
 import { Plus } from "@phosphor-icons/react/Plus";
-import { useState } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { signOut } from "../../api/authActions";
-import { useAuthRefresh, useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
-import { ThemeControl } from "../../features/theme/ThemeControl";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { useCurrentUser } from "../../features/auth/hooks/useCurrentUser";
 import { WeedoutLogo } from "../brand/WeedoutLogo";
 import { PageTransition } from "../motion/PageTransition";
-import { InlineNotice } from "../ui/InlineNotice";
+import { PanelAccountControls } from "./PanelAccountControls";
 import { useNavigationDisclosure } from "./useNavigationDisclosure";
 
 const LINKS = [
@@ -24,36 +19,17 @@ const LINKS = [
   ["/alerts", "Dependency findings", Bell],
   ["/targets/new", "Add a project", Plus],
   ["/cli", "CLI", Terminal],
-  ["/settings", "Settings", Settings],
 ];
 
 export function AppShell() {
   const { data } = useCurrentUser();
   const { pathname, search } = useLocation();
-  const navigate = useNavigate();
-  const refresh = useAuthRefresh();
   const {
     id: menuId,
     trigger: triggerRef,
     open: menuOpen,
     toggle: toggleMenu,
   } = useNavigationDisclosure();
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function logout() {
-    setBusy(true);
-    setError("");
-    try {
-      await signOut();
-      await refresh();
-      navigate("/login");
-    } catch {
-      setError("Could not sign out. Try again.");
-      setBusy(false);
-    }
-  }
-
   const context = pathname.startsWith("/targets/")
     ? pathname === "/targets/new" ? "New project" : "Project"
     : pathname.startsWith("/alerts/") ? "Finding"
@@ -101,17 +77,7 @@ export function AppShell() {
               </nav>
             </div>
             <div className="workspace-navigation__footer">
-              <div className="workspace-account">
-                <span className="account-initial" aria-hidden="true">
-                  {data?.user?.email?.[0]?.toUpperCase() ?? "W"}
-                </span>
-                <div><strong>{data?.user?.email}</strong><small>{data?.user?.tier ?? "free"} workspace</small></div>
-              </div>
-              <ThemeControl />
-              <button className="workspace-link signout" disabled={busy} onClick={logout} type="button">
-                <LogOut size={16} aria-hidden="true" />{busy ? "Signing out…" : "Sign out"}
-              </button>
-              {error && <InlineNotice tone="danger">{error}</InlineNotice>}
+              <PanelAccountControls user={data?.user} />
             </div>
           </div>
         </aside>
