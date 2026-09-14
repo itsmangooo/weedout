@@ -7,11 +7,9 @@
 :root[data-motion="reduced"] .route-transition,:root[data-motion="reduced"] .magnetic,:root[data-motion="reduced"] .button:hover { transform:none !important; }
 :root[data-motion="reduced"] [data-text-line] { transform:none !important; }
 :root[data-motion="reduced"] [data-reveal] { opacity:1 !important;transform:none !important;clip-path:none !important; }
-:root[data-motion="reduced"] .landing-scroll-progress { display:none; }
 @media(prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) *,:root:not([data-motion="full"]) *::before,:root:not([data-motion="full"]) *::after { animation:none !important;transition:none !important;scroll-behavior:auto !important; }
   :root:not([data-motion="full"]) .route-transition,:root:not([data-motion="full"]) .magnetic,:root:not([data-motion="full"]) .button:hover { transform:none !important; }
   :root:not([data-motion="full"]) [data-text-line] { transform:none !important; }
   :root:not([data-motion="full"]) [data-reveal] { opacity:1 !important;transform:none !important;clip-path:none !important; }
-  :root:not([data-motion="full"]) .landing-scroll-progress { display:none; }
 }

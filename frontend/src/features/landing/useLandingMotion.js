@@ -60,7 +60,6 @@ export function useLandingMotion(ref, reducedMotion = false) {
           });
         });
 
-        gsap.to(root.querySelector("[data-scroll-progress]"), { scaleX: 1, ease: "none", scrollTrigger: { trigger: root, start: "top top", end: "bottom bottom", scrub: 0.15 } });
         gsap.to(root.querySelector(".landing-hero__visual img"), { yPercent: 8, scale: 1.1, ease: "none", scrollTrigger: { trigger: ".landing-hero__visual", start: "top bottom", end: "bottom top", scrub: 0.5 } });
         gsap.to(root.querySelector(".hero-finding"), { y: -26, ease: "none", scrollTrigger: { trigger: ".landing-hero__visual", start: "top bottom", end: "bottom top", scrub: 0.4 } });
         gsap.to(root.querySelector(".landing-conclusion h2"), { backgroundPositionX: "0%", ease: "none", scrollTrigger: { trigger: ".landing-conclusion", start: "top 75%", end: "bottom bottom", scrub: true } });

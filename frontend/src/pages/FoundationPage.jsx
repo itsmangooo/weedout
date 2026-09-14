@@ -25,8 +25,6 @@ export function FoundationPage() {
   useLandingMotion(root, reduced);
 
   return <div className="landing-page" ref={root}>
-    <span className="landing-scroll-progress" data-scroll-progress aria-hidden="true" />
-
     <section className="landing-hero" data-section aria-labelledby="landing-title">
       <div className="landing-hero__top" data-hero-copy>
         <span className="eyebrow">Dependency security / signal over noise</span>
