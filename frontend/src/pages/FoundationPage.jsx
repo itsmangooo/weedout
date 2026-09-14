@@ -28,6 +28,28 @@ const USAGE_MODES = [
   { label: "CI", Icon: GitPullRequest, copy: "Run Weedout in CI and fail at your project’s configured blocking threshold." },
 ];
 
+const SIGNALS = [
+  ["Package + version", "The dependency and version that matched the advisory."],
+  ["Severity", "The advisory’s reported severity, kept as one signal rather than the whole decision."],
+  ["Known exploitation", "Whether the CVE appears in CISA’s Known Exploited Vulnerabilities catalogue."],
+  ["Dependency path", "The route from your project to the affected package."],
+  ["Reachability", "Supported source evidence, with incomplete analysis left Unknown."],
+  ["Fix context", "The fixed version reported by the advisory and a concrete next action."],
+  ["Project rules", "Your thresholds and ignore decisions, applied without hiding their reasons."],
+  ["Advisory evidence", "The source, identifiers, and explanation behind the match."],
+];
+
+const FORMATS = [
+  ["package-lock.json", "npm · exact"],
+  ["package.json", "npm · declared range"],
+  ["requirements.txt", "PyPI"],
+  ["go.mod", "Go"],
+  ["Cargo.lock", "Rust · exact"],
+  ["pom.xml", "Maven"],
+  ["gradle.lockfile", "Gradle · exact"],
+  ["build.sbt.lock", "Scala · exact"],
+];
+
 export function FoundationPage() {
   const root = useRef(null);
   const { reduced } = useMotionPreference();
@@ -57,10 +79,20 @@ export function FoundationPage() {
 
     <AnalysisStory reducedMotion={reduced} />
 
+    <section className="landing-signals" data-section aria-labelledby="signals-title">
+      <header data-reveal><h2 id="signals-title">The signals behind<br /><em>the shortlist.</em></h2><p>Weedout does not treat severity as the answer. It combines advisory data with the dependency and project context available for the scan.</p></header>
+      <ol className="signal-ledger">{SIGNALS.map(([title, copy], index) => <li key={title} data-reveal><span>{String(index + 1).padStart(2, "0")}</span><div><h3>{title}</h3><p>{copy}</p></div></li>)}</ol>
+    </section>
+
     <section className="landing-inspect" id="context" data-section aria-labelledby="context-title">
       <header className="landing-section-heading" data-reveal><h2 id="context-title">One finding.<br /><em>Every reason.</em></h2><p>See why it was surfaced, where the vulnerable dependency enters your project, whether it appears reachable, and which version fixes it.</p></header>
       <div className="landing-product-frame" data-reveal><div className="landing-product-frame__bar"><span>demo-app / findings</span><span>Interactive product demo</span></div><FindingExplorer /></div>
       <div className="evidence-note" data-reveal><span className="eyebrow">Precision includes limits.</span><p>Node reachability comes from static import and require observations; dynamic or incomplete analysis stays Unknown. Weedout does not claim that observing a package import proves a vulnerable function executes.</p><Link to="/docs">Understand the evidence <ArrowUpRight size={15} aria-hidden="true" /></Link></div>
+    </section>
+
+    <section className="landing-formats" data-section aria-labelledby="formats-title">
+      <header data-reveal><h2 id="formats-title">Bring the files<br />your project already has.</h2><p>Lockfiles give Weedout the strongest version evidence. Declared manifests are supported with their uncertainty kept visible.</p></header>
+      <div className="format-ledger" data-reveal>{FORMATS.map(([name, detail]) => <div key={name}><code>{name}</code><span>{detail}</span></div>)}</div>
     </section>
 
     <section className="landing-method" data-section aria-labelledby="workflow-title">
@@ -76,14 +108,28 @@ export function FoundationPage() {
       </div>
     </section>
 
+    <section className="landing-comparison" data-section aria-labelledby="comparison-title">
+      <header data-reveal><h2 id="comparison-title">More useful findings.<br /><em>Not more findings.</em></h2><p>Weedout is not trying to find more vulnerabilities. It is trying to make the findings more useful.</p></header>
+      <div className="comparison-ledger" data-reveal>
+        <section><h3>Typical dependency scanner</h3><ol><li>Find matching advisories</li><li>Return severity</li><li>Produce a long list</li><li>Leave prioritization to the developer</li></ol></section>
+        <section className="comparison-ledger__weedout"><h3>Weedout</h3><ol><li>Find matching advisories</li><li>Add dependency and project context</li><li>Prioritize the findings</li><li>Explain why each one needs attention</li><li>Keep the fix and evidence attached</li></ol></section>
+      </div>
+    </section>
+
     <section className="landing-terminal" id="terminal" data-section aria-labelledby="terminal-title">
       <header data-reveal><h2 id="terminal-title">The answer,<br /><em>inside your flow.</em></h2><p>Run the same dependency analysis from your terminal. In CI, Weedout can fail at the blocking threshold configured for the project.</p><Link className="button button--secondary" to="/cli">Read the CLI guide <ArrowUpRight size={16} aria-hidden="true" /></Link></header>
       <div className="landing-terminal__body" data-reveal><CliDemo reducedMotion={reduced} /><div className="terminal-annotation"><span className="eyebrow">Real command. Useful exit code.</span><p><code>weedout scan --ci</code> fails on the configured blocking threshold, malicious packages, or known exploitation.</p></div></div>
     </section>
 
+    <section className="landing-trust" data-section aria-labelledby="trust-title">
+      <header data-reveal><h2 id="trust-title">Your project data<br /><em>is not the product.</em></h2><p>Dependency matching happens on Weedout infrastructure against mirrored advisory catalogues.</p></header>
+      <ul data-reveal><li><strong>No analytics or tracking</strong><span>No tracking pixel, advertising identifier, or session recorder.</span></li><li><strong>No dependency-data sales</strong><span>Project and dependency data is not sold or rented.</span></li><li><strong>No model training</strong><span>Your data is not used to train machine-learning models.</span></li></ul>
+      <Link data-reveal to="/privacy">Read the privacy policy <ArrowUpRight size={15} aria-hidden="true" /></Link>
+    </section>
+
     <section className="landing-conclusion" data-section aria-labelledby="landing-close-title">
       <div className="founder-note" data-reveal><img src={ownerPhoto} alt="Emanuel RM" width="88" height="110" loading="lazy" /><blockquote>“Security tools should help you decide what to fix.”<a href="https://www.linkedin.com/in/emanuel-rm" target="_blank" rel="noopener noreferrer">Emanuel RM · Founder <ArrowUpRight size={13} aria-hidden="true" /></a></blockquote></div>
-      <h2 id="landing-close-title" data-reveal>Scan a project.<br /><em>See what actually<br />needs attention.</em></h2><div className="landing-conclusion__actions" data-reveal><MagneticLink to="/signup">Start scanning free <ArrowRight size={18} aria-hidden="true" /></MagneticLink><Link className="text-link" to="/docs">Read the docs <ArrowUpRight size={15} aria-hidden="true" /></Link></div>
+      <h2 id="landing-close-title" data-reveal>Scan a project.<br /><em>Know what actually<br />needs attention.</em></h2><div className="landing-conclusion__actions" data-reveal><MagneticLink to="/signup">Start scanning free <ArrowRight size={18} aria-hidden="true" /></MagneticLink><Link className="text-link" to="/docs">Read the docs <ArrowUpRight size={15} aria-hidden="true" /></Link></div>
     </section>
   </div>;
 }
