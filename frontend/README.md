@@ -124,3 +124,5 @@ into the unprivileged Python runtime image. Python serves the Vite entry for the
 route allowlist and serves hashed assets with long-lived cache headers. API, webhook, static,
 installer, health, readiness, and event routes retain their existing handlers; there is no broad
 SPA catch-all.
+
+--
