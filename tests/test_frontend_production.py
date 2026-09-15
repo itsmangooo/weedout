@@ -86,7 +86,9 @@ class TestProductionFrontendServing:
         """
         entry = (Path(__file__).parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
 
-        assert '<script src="/static/js/theme-boot.js"></script>' in entry
+        # Vite must leave this classic, synchronous script external. Turning it
+        # into a module would defer execution and reintroduce the theme flash.
+        assert '<script vite-ignore src="/static/js/theme-boot.js"></script>' in entry
         assert "defer" not in entry.split("</head>")[0]
 
         head, _, body = entry.partition("</head>")

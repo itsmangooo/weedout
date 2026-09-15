@@ -1,30 +1,29 @@
-import { CircleAlert, FileUp, Info, TriangleAlert } from "lucide-react";
+import { WarningCircle as CircleAlert } from "@phosphor-icons/react/WarningCircle";
+import { FileArrowUp as FileUp } from "@phosphor-icons/react/FileArrowUp";
+import { Info } from "@phosphor-icons/react/Info";
+import { Warning as TriangleAlert } from "@phosphor-icons/react/Warning";
 import { useState } from "react";
-
+import { Link } from "react-router";
 import { attachManifest } from "../../../api/projects";
 import { Button } from "../../../components/ui/Button";
+import { DataMetric } from "../../../components/ui/PageFrame";
 import { InlineNotice } from "../../../components/ui/InlineNotice";
 import { relativeTime } from "../../../lib/time";
 import { useProjectMutation } from "../hooks/useProject";
-
-/** Concerning first. These are context, not vulnerabilities. */
 const LEVEL_ORDER = { concerning: 0, notable: 1, informational: 2 };
-
-const LEVEL_ICON = {
-  concerning: CircleAlert,
-  notable: TriangleAlert,
-  informational: Info,
-};
-
+const LEVEL_ICON = { concerning: CircleAlert, notable: TriangleAlert, informational: Info };
 export function ProjectOverview({ page }) {
   const project = page.data;
-
-  return (
-    <div className="project-section project-overview">
-      {!project.has_manifest ? <ManifestUpload projectId={project.id} /> : null}
-
-      <section aria-labelledby="runs-title">
-        <h2 id="runs-title">Recent checks</h2>
+  return <div className="project-overview">
+    {!project.has_manifest && <ManifestUpload projectId={project.id} />}
+    <dl className="metric-strip"><DataMetric label="Open findings" value={project.tab_counts?.open ?? 0} /><DataMetric label="Dependencies" value={project.dependency_count} /><DataMetric label="Filtered" value={project.tab_counts?.filtered ?? 0} /><DataMetric label="Resolved" value={project.tab_counts?.resolved ?? 0} /></dl>
+    <div className="project-decision"><div><p className="eyebrow">Your next decision</p><h2>{project.has_manifest ? "Inspect the findings. Follow the evidence." : "Give this project something to scan."}</h2><p>Dependency matches, source evidence and project rules stay distinct. Missing evidence remains unknown.</p></div><Link className="button button--secondary" to={`/targets/${project.id}?view=findings`}>Review findings →</Link></div>
+    <div className="project-overview__details"><ProjectHistory page={page} /><PackageSignals page={page} /></div>
+    <Link className="text-link" to={`/targets/${project.id}?view=dependencies`}>Inspect all {page.dependencies.length} resolved dependencies →</Link>
+  </div>;
+}
+export function ProjectHistory({ page }) { return <section aria-labelledby="runs-title" className="project-overview__card">
+        <h2 id="runs-title">Recent dependency checks</h2>
         {page.recent_runs.length === 0 ? (
           <p className="empty-state">No checks yet.</p>
         ) : (
@@ -34,9 +33,8 @@ export function ProjectOverview({ page }) {
             ))}
           </ul>
         )}
-      </section>
-
-      <section aria-labelledby="signals-title">
+      </section>; }
+function PackageSignals({ page }) { return <section aria-labelledby="signals-title" className="project-overview__card">
         <h2 id="signals-title">Package signals</h2>
         {page.supply_chain.length === 0 ? (
           <p className="empty-state">Nothing stood out about these packages.</p>
@@ -73,9 +71,8 @@ export function ProjectOverview({ page }) {
             </p>
           </>
         )}
-      </section>
-
-      <section aria-labelledby="deps-title">
+      </section>; }
+export function ProjectDependencies({ page }) { const project = page.data; return <section aria-labelledby="deps-title" className="project-overview__card">
         <h2 id="deps-title">
           Dependencies <span className="dim">({page.dependencies.length})</span>
         </h2>
@@ -83,12 +80,21 @@ export function ProjectOverview({ page }) {
           <p className="empty-state">Nothing resolved yet.</p>
         ) : (
           <div className="table-scroll">
+            <p className="section-footnote u-mb-3">
+              Reachability analysed from {project.reachability_source_count} source
+              {project.reachability_source_count === 1 ? " file" : " files"}
+              {project.reachability_analysis_complete
+                ? ". The supplied inventory was complete."
+                : ". Incomplete analysis stays unknown."}
+            </p>
             <table className="data-table">
               <thead>
                 <tr>
                   <th scope="col">Package</th>
                   <th scope="col">Version</th>
                   <th scope="col">Depth</th>
+                  <th scope="col">Reachability</th>
+                  <th scope="col">Evidence</th>
                 </tr>
               </thead>
               <tbody>
@@ -97,17 +103,17 @@ export function ProjectOverview({ page }) {
                     <td>{dependency.name}</td>
                     <td className="mono">{dependency.version}</td>
                     <td>{dependency.is_direct ? "Direct" : `Depth ${dependency.depth}`}</td>
+                    <td>{dependency.reachability.replaceAll("_", " ")}</td>
+                    <td className="cell-wrap">
+                      {dependency.reachability_evidence?.[0]?.explanation ?? "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </section>
-    </div>
-  );
-}
-
+      </section>; }
 function RunRow({ run }) {
   const when = relativeTime(run.started_at);
 
@@ -128,7 +134,7 @@ function RunRow({ run }) {
       <span className="run-row__state">Checked</span>
       <span className="run-row__when">{when}</span>
       <span className="run-row__detail">
-        {run.actionable_count} to act on, {run.suppressed_count} filtered out
+        {run.actionable_count} matched alert rules, {run.suppressed_count} filtered out
         {run.new_actionable_count > 0 ? ` · +${run.new_actionable_count} new` : ""}
         {run.resolved_count > 0 ? ` · −${run.resolved_count} resolved` : ""}
       </span>

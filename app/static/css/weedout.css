@@ -3241,7 +3241,6 @@ tr.is-unread td:first-child::before {
 
 .pill--bug { color: var(--high); }
 .pill--feedback { color: var(--accent); }
-.pill--billing { color: var(--text-muted); }
 .pill--other { color: var(--text-dim); }
 .pill--new { color: var(--accent); }
 .pill--read { color: var(--text-muted); }
@@ -6353,11 +6352,6 @@ a.metric:hover {
   color: var(--signal);
   border-color: var(--signal);
   margin-left: 0.4rem;
-}
-
-.badge--pro {
-  color: var(--calm);
-  border-color: color-mix(in srgb, var(--calm) 50%, transparent);
 }
 
 /* --- Destructive surfaces ------------------------------------------------ */

@@ -1,23 +1,14 @@
-"""Dodo Payments integration: checkout and webhook.
+"""Verified ingestion of legacy Dodo subscription records.
 
-Dodo acts as merchant of record and handles VAT and sales tax globally, which
-is what a solo operator outside the usual merchant jurisdictions actually
-needs — the alternative is registering for tax in every market you sell into.
-
-Two halves:
-
-* **Checkout** — the pricing page links to Dodo's hosted checkout for a product
-  ID. No card data ever touches this server, so there is nothing here to leak.
-* **Webhook** — Dodo POSTs subscription lifecycle events. This is the *only*
-  thing that changes a user's tier. The browser is never trusted to report that
-  a payment succeeded, because anyone can request a success URL.
+Subscriptions no longer grant product access. The signed webhook remains so
+administrators can reconcile historical invoices, refunds and disputes without
+discarding database compatibility.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -35,35 +26,11 @@ log = get_logger(__name__)
 
 router = APIRouter(tags=["billing"])
 
-#: Subscription states in which the customer keeps paid access.
-#: `on_hold` is included deliberately — it is Dodo's dunning state, and locking
-#: someone out while their bank retries a payment is how you lose a customer
-#: who was going to pay.
+#: Provider states recorded as active historical subscriptions.
 ACTIVE_STATUSES = {"active", "trialing", "on_hold"}
 
-#: States that end paid access.
+#: Provider states that end a historical subscription.
 ENDED_STATUSES = {"cancelled", "canceled", "expired", "failed", "paused"}
-
-
-def build_checkout_url(settings, user: User) -> str | None:
-    """Hosted-checkout link for the Pro product.
-
-    `reference_id` is echoed back on every webhook for this subscription, which
-    is how a payment is tied to an account even when the customer pays with a
-    different email than they signed up with.
-    """
-    if not settings.dodo_enabled or not settings.dodo_product_id_pro_monthly:
-        return None
-
-    query = urlencode(
-        {
-            "quantity": 1,
-            "redirect_url": f"{settings.base_url}/billing/success",
-            "reference_id": str(user.id),
-            "email": user.email,
-        }
-    )
-    return f"{settings.dodo_checkout_base}/buy/{settings.dodo_product_id_pro_monthly}?{query}"
 
 
 @router.post("/webhooks/dodo", include_in_schema=False)
@@ -159,21 +126,11 @@ async def _handle_subscription_event(db: DbSession, event_type: str, data: dict[
     )
     user.subscription_ends_at = ends_at
 
-    if status in ACTIVE_STATUSES:
-        new_tier = Tier.PRO
-    elif status in ENDED_STATUSES:
-        # Access runs to the end of the period already paid for. The hourly
-        # expiry job applies the downgrade once that date passes; downgrading
-        # now would take away time the customer has bought.
-        if ends_at is not None and ends_at > datetime.now(UTC):
-            log.info("dodo.downgrade_scheduled", user_id=user.id, ends_at=ends_at.isoformat())
-            return True
-        new_tier = Tier.FREE
-    else:
-        # An unrecognised status is not a reason to revoke access. Record it and
-        # leave the tier alone rather than cancelling someone on a typo.
+    if status not in ACTIVE_STATUSES | ENDED_STATUSES:
+        # Preserve unfamiliar provider state for reconciliation. It still has
+        # no bearing on access now that the product has one Free entitlement.
         log.warning("dodo.unknown_status", user_id=user.id, status=status)
-        return True
+    new_tier = Tier.FREE
 
     if user.tier is not new_tier:
         log.info(
@@ -184,9 +141,7 @@ async def _handle_subscription_event(db: DbSession, event_type: str, data: dict[
             status=status,
             event_type=event_type,
         )
-    # The path that runs when somebody actually pays, and therefore the one
-    # that matters most: through the service, so the cadence they just bought
-    # starts now rather than after their next daily scan.
+    # Normalise any legacy database value without deleting payment history.
     await apply_tier_change(db, user, new_tier)
     return True
 

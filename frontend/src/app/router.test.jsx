@@ -101,20 +101,17 @@ describe("frontend routes", () => {
     const user = userEvent.setup();
 
     renderRoute("/not-migrated");
-    expect(screen.getByRole("heading", { name: "This frontend route has not migrated yet." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Nothing at\s*this address\./ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("link", { name: "Return to the foundation" }));
+    await user.click(screen.getByRole("link", { name: "Return home" }));
     expect(
       await screen.findByRole("heading", {
-        name: "Most CVE alerts cannot reach your code.",
+        name: "Dependency security that tells you what actually needs fixing.",
       }),
     ).toBeInTheDocument();
   });
 
-  // The hero plays for about five and a half seconds now, so this one waits
-  // longer than the default. That slowness is the feature: the previous timing
-  // ran the whole story in about a second.
-  it("renders the Weedout-specific filtering and workflow composition", { timeout: 15_000 }, async () => {
+  it("renders only current product capabilities and grounded project context", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       response({ status: "ok", version: "0.1.0" }),
     );
@@ -123,30 +120,33 @@ describe("frontend routes", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Most CVE alerts cannot reach your code.",
+        name: "Dependency security that tells you what actually needs fixing.",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Watch the page get quieter." })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Four passes. Nothing thrown away quietly." }),
+      screen.getByRole("heading", { name: /One finding\.\s*Every reason\./ }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Ship the fix. Ignore the noise." })).toBeInTheDocument();
-    expect(screen.getByText("Owner's word")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Project in\.\s*Decision out\./ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/dynamic or incomplete analysis stays Unknown/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/does not claim that observing a package import proves a vulnerable function/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("8 manifest + lockfile formats").length).toBeGreaterThan(0);
+    expect(screen.getByText("$ weedout scan --ci")).toBeInTheDocument();
+    expect(screen.queryByText("Planned")).not.toBeInTheDocument();
+    expect(screen.queryByText("Source-code analysis")).not.toBeInTheDocument();
     expect(screen.getByAltText("Emanuel RM")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Featured on Votekicker" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("votekicker.com/weedout"),
-    );
-    expect(screen.getByRole("link", { name: "LinkedIn", exact: true })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Emanuel RM.*Founder/ })).toHaveAttribute(
       "href",
       expect.stringContaining("linkedin.com/in/emanuel-rm"),
     );
-    expect(screen.getAllByText("CVE-2026-5001").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Replay filter" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
-    expect(
-      await screen.findByText("Exploited in the wild", {}, { timeout: 10_000 }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Illustrative shortlist / demo-app")).toBeInTheDocument();
+    const mainNav = screen.getByRole("navigation", { name: "Main" });
+    expect(mainNav).not.toHaveTextContent("Pricing");
   });
 
   it("keeps the global error boundary recoverable", async () => {

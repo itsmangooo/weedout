@@ -21,7 +21,7 @@ function payload() {
         installed_version: "6.0.0",
         severity: "high",
         is_exploited: false,
-        reachability: "runtime_direct",
+        reachability: "reachable",
         status: "open",
         detected_at: "2026-08-20T18:30:00Z",
       },

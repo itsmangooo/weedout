@@ -8,7 +8,7 @@ import { FindingRow } from "../../findings/components/FindingRow";
  * removes the question.
  */
 const EMPTY = {
-  open: "Nothing to act on. Every advisory that matched was either unreachable or below your thresholds.",
+  open: "No open findings under the current alert rules. Source reachability is a separate result.",
   filtered: "Nothing was filtered out. Every advisory that matched was worth reporting.",
   dismissed: "Nothing dismissed.",
   resolved: "Nothing resolved yet.",

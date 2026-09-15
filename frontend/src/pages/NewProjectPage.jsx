@@ -1,4 +1,6 @@
-import { FileUp, ClipboardPaste, Terminal } from "lucide-react";
+import { FileArrowUp as FileUp } from "@phosphor-icons/react/FileArrowUp";
+import { ClipboardText as ClipboardPaste } from "@phosphor-icons/react/ClipboardText";
+import { Terminal } from "@phosphor-icons/react/Terminal";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -64,13 +66,12 @@ export function NewProjectPage() {
   }
 
   return (
-    <div className="page-narrow">
+    <div className="project-create page-frame">
       <header className="page-head">
         <p className="section-label">New project</p>
         <h1>Watch a project</h1>
         <p className="page-head__lede">
-          Give us a dependency manifest and we will tell you which of its known
-          vulnerabilities you can actually reach.
+          Start with a manifest. Weedout matches known vulnerabilities and adds the dependency context to help you decide what needs attention.
         </p>
       </header>
 

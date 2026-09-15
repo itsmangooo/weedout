@@ -1,19 +1,20 @@
 @import "tailwindcss";
+@import "lenis/dist/lenis.css";
 @import "./fonts.css";
 @import "./tokens.css";
 @import "./themes.css";
-@import "./typography.css";
+@import "./design.css";
 @import "./motion.css";
-@import "./surfaces.css";
 @import "./brand.css";
-@import "./marketing.css";
+@import "./shells.css";
+@import "./public.css";
 @import "./landing.css";
-@import "./dashboard.css";
-@import "./auth.css";
-@import "./project.css";
+@import "./workspace.css";
+@import "./operations.css";
 @import "./context-menu.css";
-@import "./cli.css";
-@import "./admin.css";
+@import "./glass.css";
+@import "./appearance.css";
+@import "./panel-redesign.css";
 
 @layer base {
   *,

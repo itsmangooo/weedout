@@ -1,7 +1,8 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
-import { changeTier, deleteUser, suspendUser, unsuspendUser } from "../../api/admin";
+import { deleteUser, suspendUser, unsuspendUser } from "../../api/admin";
 import { AsyncError, AsyncLoading } from "../../components/feedback/AsyncState";
 import { Button } from "../../components/ui/Button";
 import { InlineNotice } from "../../components/ui/InlineNotice";
@@ -20,13 +21,9 @@ export function AdminUserPage() {
   const account = detail.user;
 
   return (
-    <>
-      <div className="admin-head">
-        <h1 className="mono">{account.email}</h1>
-        <Link className="button button--ghost" to="/admin/users">
+    <PageFrame className="operations-page operations-user" eyebrow="Weedout / Operations" title={account.email} description="Account activity, project coverage and access controls." actions={<><Link className="button button--ghost" to="/admin/users">
           Back to users
-        </Link>
-      </div>
+        </Link></>}>
 
       {account.is_suspended ? (
         <div className="u-mb-5">
@@ -43,6 +40,7 @@ export function AdminUserPage() {
         </div>
       ) : null}
 
+      <div className="account-record"><AccountFacts account={account} detail={detail} /></div>
       <div className="detail-grid">
         <div>
           <Projects account={account} targets={detail.targets} />
@@ -58,14 +56,12 @@ export function AdminUserPage() {
         </div>
 
         <aside>
-          <AccountFacts account={account} detail={detail} />
           {account.dodo_subscription_id ? <Subscription account={account} /> : null}
-          <TierCard account={account} tiers={detail.tiers} />
           <AccessCard account={account} />
           <DangerCard account={account} detail={detail} />
         </aside>
       </div>
-    </>
+    </PageFrame>
   );
 }
 
@@ -183,7 +179,7 @@ function AccountFacts({ account, detail }) {
         <dt>Email</dt>
         <dd className="mono u-wrap-anywhere">{account.email}</dd>
         <dt>Plan</dt>
-        <dd>{account.tier_label}</dd>
+        <dd>Free</dd>
         <dt>Status</dt>
         <dd>
           {account.status_label}
@@ -227,65 +223,6 @@ function Subscription({ account }) {
         <dt>Subscription</dt>
         <dd className="mono u-text-xxs u-wrap-anywhere">{account.dodo_subscription_id}</dd>
       </dl>
-    </div>
-  );
-}
-
-function TierCard({ account, tiers }) {
-  const [tier, setTier] = useState(account.tier);
-  const [note, setNote] = useState("");
-
-  const mutation = useAdminMutation(() => changeTier(account.id, { tier, note }), {
-    onSuccess: () => setNote(""),
-  });
-
-  return (
-    <div className="card u-mt-4">
-      <h2 className="eyebrow">Change plan</h2>
-      {mutation.isError ? (
-        <div className="u-mb-4">
-          <InlineNotice tone="danger">{mutation.error.message}</InlineNotice>
-        </div>
-      ) : null}
-
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          mutation.mutate();
-        }}
-      >
-        <div className="field">
-          <label htmlFor="tier">Plan</label>
-          <select
-            className="select"
-            id="tier"
-            onChange={(event) => setTier(event.target.value)}
-            value={tier}
-          >
-            {tiers.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="note">Note</label>
-          <input
-            className="input"
-            id="note"
-            maxLength={500}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder="e.g. comped for beta feedback"
-            type="text"
-            value={note}
-          />
-          <p className="field__hint">Recorded in the audit log. Doesn&rsquo;t touch Dodo.</p>
-        </div>
-        <Button className="button--block" disabled={mutation.isPending} type="submit">
-          {mutation.isPending ? "Updating…" : "Update plan"}
-        </Button>
-      </form>
     </div>
   );
 }

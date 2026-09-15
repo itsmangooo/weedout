@@ -34,7 +34,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
-from app.core.types import AudienceKind, EmailStatus, EmailTrigger, Tier
+from app.core.types import AudienceKind, EmailStatus, EmailTrigger
 from app.logging_config import get_logger
 from app.mail import EmailError, send_email
 from app.models import EmailCampaign, EmailLog, TrackedTarget, User
@@ -269,11 +269,6 @@ async def preview_audience(
         return AudiencePreview(kind=kind, recipients=await _with_projects(db, recipients))
 
     where = [User.is_active.is_(True), User.is_suspended.is_(False)]
-    if kind is AudienceKind.PRO:
-        where.append(User.tier == Tier.PRO)
-    elif kind is AudienceKind.FREE:
-        where.append(User.tier == Tier.FREE)
-
     rows = (await db.execute(select(User.id, User.email).where(*where).order_by(User.id))).all()
     recipients = [Recipient(r[0], r[1]) for r in rows]
     return AudiencePreview(kind=kind, recipients=await _with_projects(db, recipients))

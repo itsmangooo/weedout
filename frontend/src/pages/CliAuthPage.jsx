@@ -1,4 +1,6 @@
-import { Check, Laptop, X } from "lucide-react";
+import { Check } from "@phosphor-icons/react/Check";
+import { Laptop } from "@phosphor-icons/react/Laptop";
+import { X } from "@phosphor-icons/react/X";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 

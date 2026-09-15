@@ -1,13 +1,18 @@
-import { ArrowUpRight, Flame, FolderOpen, Package, RadioTower } from "lucide-react";
+import { ArrowUpRight } from "@phosphor-icons/react/ArrowUpRight";
+import { Fire as Flame } from "@phosphor-icons/react/Fire";
+import { FolderOpen } from "@phosphor-icons/react/FolderOpen";
+import { Package } from "@phosphor-icons/react/Package";
+import { Broadcast as RadioTower } from "@phosphor-icons/react/Broadcast";
 import { motion } from "motion/react";
 import { Link } from "react-router";
 
 import { EntityContextMenu } from "../../../components/ui/EntityContextMenu";
 
 const REACHABILITY_LABELS = {
-  runtime_direct: "Direct runtime",
-  runtime_transitive: "Transitive runtime",
-  dev_only: "Development only",
+  reachable: "Reachable",
+  potentially_reachable: "Potentially reachable",
+  not_observed: "Not observed",
+  unknown: "Unknown",
 };
 
 function detectedLabel(value) {
@@ -60,7 +65,7 @@ export function FindingRow({ finding }) {
           </span>
           <span className="finding-signal">
             <RadioTower aria-hidden="true" size={13} />
-            {REACHABILITY_LABELS[finding.reachability]}
+            {REACHABILITY_LABELS[finding.reachability] ?? "Unknown"}
           </span>
         </div>
 

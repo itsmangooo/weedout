@@ -1,4 +1,7 @@
-import { KeyRound, ShieldAlert, Trash2 } from "lucide-react";
+import { SectionIndex } from "../../../components/ui/SectionIndex";
+import { Key as KeyRound } from "@phosphor-icons/react/Key";
+import { ShieldWarning as ShieldAlert } from "@phosphor-icons/react/ShieldWarning";
+import { Trash as Trash2 } from "@phosphor-icons/react/Trash";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -33,11 +36,11 @@ const SEVERITIES = [
 
 export function ProjectSettings({ page, projectId }) {
   return (
-    <div className="project-section project-settings">
-      <RenameSection name={page.data.name} projectId={projectId} />
-      <KeysSection keys={page.api_keys} projectId={projectId} />
-      <RulesSection page={page} projectId={projectId} />
-      <DangerSection name={page.data.name} projectId={projectId} />
+    <div className="settings-layout project-settings"><SectionIndex label="Project settings" items={[["project-name-section","Identity"],["project-rules-section","Scan rules"],["project-keys-section","API access"],["project-danger-section","Delete project"]]} /><div className="settings-content">
+      <div id="project-name-section"><RenameSection name={page.data.name} projectId={projectId} /></div>
+      <div id="project-rules-section"><RulesSection page={page} projectId={projectId} /></div>
+      <div id="project-keys-section"><KeysSection keys={page.api_keys} projectId={projectId} /></div>
+      <div id="project-danger-section"><DangerSection name={page.data.name} projectId={projectId} /></div></div>
     </div>
   );
 }
@@ -308,18 +311,6 @@ function RulesSection({ page, projectId }) {
   const save = useProjectMutation(projectId, () =>
     setThresholds(projectId, { direct, transitive, epss: page.thresholds.epss }),
   );
-
-  if (!page.can_use_rules) {
-    return (
-      <section aria-labelledby="rules-title">
-        <h2 id="rules-title">Scan rules</h2>
-        <InlineNotice tone="neutral">
-          Custom thresholds and ignore rules are part of the Pro plan.{" "}
-          <Link to="/billing">See the plans</Link>.
-        </InlineNotice>
-      </section>
-    );
-  }
 
   return (
     <section aria-labelledby="rules-title">

@@ -1,6 +1,7 @@
-import { AlertTriangle } from "lucide-react";
+import { Warning as AlertTriangle } from "@phosphor-icons/react/Warning";
 
 import { InlineNotice } from "../../../components/ui/InlineNotice";
+import { LiquidGlass } from "../../../components/ui/LiquidGlass";
 
 /**
  * The shell every auth screen sits in.
@@ -11,29 +12,7 @@ import { InlineNotice } from "../../../components/ui/InlineNotice";
  * that somebody who just pressed submit will not see.
  */
 export function AuthCard({ children, error, eyebrow, footer, lede, title }) {
-  return (
-    <div className="auth-page">
-      <section className="auth-card" aria-labelledby="auth-title">
-        {eyebrow ? <p className="auth-card__eyebrow">{eyebrow}</p> : null}
-        <h1 className="auth-card__title" id="auth-title">
-          {title}
-        </h1>
-        {lede ? <p className="auth-card__lede">{lede}</p> : null}
-
-        {error ? (
-          <div style={{ marginBottom: "var(--wo-space-5)" }}>
-            <InlineNotice icon={AlertTriangle} tone="danger">
-              {error}
-            </InlineNotice>
-          </div>
-        ) : null}
-
-        {children}
-
-        {footer ? <div className="auth-meta">{footer}</div> : null}
-      </section>
-    </div>
-  );
+  return <div className="auth-layout"><aside className="auth-editorial"><p className="eyebrow">Weedout / dependency intelligence</p><h2>Less triage.<br />More context.<br /><em>A clear next step.</em></h2><ol><li>Scan a project</li><li>Inspect the evidence</li><li>Decide what to fix</li></ol></aside><LiquidGlass as="section" className="auth-form-region" interactive aria-labelledby="auth-title">{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h1 id="auth-title">{title}</h1>{lede && <p className="page-description">{lede}</p>}{error && <InlineNotice icon={AlertTriangle} tone="danger">{error}</InlineNotice>}{children}{footer && <div className="auth-meta">{footer}</div>}</LiquidGlass></div>;
 }
 
 /**

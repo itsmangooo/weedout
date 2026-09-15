@@ -47,7 +47,7 @@ from app.core.types import IgnoreKind
 from app.logging_config import get_logger
 from app.models import IgnoreRule, TrackedTarget, User, utcnow
 from app.services.profile_service import profile_for_scan
-from app.tiers import can_use_custom_rules, scan_depth_for
+from app.tiers import scan_depth_for
 
 log = get_logger(__name__)
 
@@ -114,22 +114,6 @@ async def build_policy(
     depth = scan_depth_for(tier)
     if policy.max_depth is None and depth is not None:
         policy = replace(policy, max_depth=depth)
-
-    if not can_use_custom_rules(tier):
-        # The rows may exist -- from a lapsed subscription, or from a policy
-        # file a Pro pipeline pushed earlier. They simply stop applying, which
-        # is the same shape as every other tier check here: enforced at use,
-        # not by deleting the user's configuration.
-        if (
-            target.policy_file
-            or target.direct_threshold
-            or target.transitive_threshold
-            or target.dev_threshold
-            or target.profile_id is not None
-            or requested_profile
-        ):
-            notes.append("Custom scan rules are part of the Pro plan, so they were not applied.")
-        return EffectivePolicy(policy=policy, notes=tuple(notes))
 
     parsed = parse_policy(target.policy_file)
     if parsed.error:

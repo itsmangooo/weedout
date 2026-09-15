@@ -223,7 +223,7 @@ class TestPrecedence:
         effective = await build_policy(db, target, pro_user)
         assert effective.policy.epss_threshold == 0.2
 
-    async def test_a_free_project_never_gates_on_it(self, db, user):
+    async def test_a_free_project_can_set_the_threshold(self, db, user):
         from app.core.types import Ecosystem as Eco
         from app.models import TrackedTarget
         from app.services.rules_service import build_policy
@@ -234,7 +234,7 @@ class TestPrecedence:
         await db.flush()
 
         effective = await build_policy(db, target, user)
-        assert effective.policy.epss_threshold is None
+        assert effective.policy.epss_threshold == 0.2
 
 
 class TestEndToEnd:

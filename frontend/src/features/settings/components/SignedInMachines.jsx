@@ -1,4 +1,4 @@
-import { Laptop } from "lucide-react";
+import { Laptop } from "@phosphor-icons/react/Laptop";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getSignedInMachines, revokeMachine } from "../../../api/cliAuth";

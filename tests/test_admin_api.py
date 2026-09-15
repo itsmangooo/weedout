@@ -63,10 +63,8 @@ class TestOverview:
 
         metrics = response.json()["data"]["metrics"]
         assert metrics["total_users"] >= 3
-        assert metrics["paid_users"] >= 1
-        # Derived on the server. The panel must not recompute conversion from
-        # the counts and disagree with what the service says.
-        assert "paid_share" in metrics
+        assert "paid_users" not in metrics
+        assert "paid_share" not in metrics
         assert "noise_filtered_share" in metrics
 
     async def test_reports_feed_health_with_the_service_s_own_verdict(self, admin_client):
@@ -110,15 +108,12 @@ class TestUserList:
         emails = {row["user"]["email"] for row in payload["rows"]}
         assert emails == {pro_user.email}
 
-    async def test_the_tier_filter_applies(self, admin_client, user, pro_user):
-        payload = (await admin_client.get(f"{API}/users?tier=pro")).json()["data"]
-        assert {row["user"]["tier"] for row in payload["rows"]} == {"pro"}
-
-    async def test_an_unknown_filter_falls_back_to_everything(self, admin_client, user):
+    async def test_retired_tier_filter_is_ignored(self, admin_client, user, pro_user):
         """Same reason as the chart range: a bad URL shows the list, not a 422."""
         response = await admin_client.get(f"{API}/users?tier=platinum")
         assert response.status_code == 200
-        assert response.json()["data"]["rows"]
+        rows = response.json()["data"]["rows"]
+        assert {row["user"]["tier"] for row in rows} == {"free"}
 
     async def test_no_password_hash_reaches_the_browser(self, admin_client, user):
         body = (await admin_client.get(f"{API}/users")).text
@@ -198,35 +193,10 @@ class TestUserDetail:
         assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
-class TestTierChange:
-    async def test_moves_the_account_and_records_it(self, admin_client, db, user):
-        response = await post(
-            admin_client, f"/users/{user.id}/tier", {"tier": "pro", "note": "comp"}
-        )
-        assert response.status_code == 200
-        assert response.json()["data"]["user"]["tier"] == "pro"
-
-        await db.refresh(user)
-        assert user.tier is Tier.PRO
-
-        entry = await db.scalar(
-            select(AdminAuditLog).where(AdminAuditLog.action == "user.tier_changed")
-        )
-        assert entry is not None
-        assert entry.target_email == user.email
-
-    async def test_an_unknown_plan_is_refused(self, admin_client, db, user):
-        response = await post(admin_client, f"/users/{user.id}/tier", {"tier": "platinum"})
-        assert response.status_code == 400
-
-        await db.refresh(user)
-        assert user.tier is Tier.FREE
-
-    async def test_a_missing_csrf_token_is_refused(self, admin_client, db, user):
-        """The session cookie alone must not be enough for a cross-site form."""
-        response = await admin_client.post(f"{API}/users/{user.id}/tier", json={"tier": "pro"})
-        assert response.status_code == 403
-
+class TestRetiredTierChange:
+    async def test_the_mutation_endpoint_no_longer_exists(self, admin_client, db, user):
+        response = await post(admin_client, f"/users/{user.id}/tier", {"tier": "pro"})
+        assert response.status_code == 404
         await db.refresh(user)
         assert user.tier is Tier.FREE
 
@@ -445,8 +415,6 @@ class TestCompose:
         assert payload["confirm_threshold"] >= 1
         assert {option["value"] for option in payload["audiences"]} == {
             "one",
-            "pro",
-            "free",
             "all",
         }
         # Least dangerous first: the composer starts on whatever leads, and

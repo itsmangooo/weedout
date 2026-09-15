@@ -60,6 +60,7 @@ describe("the CLI page", () => {
     await screen.findByRole("heading", { name: /Install it/ });
     const numbered = screen
       .getAllByText(/^\d\d$/)
+      .filter((node) => node.classList.contains("eyebrow"))
       .map((node) => node.textContent);
 
     expect(numbered).toEqual([...new Set(numbered)]);

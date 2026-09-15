@@ -1,19 +1,20 @@
-import {
-  ArrowUpRight,
-  CircleAlert,
-  CircleCheck,
-  Clock3,
-  FileWarning,
-  FolderOpen,
-  ListFilter,
-  Pause,
-} from "lucide-react";
+import { ArrowUpRight } from "@phosphor-icons/react/ArrowUpRight";
+import { WarningCircle as CircleAlert } from "@phosphor-icons/react/WarningCircle";
+import { CheckCircle as CircleCheck } from "@phosphor-icons/react/CheckCircle";
+import { Clock as Clock3 } from "@phosphor-icons/react/Clock";
+import { FileX as FileWarning } from "@phosphor-icons/react/FileX";
+import { FolderOpen } from "@phosphor-icons/react/FolderOpen";
+import { Funnel as ListFilter } from "@phosphor-icons/react/Funnel";
+import { Pause } from "@phosphor-icons/react/Pause";
 
 import { EntityContextMenu } from "../../../components/ui/EntityContextMenu";
 import { relativeTime } from "../../../lib/time";
 import { Link } from "react-router";
 
 function projectState(project) {
+  if (project.last_scan_failed) {
+    return { icon: CircleAlert, label: "Last check failed", tone: "danger" };
+  }
   if (project.findings.exploited > 0) {
     return { icon: CircleAlert, label: "Exploited finding", tone: "danger" };
   }
@@ -25,9 +26,6 @@ function projectState(project) {
   }
   if (!project.has_manifest) {
     return { icon: FileWarning, label: "Manifest needed", tone: "setup" };
-  }
-  if (project.last_scan_failed) {
-    return { icon: CircleAlert, label: "Last check failed", tone: "danger" };
   }
   if (!project.last_scanned_at) {
     return { icon: Clock3, label: "Awaiting first check", tone: "pending" };

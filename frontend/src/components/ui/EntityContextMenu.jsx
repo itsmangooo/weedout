@@ -1,6 +1,13 @@
-import { Children, cloneElement, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  Children,
+  cloneElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState } from "react";
 import { createPortal } from "react-dom";
-import { MoreHorizontal } from "lucide-react";
+import { DotsThree as MoreHorizontal } from "@phosphor-icons/react/DotsThree";
 import { AnimatePresence, motion } from "motion/react";
 
 const EDGE_GAP = 8;

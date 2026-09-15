@@ -251,18 +251,19 @@ Migrations run as part of the web container's start command.
 
 ### Updating the built-in docs
 
-The four built-in documentation pages are seeded once and never overwritten, so
-that edits made in `/admin/docs` survive a deploy. The trade is that improved
-starter copy in a new release does not reach a deployment that already has the
-pages.
+The 14 built-in documentation pages are checked at web startup. Missing pages
+are created. A page whose body exactly matches a previously shipped built-in
+version is upgraded to the current copy, so untouched production docs follow a
+deploy. Any page edited in `/admin/docs` has a different content hash and is
+left alone.
 
-Check and apply it deliberately:
+Check deliberate customizations and replace them only when that is intended:
 
 ```bash
 # Report which pages differ from this release. Changes nothing.
 docker compose --env-file .env.prod -f docker-compose.prod.yml   exec web python -m app.manage reseed-docs
 
-# Overwrite them. Discards any edits you made to those pages in /admin/docs.
+# Overwrite drifted pages. Discards edits made to those pages in /admin/docs.
 docker compose --env-file .env.prod -f docker-compose.prod.yml   exec web python -m app.manage reseed-docs --force
 ```
 
@@ -301,8 +302,7 @@ minutes.
 | Secret | Where it lives | Blast radius if leaked |
 |---|---|---|
 | `SECRET_KEY` | `.env.prod` | Session cookies and signed challenges can be forged |
-| `DODO_API_KEY` | `.env.prod` | Read and write against the billing account |
-| `DODO_WEBHOOK_SECRET` | `.env.prod` + Dodo dashboard | Forged billing events: free upgrades, fake cancellations |
+| `DODO_WEBHOOK_SECRET` | `.env.prod` + Dodo dashboard | Forged historical subscription records |
 | `POSTGRES_PASSWORD` | `.env.prod` + the database | Everything |
 | Email provider key | `.env.prod` + the provider | Mail sent as you, from your domain |
 | Pusher / realtime credentials | `.env.prod` + the provider | Whatever that channel carries |
@@ -319,22 +319,12 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 Put it in `.env.prod`, redeploy. Nothing else to do; there is no other copy.
 
-#### `DODO_API_KEY`
-
-1. Create a new key in the Dodo dashboard. Do not delete the old one yet.
-2. Put the new one in `.env.prod` and redeploy.
-3. Confirm a checkout link still builds — open `/billing` while signed in.
-4. **Then** revoke the old key.
-
-New key first, revoke second. The other order has a window where checkout is
-broken, and the window is however long the redeploy takes.
-
 #### `DODO_WEBHOOK_SECRET`
 
 This one is different: the secret is shared, so it cannot be rotated on one
 side alone. Signature verification fails for everything sent with the other
-value, and a rejected webhook is a subscription change that silently did not
-happen.
+value, and a rejected webhook is a historical record that silently did not
+arrive.
 
 1. Rotate it in the Dodo dashboard and copy the new value.
 2. Put it in `.env.prod` and redeploy **immediately**.

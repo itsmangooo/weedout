@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { Lock } from "@phosphor-icons/react/Lock";
 import { useState } from "react";
 
 import { changePassword } from "../../../api/settings";

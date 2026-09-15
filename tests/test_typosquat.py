@@ -174,9 +174,7 @@ class TestReconciliation:
         assert [s.package_name for s in signals] == ["lodahs"]
         assert signals[0].kind is SignalKind.TYPOSQUAT
 
-    async def test_a_free_scan_does_not(self, db, user):
-        """Pro-only, checked at scan time so a lapsed subscription stops
-        raising them without deleting what is already there."""
+    async def test_a_free_scan_raises_the_signal(self, db, user):
         from app.services.scan_service import scan_target
         from app.services.supply_chain_service import open_signals
 
@@ -184,7 +182,8 @@ class TestReconciliation:
         await scan_target(db, target)
         await db.commit()
 
-        assert await open_signals(db, target.id) == []
+        signals = await open_signals(db, target.id)
+        assert [signal.package_name for signal in signals] == ["lodahs"]
 
     async def test_a_signal_is_not_raised_twice(self, db, pro_user):
         from app.services.scan_service import scan_target

@@ -1,4 +1,7 @@
-import { AlertTriangle, ArrowUpRight, LoaderCircle, ServerOff } from "lucide-react";
+import { Warning as AlertTriangle } from "@phosphor-icons/react/Warning";
+import { ArrowUpRight } from "@phosphor-icons/react/ArrowUpRight";
+import { CircleNotch as LoaderCircle } from "@phosphor-icons/react/CircleNotch";
+import { CloudSlash as ServerOff } from "@phosphor-icons/react/CloudSlash";
 
 import { Button } from "../../../components/ui/Button";
 import { InlineNotice } from "../../../components/ui/InlineNotice";

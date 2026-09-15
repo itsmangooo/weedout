@@ -7,8 +7,8 @@ until it matters. `tests/test_admin_access.py` sweeps every route under this
 prefix and asserts a signed-in non-admin is refused by all of them, so an
 endpoint added without the guard fails the suite instead of shipping.
 
-No decision lives here. Tier changes, suspension, deletion, doc edits and
-campaign sends all go through the same services the rendered panel called,
+No decision lives here. Suspension, deletion, doc edits and campaign sends all
+go through the same services the rendered panel called,
 which record the audit entry alongside the change — an administrative action
 with no trace of who did it is worse than one that did not happen.
 
@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from pydantic import BaseModel, ValidationError
 
 from app.config import get_settings
-from app.core.types import AudienceKind, MessageStatus, Tier
+from app.core.types import AudienceKind, MessageStatus
 from app.deps import CsrfProtected, CurrentInternalAdmin, DbSession, require_internal_admin
 from app.logging_config import get_logger
 from app.models import ContactMessage, User
@@ -36,13 +36,11 @@ from app.schemas import (
     DocPageForm,
     SignupChartQuery,
     SuspendForm,
-    TierChangeForm,
     UserListQuery,
     first_error,
 )
 from app.services.admin_service import (
     AdminActionError,
-    change_user_tier,
     delete_user,
     feed_health,
     list_subscribers,
@@ -125,8 +123,8 @@ def _user_summary(user: User) -> dict:
     return {
         "id": user.id,
         "email": user.email,
-        "tier": user.tier.value,
-        "tier_label": user.tier.label,
+        "tier": "free",
+        "tier_label": "Free",
         "status_label": user.status_label,
         "is_admin": user.is_admin,
         "is_active": user.is_active,
@@ -154,12 +152,6 @@ def _user_summary(user: User) -> dict:
         # charge is looked up by in Dodo.
         "dodo_subscription_id": user.dodo_subscription_id,
     }
-
-
-def _tier_options() -> list[dict]:
-    """Value and label together. The panel must not invent display names for
-    plans — "Pro" is decided in one place and read everywhere."""
-    return [{"value": tier.value, "label": tier.label} for tier in Tier]
 
 
 def _audit_entry(entry: Any) -> dict:
@@ -205,9 +197,7 @@ async def overview(
         "data": {
             "metrics": {
                 **{name: getattr(metrics, name) for name in metrics.__slots__},
-                # Derived, and both are the point of the page: conversion, and
-                # the product's headline claim measured across every account.
-                "paid_share": metrics.paid_share,
+                # The product's headline claim measured across every account.
                 "noise_filtered_share": metrics.noise_filtered_share,
             },
             "feeds": [
@@ -254,7 +244,6 @@ async def users_index(
     page: Annotated[str, Query()] = "1",
     per_page: Annotated[str, Query()] = "25",
     search: Annotated[str, Query()] = "",
-    tier: Annotated[str, Query()] = "",
     status_filter: Annotated[str, Query(alias="status")] = "",
 ) -> dict:
     """Paginated, searchable user list.
@@ -269,7 +258,6 @@ async def users_index(
             page=page,
             per_page=per_page,
             search=search,
-            tier=tier,
             status=status_filter,
         )
     except ValidationError:
@@ -280,7 +268,6 @@ async def users_index(
         page=query.page,
         per_page=query.per_page,
         search=query.search_filter,
-        tier=query.tier_filter,
         status=query.status_filter,
     )
 
@@ -301,8 +288,7 @@ async def users_index(
             "start_index": result.start_index,
             "end_index": result.end_index,
         },
-        "query": {"search": query.search, "tier": query.tier, "status": query.status},
-        "tiers": _tier_options(),
+        "query": {"search": query.search, "status": query.status},
     }
 
 
@@ -354,43 +340,8 @@ async def user_view(
             "open_alert_count": detail.open_alert_count,
             "suppressed_count": detail.suppressed_count,
             "scan_count": detail.scan_count,
-            "tiers": _tier_options(),
         }
     }
-
-
-class TierBody(BaseModel):
-    tier: str = ""
-    note: str = ""
-
-
-@router.post("/users/{user_id}/tier", dependencies=[CsrfProtected])
-async def change_tier(
-    request: Request,
-    db: DbSession,
-    admin: CurrentInternalAdmin,
-    user_id: int,
-    body: TierBody,
-) -> dict:
-    """Manually move a user between plans."""
-    target = await _load_target(db, user_id)
-
-    try:
-        form = TierChangeForm(tier=body.tier, note=body.note)
-    except ValidationError:
-        raise _fail(
-            status.HTTP_400_BAD_REQUEST, "INVALID_REQUEST", "That isn't a valid plan."
-        ) from None
-
-    try:
-        await change_user_tier(
-            db, admin, target, form.tier, form.note, ip_address=_client_ip(request)
-        )
-    except AdminActionError as exc:
-        raise _fail(status.HTTP_400_BAD_REQUEST, "REFUSED", str(exc)) from None
-
-    await db.commit()
-    return {"data": {"user": _user_summary(target)}}
 
 
 class ShowcaseApprovalBody(BaseModel):
@@ -892,12 +843,7 @@ async def compose(response: Response, db: DbSession, admin: CurrentInternalAdmin
             # choosing.
             "audiences": [
                 {"value": kind.value, "label": kind.label}
-                for kind in (
-                    AudienceKind.ONE,
-                    AudienceKind.PRO,
-                    AudienceKind.FREE,
-                    AudienceKind.ALL,
-                )
+                for kind in (AudienceKind.ONE, AudienceKind.ALL)
             ],
             "sends": [
                 {

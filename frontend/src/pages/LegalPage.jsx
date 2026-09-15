@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import { getLegalPage } from "../api/legal";
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
@@ -35,7 +35,7 @@ export function LegalPage() {
 
   if (query.isPending) {
     return (
-      <div className="page-narrow legal-page">
+      <div className="legal-page public-editorial">
         <AsyncLoading>Loading…</AsyncLoading>
       </div>
     );
@@ -43,7 +43,7 @@ export function LegalPage() {
 
   if (query.isError) {
     return (
-      <div className="page-narrow legal-page">
+      <div className="legal-page public-editorial">
         <AsyncError error={query.error} onRetry={() => query.refetch()} />
       </div>
     );
@@ -52,10 +52,10 @@ export function LegalPage() {
   const page = query.data.data;
 
   return (
-    <div className="page-narrow legal-page">
+    <div className="legal-page public-editorial">
       <header className="page-head">
-        <p className="section-label">Weedout</p>
-        <h1>{page.title}</h1>
+        <p className="section-label">Weedout / Legal</p>
+        <h1>{page.title}</h1><nav className="legal-nav" aria-label="Legal documents"><Link to="/terms" aria-current={slug === "terms" ? "page" : undefined}>Terms of service</Link><Link to="/privacy" aria-current={slug === "privacy" ? "page" : undefined}>Privacy policy</Link></nav>
       </header>
 
       <article

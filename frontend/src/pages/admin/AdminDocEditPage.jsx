@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -47,10 +48,7 @@ function DocEditor({ page }) {
   }
 
   return (
-    <>
-      <div className="admin-head">
-        <h1>{page ? "Edit page" : "New page"}</h1>
-        <div className="btn-row">
+    <PageFrame className="operations-page operations-docedit" eyebrow="Weedout / Operations" title={page ? "Edit page" : "New page"} description="Edit the source and publication details." actions={<><div className="btn-row">
           {page?.published ? (
             <a
               className="button button--ghost"
@@ -64,8 +62,7 @@ function DocEditor({ page }) {
           <Link className="button button--ghost" to="/admin/docs">
             Back to docs
           </Link>
-        </div>
-      </div>
+        </div></>}>
 
       {save.isError ? (
         <div className="u-mb-5">
@@ -186,6 +183,6 @@ function DocEditor({ page }) {
           </Link>
         </div>
       </form>
-    </>
+    </PageFrame>
   );
 }

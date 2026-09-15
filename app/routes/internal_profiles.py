@@ -23,7 +23,6 @@ from app.services.profile_service import (
     set_default,
     update_profile,
 )
-from app.tiers import can_use_custom_rules
 
 router = APIRouter(prefix="/api/internal", tags=["internal-profiles"])
 
@@ -32,15 +31,6 @@ log = get_logger(__name__)
 
 def _fail(status_code: int, code: str, message: str) -> HTTPException:
     return HTTPException(status_code=status_code, detail={"code": code, "message": message})
-
-
-def _require_pro(user) -> None:
-    if not can_use_custom_rules(user.tier):
-        raise _fail(
-            status.HTTP_402_PAYMENT_REQUIRED,
-            "PRO_REQUIRED",
-            "Rule profiles are part of the Pro plan.",
-        )
 
 
 async def _owned(db, user, profile_id: int) -> RuleProfile:
@@ -108,15 +98,13 @@ async def profiles(response: Response, db: DbSession, user: CurrentInternalUser)
         "data": [_view(profile, used_by=counts.get(profile.id, 0)) for profile in rows],
         "meta": {
             "limit": MAX_PROFILES,
-            "can_use_profiles": can_use_custom_rules(user.tier),
+            "can_use_profiles": True,
         },
     }
 
 
 @router.post("/profiles", dependencies=[CsrfProtected])
 async def add_profile(db: DbSession, user: CurrentInternalUser, body: ProfileBody) -> dict:
-    _require_pro(user)
-
     try:
         profile = await create_profile(
             db,
@@ -136,7 +124,6 @@ async def add_profile(db: DbSession, user: CurrentInternalUser, body: ProfileBod
 async def edit_profile(
     db: DbSession, user: CurrentInternalUser, profile_id: int, body: ProfileBody
 ) -> dict:
-    _require_pro(user)
     profile = await _owned(db, user, profile_id)
 
     try:
@@ -158,7 +145,6 @@ async def edit_profile(
 @router.post("/profiles/{profile_id}/default", dependencies=[CsrfProtected])
 async def make_default(db: DbSession, user: CurrentInternalUser, profile_id: int) -> dict:
     """Apply this profile to every project that has not chosen its own."""
-    _require_pro(user)
     profile = await _owned(db, user, profile_id)
 
     await set_default(db, user.id, profile)
@@ -168,7 +154,6 @@ async def make_default(db: DbSession, user: CurrentInternalUser, profile_id: int
 
 @router.post("/profiles/{profile_id}/delete", dependencies=[CsrfProtected])
 async def remove_profile(db: DbSession, user: CurrentInternalUser, profile_id: int) -> dict:
-    _require_pro(user)
     profile = await _owned(db, user, profile_id)
 
     await delete_profile(db, profile)

@@ -287,7 +287,7 @@ class TestTheCache:
 
         assert await open_signals(db, target.id) == []
 
-    async def test_a_free_project_gets_none_of_it(self, db, user):
+    async def test_a_free_project_gets_supply_chain_context(self, db, user):
         import json
 
         from app.core.types import ManifestKind
@@ -310,7 +310,8 @@ class TestTheCache:
         await scan_target(db, target)
         await db.commit()
 
-        assert await open_signals(db, target.id) == []
+        kinds = {signal.kind for signal in await open_signals(db, target.id)}
+        assert kinds == {SignalKind.UNMAINTAINED, SignalKind.SINGLE_MAINTAINER}
 
 
 class TestTheJobLocks:

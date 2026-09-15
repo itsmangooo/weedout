@@ -92,7 +92,7 @@ async def settings(
     return {
         "data": {
             "email": user.email,
-            "tier": str(user.tier),
+            "tier": "free",
             "is_admin": user.is_admin,
             "email_alerts": user.email_alerts_enabled,
             "two_factor_enabled": user.two_factor_enabled,

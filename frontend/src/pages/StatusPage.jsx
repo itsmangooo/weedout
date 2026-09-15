@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, CircleAlert, HelpCircle } from "lucide-react";
+import { CheckCircle as CheckCircle2 } from "@phosphor-icons/react/CheckCircle";
+import { WarningCircle as CircleAlert } from "@phosphor-icons/react/WarningCircle";
+import { Question as HelpCircle } from "@phosphor-icons/react/Question";
 
 import { getStatus } from "../api/status";
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
@@ -56,7 +58,7 @@ export function StatusPage() {
 
   if (query.isPending) {
     return (
-      <div className="page-narrow status-page">
+      <div className="status-page">
         <AsyncLoading>Checking…</AsyncLoading>
       </div>
     );
@@ -64,7 +66,7 @@ export function StatusPage() {
 
   if (query.isError) {
     return (
-      <div className="page-narrow status-page">
+      <div className="status-page">
         <header className="page-head">
           <h1>Status</h1>
         </header>
@@ -82,7 +84,7 @@ export function StatusPage() {
   const Icon = state.icon;
 
   return (
-    <div className="page-narrow status-page">
+    <div className="status-page">
       <header className="page-head">
         <p className="section-label">weedout.dev</p>
         <h1>Status</h1>
@@ -95,6 +97,32 @@ export function StatusPage() {
           <p className="status-banner__detail">{state.detail}</p>
         </div>
       </div>
+
+      <section aria-labelledby="activity-heading" className="status-section">
+        <h2 id="activity-heading">Activity</h2>
+        <dl className="status-figures">
+          <div>
+            <dt>Scans in the last 24 hours</dt>
+            <dd>{status.scans_24h.toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>Advisories mirrored</dt>
+            <dd>{status.advisories.toLocaleString()}</dd>
+          </div>
+          {status.projects !== null && status.accounts !== null ? (
+            <>
+              <div>
+                <dt>Projects watched</dt>
+                <dd>{status.projects.toLocaleString()}</dd>
+              </div>
+              <div>
+                <dt>Accounts</dt>
+                <dd>{status.accounts.toLocaleString()}</dd>
+              </div>
+            </>
+          ) : null}
+        </dl>
+      </section>
 
       <section aria-labelledby="feeds-heading" className="status-section">
         <h2 id="feeds-heading">Advisory data</h2>
@@ -126,31 +154,6 @@ export function StatusPage() {
         </ul>
       </section>
 
-      <section aria-labelledby="activity-heading" className="status-section">
-        <h2 id="activity-heading">Activity</h2>
-        <dl className="status-figures">
-          <div>
-            <dt>Scans in the last 24 hours</dt>
-            <dd>{status.scans_24h.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Advisories mirrored</dt>
-            <dd>{status.advisories.toLocaleString()}</dd>
-          </div>
-          {status.projects !== null && status.accounts !== null ? (
-            <>
-              <div>
-                <dt>Projects watched</dt>
-                <dd>{status.projects.toLocaleString()}</dd>
-              </div>
-              <div>
-                <dt>Accounts</dt>
-                <dd>{status.accounts.toLocaleString()}</dd>
-              </div>
-            </>
-          ) : null}
-        </dl>
-      </section>
 
       <p className="status-caveat">
         Checked {relativeTime(status.checked_at)}, and cached for up to a minute.{" "}

@@ -1,4 +1,8 @@
-import { AlertTriangle, Clock3, LoaderCircle, LogIn, ShieldX } from "lucide-react";
+import { Warning as AlertTriangle } from "@phosphor-icons/react/Warning";
+import { Clock as Clock3 } from "@phosphor-icons/react/Clock";
+import { CircleNotch as LoaderCircle } from "@phosphor-icons/react/CircleNotch";
+import { SignIn as LogIn } from "@phosphor-icons/react/SignIn";
+import { ShieldSlash as ShieldX } from "@phosphor-icons/react/ShieldSlash";
 import { Link } from "react-router";
 
 import { PageTransition } from "../../../components/motion/PageTransition";
@@ -9,14 +13,14 @@ const COPY = {
   loading: {
     eyebrow: "Session check",
     title: "Checking your session",
-    notice: "Confirming your existing Weedout session with the Python backend.",
+    notice: "Confirming your existing Weedout session.",
     icon: LoaderCircle,
     tone: "neutral",
   },
   unauthenticated: {
     eyebrow: "Protected route",
     title: "Sign in to continue",
-    notice: "This React route needs a Weedout session. Sign-in remains on the existing server page.",
+    notice: "This page needs an active Weedout session.",
     icon: LogIn,
     tone: "neutral",
   },
@@ -37,7 +41,7 @@ const COPY = {
   unavailable: {
     eyebrow: "Session check failed",
     title: "Authentication is unavailable",
-    notice: "The frontend could not confirm your session. Your existing login has not been changed.",
+    notice: "Weedout could not confirm your session. Your existing login has not been changed.",
     icon: AlertTriangle,
     tone: "danger",
   },
@@ -61,9 +65,6 @@ export function AuthRouteState({ loginHref, onRetry, state }) {
               </a>
             ) : null}
             {state === "forbidden" ? (
-              // Their dashboard, not the boundary scaffold this used to point
-              // at: somebody refused from an admin URL wants the part of the
-              // product they do have, not a page about routing.
               <Link className="text-link" to="/dashboard">
                 Back to your dashboard
               </Link>
@@ -79,7 +80,7 @@ export function AuthRouteState({ loginHref, onRetry, state }) {
               <p>{content.notice}</p>
             </InlineNotice>
             <div className="auth-signal-flow" aria-hidden="true">
-              <span>browser cookie</span>
+              <span>session</span>
               <span>session check</span>
               <strong>{state}</strong>
             </div>

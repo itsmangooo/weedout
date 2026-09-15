@@ -1,4 +1,7 @@
-import { Download, PackageX } from "lucide-react";
+import { SectionIndex } from "../components/ui/SectionIndex";
+import { CliDemo } from "../features/landing/components/CliDemo";
+import { Download } from "@phosphor-icons/react/Download";
+import { Package as PackageX } from "@phosphor-icons/react/Package";
 import { useState } from "react";
 import { Link } from "react-router";
 
@@ -83,14 +86,19 @@ const MANAGE_COMMANDS = [
   ["weedout rules unignore ID", "Report it again."],
 ];
 
-/** Setting a machine up. Needs no key — `auth` is what produces one. */
+/** Setup and diagnostic commands, including the credential each one consumes. */
 const SETUP_COMMANDS = [
-  ["weedout auth", "Sign this machine in, by confirming a code in your browser."],
-  ["weedout create", "Make a project from this directory and save a key for it."],
-  ["weedout link", "Connect this directory to a project you already have."],
+  ["weedout auth", "Sign this machine in by browser confirmation; no credential is printed."],
+  ["weedout create [name]", "Use the machine credential to create a project and save its key."],
+  ["weedout link", "Use the machine credential to connect this directory to an existing project."],
+  [
+    "weedout init [path]",
+    "Write .weedout from WEEDOUT_API_KEY (recommended) or --api-key; never prompts or echoes it.",
+  ],
   ["weedout whoami", "Which account, and what this directory is linked to."],
   ["weedout key regenerate", "Replace this directory's key. The old one keeps working."],
   ["weedout logout", "Forget the credential here. --all drops project keys too."],
+  ["weedout version", "Print the version embedded in this packaged binary."],
 ];
 
 export function CliPage() {
@@ -103,23 +111,18 @@ export function CliPage() {
           <p className="eyebrow">Command line</p>
           <h1>The same answer, in your pipeline.</h1>
           <p className="cli-hero__lede">
-            One binary, no runtime to install, and nothing in its own dependency tree. It fails the
-            build on findings that are reachable or exploited, and stays quiet about the rest.
+            One binary, no runtime to install, and nothing in its own dependency tree. It reports
+            source-derived reachability evidence and, with --ci, fails only on the configured
+            blocking threshold or known exploitation.
           </p>
         </div>
 
-        <Transcript />
+        <div className="cli-hero__demo"><CliDemo /></div>
       </section>
 
-      {/* The numbered walk-through. Order and numbering live here, together,
-          so inserting a section cannot leave two of them called 04. */}
-      <Install step={1} />
-      <Setup step={2} />
-      <Rules step={3} />
-      <ExitCodes step={4} />
-      <Action step={5} />
-      <WithoutTheDashboard step={6} />
-
+      <div className="cli-reference"><SectionIndex label="CLI field guide" items={[["cli-install","Install"],["cli-setup","Connect a project"],["cli-exit","Exit behavior"],["cli-rules","Rules & policy"],["cli-action","CI workflow"],["cli-reference","Command reference"],["cli-downloads","Releases"]]} /><div className="cli-reference__body">
+      <div id="cli-install"><Install step={1} /></div><div id="cli-setup"><Setup step={2} /></div><div id="cli-exit"><ExitCodes step={3} /></div><div id="cli-rules"><Rules step={4} /></div><div id="cli-action"><Action step={5} /></div><div id="cli-reference"><WithoutTheDashboard step={6} /></div>
+      <div id="cli-downloads">
       {query.isPending ? <AsyncLoading>Checking the latest release…</AsyncLoading> : null}
       {query.isError ? (
         <AsyncError error={query.error} onRetry={() => query.refetch()} />
@@ -131,70 +134,7 @@ export function CliPage() {
           <Dependencies module={query.data.go_module} repo={query.data.repo} />
         </>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * One `weedout scan --ci` run, in the format the binary really prints.
- *
- * Marked `aria-hidden` and paired with a written summary: read aloud, a
- * terminal transcript is a stream of package names and numbers that means
- * nothing, and the sentence beneath it is the point of the whole panel.
- */
-function Transcript() {
-  return (
-    <figure className="transcript">
-      <div aria-hidden="true" className="transcript__frame">
-        <div className="transcript__bar">
-          <span className="transcript__dot" />
-          <span className="transcript__dot" />
-          <span className="transcript__dot" />
-          <span className="transcript__path">acme-storefront</span>
-        </div>
-
-        <pre className="transcript__body">
-          <span className="transcript__prompt">$</span> weedout scan --ci{"\n"}
-          {"\n"}
-          <b>acme-storefront</b> <span className="dim">package-lock.json</span>
-          {"\n"}
-          <span className="dim">1,284 dependencies scanned · 44 filtered out as noise</span>
-          {"\n\n"}
-          <span className="transcript__bad">1 exploited</span>
-          <span className="dim"> · </span>
-          <span className="transcript__bad">2 critical</span>
-          <span className="dim"> · </span>
-          <span className="transcript__warn">3 high</span>
-          {"\n\n"}
-          <span className="transcript__bad">▲</span> minimist@1.2.5{"  "}
-          <span className="dim">CVE-2026-5001</span>
-          {"  "}
-          <span className="transcript__good">→ 1.2.6</span>
-          {"\n"}
-          <span className="transcript__warn">•</span> express@4.18.1{"  "}
-          <span className="dim">CVE-2026-4912</span>
-          {"  "}
-          <span className="dim">no fix yet</span>
-          {"\n"}
-          <span className="transcript__warn">•</span> axios@1.3.2{"    "}
-          <span className="dim">CVE-2026-9821</span>
-          {"  "}
-          <span className="transcript__good">→ 1.6.8</span>
-          {"\n\n"}
-          <span className="transcript__bad">
-            Failing: 3 finding(s) at critical severity or confirmed exploitation.
-          </span>
-          {"\n\n"}
-          <span className="transcript__prompt">$</span> echo $?{"\n"}
-          <span className="transcript__bad">1</span>
-        </pre>
-      </div>
-
-      <figcaption className="transcript__caption">
-        A scan of 1,284 dependencies reports six findings and filters out 44. Three of them are at
-        or above the threshold, so the run exits 1 and the build stops.
-      </figcaption>
-    </figure>
+    </div></div></div></div>
   );
 }
 
@@ -327,7 +267,7 @@ Signed in as dev@example.com.`}</code>
       <div className="command-grid">
         <div>
           <p className="command-grid__label">
-            Set up <span className="dim">— no key needed; this is what makes one</span>
+            Set up and inspect <span className="dim">— each credential boundary is explicit</span>
           </p>
           <dl className="command-list">
             {SETUP_COMMANDS.map(([command, detail]) => (

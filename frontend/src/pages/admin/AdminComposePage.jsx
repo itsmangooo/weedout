@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { useState } from "react";
 
 import { previewCampaign, sendCampaign } from "../../api/admin";
@@ -63,10 +64,7 @@ export function AdminComposePage() {
   const failure = previewing.error || sending.error;
 
   return (
-    <>
-      <div className="admin-head">
-        <h1>Compose</h1>
-      </div>
+    <PageFrame className="operations-page operations-compose" eyebrow="Weedout / Operations" title={<> Compose </>} description="Write, resolve the audience, then confirm the send.">
 
       <div className="detail-grid">
         <div>
@@ -79,16 +77,6 @@ export function AdminComposePage() {
             </div>
           ) : null}
 
-          {preview ? (
-            <Confirmation
-              draft={draft}
-              onCancel={() => setPreview(null)}
-              onSend={() => sending.mutate()}
-              preview={preview}
-              sending={sending.isPending}
-              threshold={threshold}
-            />
-          ) : null}
 
           <div className={`card${preview ? " u-mt-4" : ""}`}>
             <h2 className="panel__title">{preview ? "Edit the message" : "Compose"}</h2>
@@ -180,11 +168,21 @@ export function AdminComposePage() {
           </div>
         </div>
 
-        <aside>
+        <aside>          {preview ? (
+            <Confirmation
+              draft={draft}
+              onCancel={() => setPreview(null)}
+              onSend={() => sending.mutate()}
+              preview={preview}
+              sending={sending.isPending}
+              threshold={threshold}
+            />
+          ) : null}
+
           <SendLog sends={sends} />
         </aside>
       </div>
-    </>
+    </PageFrame>
   );
 }
 

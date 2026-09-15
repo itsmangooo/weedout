@@ -201,13 +201,8 @@ class Settings(BaseSettings):
 
     # ---- Dodo Payments -----------------------------------------------------
     dodo_enabled: bool = False
-    dodo_environment: Literal["test", "live"] = "test"
-    #: Server-side only. Never rendered into a page.
-    dodo_api_key: str | None = None
     #: Standard Webhooks signing secret, usually prefixed `whsec_`.
     dodo_webhook_secret: str | None = None
-    #: The product customers buy for the Pro plan.
-    dodo_product_id_pro_monthly: str | None = None
 
     # ---- Administration -----------------------------------------------------
     #: The one account that may reach /admin. Promoted automatically the first
@@ -265,20 +260,8 @@ class Settings(BaseSettings):
         if self.email_backend == "resend" and not self.resend_api_key:
             raise ValueError("EMAIL_BACKEND=resend requires RESEND_API_KEY")
         if self.dodo_enabled:
-            missing = [
-                name
-                for name, value in (
-                    ("DODO_API_KEY", self.dodo_api_key),
-                    ("DODO_WEBHOOK_SECRET", self.dodo_webhook_secret),
-                    ("DODO_PRODUCT_ID_PRO_MONTHLY", self.dodo_product_id_pro_monthly),
-                )
-                if not value
-            ]
-            if missing:
-                # Fail at boot rather than at the first checkout: a billing
-                # integration that is half-configured looks fine until money is
-                # involved, which is the worst moment to discover it.
-                raise ValueError(f"DODO_ENABLED=true requires: {', '.join(missing)}")
+            if not self.dodo_webhook_secret:
+                raise ValueError("DODO_ENABLED=true requires: DODO_WEBHOOK_SECRET")
         return self
 
     @model_validator(mode="after")
@@ -378,19 +361,6 @@ class Settings(BaseSettings):
         if self.session_cookie_secure is not None:
             return self.session_cookie_secure
         return self.environment != "local"
-
-    @property
-    def dodo_checkout_base(self) -> str:
-        """Dodo's hosted checkout host for the configured environment.
-
-        Test and live are separate hostnames rather than a mode flag, so
-        pointing at the wrong one silently charges nobody (or charges someone
-        for real). Deriving it from `dodo_environment` keeps that decision in
-        one place instead of in a URL somebody pasted into a template.
-        """
-        if self.dodo_environment == "live":
-            return "https://checkout.dodopayments.com"
-        return "https://test.checkout.dodopayments.com"
 
     @property
     def sync_database_url(self) -> str:

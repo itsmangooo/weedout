@@ -7,7 +7,7 @@ Restraint is the feature. Three rules keep the mail volume honest:
   re-confirms yesterday's finding sends nothing.
 * One scan produces one digest per channel, not one message per CVE.
 
-Two channels exist: email, and a per-project Discord webhook on the Pro plan.
+Two channels exist: email, and a per-project Discord or custom webhook.
 They are delivered independently and recorded independently, so a broken
 webhook cannot stop the email carrying the same news. `notified_at` is set if
 *any* channel got through — the guard means "this person has been told", and a
@@ -27,7 +27,6 @@ from app.logging_config import get_logger
 from app.mail import EmailError, send_email
 from app.models import Alert, CVEMatch, TrackedTarget, User, VulnerabilityRecord, utcnow
 from app.services.discord_service import post_webhook
-from app.tiers import can_use_webhooks
 
 log = get_logger(__name__)
 
@@ -142,18 +141,8 @@ async def _deliver_discord(
     cve_by_vuln_id: dict[str, str],
     settings,
 ) -> bool:
-    """The Discord webhook, if this project has one and the plan allows it.
-
-    Tier is checked here rather than at the point the URL is saved, so a
-    subscription that lapses stops the posts without anybody having to remember
-    to clear the field — and starts them again on renewal without the user
-    re-entering a credential they already gave us.
-    """
+    """Send to the Discord webhook configured for this project, if any."""
     if not target.discord_webhook_url:
-        return False
-
-    if not can_use_webhooks(user.tier):
-        log.info("alert.discord_skipped_tier", user_id=user.id, target_id=target.id)
         return False
 
     findings = [

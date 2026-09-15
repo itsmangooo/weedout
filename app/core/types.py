@@ -120,6 +120,58 @@ class Reachability(StrEnum):
         }[self.value]
 
 
+class AutomatedReachability(StrEnum):
+    """What source analysis observed about a dependency.
+
+    This is deliberately separate from :class:`Reachability`, the older
+    manifest classification that says whether a package is direct,
+    transitive, or development-only.  Dependency position, severity and a
+    person's dismissal are not evidence that application code can reach a
+    package.
+
+    ``NOT_OBSERVED`` is intentionally narrower than "unreachable": it means a
+    complete scan of the supplied source set found no supported import form.
+    ``UNKNOWN`` is used whenever the source set or dependency path cannot be
+    analysed safely.
+    """
+
+    REACHABLE = "reachable"
+    POTENTIALLY_REACHABLE = "potentially_reachable"
+    NOT_OBSERVED = "not_observed"
+    UNKNOWN = "unknown"
+
+    @property
+    def label(self) -> str:
+        return {
+            "reachable": "Reachable",
+            "potentially_reachable": "Potentially reachable",
+            "not_observed": "Not observed in source",
+            "unknown": "Reachability unknown",
+        }[self.value]
+
+
+@dataclass(frozen=True, slots=True)
+class ReachabilityEvidence:
+    """One inspectable reason for an automated reachability result."""
+
+    source_file: str
+    line: int | None
+    import_kind: str
+    imported_package: str
+    dependency_path: tuple[str, ...]
+    explanation: str
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "source_file": self.source_file,
+            "line": self.line,
+            "import_kind": self.import_kind,
+            "imported_package": self.imported_package,
+            "dependency_path": list(self.dependency_path),
+            "explanation": self.explanation,
+        }
+
+
 class Severity(StrEnum):
     """Normalised severity ladder.
 
@@ -261,6 +313,7 @@ class SuppressionReason(StrEnum):
 
 class AlertStatus(StrEnum):
     OPEN = "open"
+    FILTERED = "filtered"
     DISMISSED = "dismissed"
     RESOLVED = "resolved"
 
@@ -408,16 +461,12 @@ class AudienceKind(StrEnum):
     """Who a manual admin send goes to."""
 
     ALL = "all"
-    PRO = "pro"
-    FREE = "free"
     ONE = "one"
 
     @property
     def label(self) -> str:
         return {
             AudienceKind.ALL: "Every user",
-            AudienceKind.PRO: "Pro users",
-            AudienceKind.FREE: "Free users",
             AudienceKind.ONE: "One address",
         }[self]
 
@@ -441,6 +490,15 @@ class Dependency:
     version_spec: str
     reachability: Reachability
     version_exact: bool = True
+
+    #: Source-derived reachability. This never inherits its value from
+    #: severity, direct/transitive position, or the user's triage choices.
+    automated_reachability: AutomatedReachability = AutomatedReachability.UNKNOWN
+
+    #: Concrete source/dependency evidence for the state above. Empty for
+    #: ``not_observed`` and ``unknown``; those states are explained by the
+    #: analysis notes carried on the scan result instead.
+    reachability_evidence: tuple[ReachabilityEvidence, ...] = ()
 
     #: How far from the project this package sits. 0 is something the project
     #: declares itself; 1 is a dependency of one of those, and so on.
@@ -611,7 +669,7 @@ class ScanResult:
     #: Counted and reported rather than quietly dropped. "Not checked" and
     #: "checked and found nothing" must never look the same coming out of a
     #: security tool -- the same rule as exit code 2 in the CLI. It is also the
-    #: number that makes the Free/Pro difference honest rather than invisible.
+    #: Stored relationship depth, kept separate from automated reachability.
     unreached_by_depth: int = 0
 
     @property

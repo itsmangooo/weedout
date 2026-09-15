@@ -1,4 +1,4 @@
-import { MonitorSmartphone } from "lucide-react";
+import { Devices as MonitorSmartphone } from "@phosphor-icons/react/Devices";
 
 import { revokeOtherSessions, revokeSession } from "../../../api/settings";
 import { Button } from "../../../components/ui/Button";

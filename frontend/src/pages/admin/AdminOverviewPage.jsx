@@ -1,3 +1,4 @@
+import { PageFrame } from "../../components/ui/PageFrame";
 import { Link, useSearchParams } from "react-router";
 
 import { AsyncError, AsyncLoading } from "../../components/feedback/AsyncState";
@@ -18,14 +19,11 @@ export function AdminOverviewPage() {
   const { metrics, feeds, signups, chart_days: chartDays } = query.data;
 
   return (
-    <>
-      <div className="admin-head">
-        <h1>Overview</h1>
-      </div>
+    <PageFrame className="operations-page operations-overview" eyebrow="Weedout / Operations" title={<> Overview </>} description="Platform activity, advisory freshness and accounts in one operational view.">
 
       <FeedHealth feeds={feeds} />
-      <FeedDetail feeds={feeds} />
       <Platform metrics={metrics} />
+      <div className="operations-overview-columns"><FeedDetail feeds={feeds} />
 
       <section aria-labelledby="signups-heading" className="section-gap">
         <div className="card">
@@ -54,7 +52,7 @@ export function AdminOverviewPage() {
           <SignupChart days={chartDays} points={signups} />
         </div>
       </section>
-    </>
+    </div></PageFrame>
   );
 }
 
@@ -140,46 +138,7 @@ function FeedHealth({ feeds }) {
 
 /** Only worth reading once the state above says something is wrong. */
 function FeedDetail({ feeds }) {
-  return (
-    <section aria-labelledby="feed-detail-heading" className="section-gap">
-      <h2 className="eyebrow" id="feed-detail-heading">
-        Sources
-      </h2>
-      <div className="feed-grid">
-        {feeds.map((feed) => (
-          <div className={`feed feed--${feed.status.replace(/ /g, "-")}`} key={feed.name}>
-            <div className="feed__top">
-              <span className="feed__name">{feed.label}</span>
-              <span className="feed__status">{feed.status}</span>
-            </div>
-            <dl className="datalist datalist--tight">
-              <dt>Last success</dt>
-              <dd>{relativeTime(feed.last_success_at) || "never"}</dd>
-              {feed.last_attempt_at ? (
-                <>
-                  <dt>Last attempt</dt>
-                  <dd>{relativeTime(feed.last_attempt_at)}</dd>
-                </>
-              ) : null}
-              {feed.record_count ? (
-                <>
-                  <dt>Records</dt>
-                  <dd className="num">{feed.record_count.toLocaleString()}</dd>
-                </>
-              ) : null}
-              {feed.catalog_version ? (
-                <>
-                  <dt>Version</dt>
-                  <dd className="mono">{feed.catalog_version}</dd>
-                </>
-              ) : null}
-            </dl>
-            <FeedProblem feed={feed} />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+ return <section aria-labelledby="feed-detail-heading" className="section-gap"><h2 id="feed-detail-heading">Advisory sources</h2><div className="table-scroll"><table className="data-table feed-table"><thead><tr><th scope="col">Source</th><th scope="col">State</th><th scope="col">Latest sync / records</th></tr></thead><tbody>{feeds.map((feed) => <tr key={feed.name}><th scope="row">{feed.label}</th><td><span className={`feed__status feed--${feed.status.replace(/ /g,"-")}`}>{feed.status}</span></td><td><p>{relativeTime(feed.last_success_at) || "never"}</p>{feed.record_count != null && <p className="mono muted">{feed.record_count.toLocaleString()} records</p>}{feed.catalog_version && <p className="mono muted">{feed.catalog_version}</p>}{feed.last_attempt_at && <small className="muted">Attempted {relativeTime(feed.last_attempt_at)}</small>}<FeedProblem feed={feed} /></td></tr>)}</tbody></table></div></section>;
 }
 
 function FeedProblem({ feed }) {
@@ -212,14 +171,8 @@ function Platform({ metrics }) {
       <div className="stat-grid">
         <Stat
           label="Users"
-          note={`${metrics.free_users} free · ${metrics.paid_users} paid`}
-          value={metrics.total_users}
-        />
-        <Stat
-          label="Paid share"
           note={`${metrics.new_users_7d} new this week`}
-          unit="%"
-          value={metrics.paid_share}
+          value={metrics.total_users}
         />
         <Stat
           label="Projects"

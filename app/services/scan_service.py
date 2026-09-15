@@ -11,13 +11,14 @@
 Reconciliation is the part that keeps the product calm. A scan does not produce
 "the alerts"; it produces the current truth, which is then diffed against
 stored findings. A match already seen keeps its identity and its dismissal.
-A match that has disappeared — because the user upgraded — is marked resolved
-rather than deleted, so the history survives. Only genuinely new actionable
+A match that has disappeared after the dependency tree changes is marked
+resolved rather than deleted, so the history survives. Only genuinely new actionable
 findings generate an email.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field, replace
 from datetime import timedelta
 
@@ -28,7 +29,8 @@ from sqlalchemy.orm import selectinload
 from app.config import get_settings
 from app.core.manifests import ManifestParseError, parse_manifest
 from app.core.matching import DEFAULT_POLICY, MatchPolicy, triage_all
-from app.core.types import AlertStatus, Dependency, ScanResult, Verdict
+from app.core.reachability import SourceBundle, analyze_node_reachability
+from app.core.types import AlertStatus, AutomatedReachability, Dependency, ScanResult, Verdict
 from app.logging_config import get_logger
 from app.models import (
     CVEMatch,
@@ -47,7 +49,7 @@ from app.services.mirror_service import (
 )
 from app.services.rules_service import build_policy, record_overrides
 from app.services.supply_chain_service import reconcile_signals
-from app.tiers import can_use_custom_rules, scan_interval_for
+from app.tiers import scan_interval_for
 
 log = get_logger(__name__)
 
@@ -83,6 +85,10 @@ class ScanOutcome:
     resolved_count: int = 0
     errors: list[str] = field(default_factory=list)
     failed: bool = False
+    reachability_counts: dict[str, int] = field(default_factory=dict)
+    reachability_analysis_complete: bool = False
+    reachability_source_count: int = 0
+    reachability_notes: list[str] = field(default_factory=list)
 
 
 async def scan_target(
@@ -91,6 +97,7 @@ async def scan_target(
     policy: MatchPolicy = DEFAULT_POLICY,
     *,
     requested_profile: str | None = None,
+    source_bundle: SourceBundle | None = None,
 ) -> ScanOutcome:
     """Scan one target and reconcile the results into stored findings.
 
@@ -116,8 +123,7 @@ async def scan_target(
 
     # Depth, thresholds and ignore rules, assembled from the plan, the
     # project's settings and any .weedout.yml the pipeline pushed. Derived here
-    # rather than stored, so a lapsed subscription stops honouring Pro rules on
-    # the next scan without anybody editing a row.
+    # rather than stored so the current policy is always authoritative.
     effective = await build_policy(
         db, target, owner, base=policy, requested_profile=requested_profile
     )
@@ -145,7 +151,9 @@ async def scan_target(
                 "This project has no manifest yet. Upload one, or push a scan with "
                 "the CLI using an API key for this project."
             )
-        result = await _scan_every_manifest(db, target, manifests, policy)
+        result = await _scan_every_manifest(
+            db, target, manifests, policy, source_bundle=source_bundle
+        )
     except NoManifest as exc:
         # Not a failure: this is what a project looks like between being created
         # and receiving its first file. The run row is discarded rather than
@@ -188,16 +196,22 @@ async def scan_target(
 
     scan_result, dependencies, new_matches, resolved_count = result
 
-    # Supply-chain signals are Pro-only and separate from CVE matching. Gated
-    # here rather than inside the assessment so that a lapsed subscription
-    # stops raising them without deleting the ones already on the project --
-    # the same shape as every other tier check.
-    if can_use_custom_rules(tier):
-        await reconcile_signals(db, target, dependencies)
+    await reconcile_signals(db, target, dependencies)
 
     target.dependency_count = len(dependencies)
     target.unreached_by_depth = scan_result.unreached_by_depth
     target.last_scanned_at = utcnow()
+    if source_bundle is not None:
+        reachability_notes = _reachability_notes(scan_result.errors)
+        reachability_complete = source_bundle.complete and all(
+            dependency.automated_reachability is not AutomatedReachability.UNKNOWN
+            for dependency in dependencies
+            if dependency.ecosystem.value == "npm"
+        )
+        target.reachability_analyzed_at = utcnow()
+        target.reachability_source_count = len(source_bundle.files)
+        target.reachability_analysis_complete = reachability_complete
+        target.reachability_analysis_notes = reachability_notes
     # A rule that did not apply is reported, not swallowed. The risk of this
     # whole feature is somebody believing a rule is in force when it is not.
     if effective.notes:
@@ -238,6 +252,13 @@ async def scan_target(
     outcome.new_matches = new_matches
     outcome.resolved_count = resolved_count
     outcome.errors = list(scan_result.errors)
+    outcome.reachability_counts = dict(
+        Counter(str(dep.automated_reachability) for dep in dependencies)
+    )
+    if source_bundle is not None:
+        outcome.reachability_analysis_complete = target.reachability_analysis_complete
+        outcome.reachability_source_count = target.reachability_source_count
+        outcome.reachability_notes = list(target.reachability_analysis_notes)
 
     log.info(
         "scan.completed",
@@ -251,11 +272,22 @@ async def scan_target(
     return outcome
 
 
+def _reachability_notes(errors: tuple[str, ...]) -> list[str]:
+    """Keep source-analysis qualifications separate from advisory warnings."""
+    markers = ("source", "import", "require", "reachability")
+    return list(
+        dict.fromkeys(
+            error for error in errors if any(marker in error.lower() for marker in markers)
+        )
+    )[:50]
+
+
 async def _run_pipeline(
     db: AsyncSession,
     target: TrackedTarget,
     manifest: ProjectManifest,
     policy: MatchPolicy,
+    source_bundle: SourceBundle | None,
 ) -> tuple[ScanResult, list[Dependency]]:
     """Parse one manifest, look up advisories locally, triage.
 
@@ -265,6 +297,11 @@ async def _run_pipeline(
     """
     parsed = parse_manifest(manifest.kind, manifest.content)
     dependencies = parsed.dependencies
+    reachability_notes: tuple[str, ...] = ()
+    if source_bundle is not None:
+        dependencies, reachability_notes = analyze_node_reachability(dependencies, source_bundle)
+    else:
+        dependencies = await _carry_forward_reachability(db, manifest, dependencies)
 
     manifest.parse_warnings = parsed.warnings[:50]
     manifest.dependency_count = len(dependencies)
@@ -274,9 +311,15 @@ async def _run_pipeline(
     await _sync_dependency_rows(db, target, manifest, dependencies)
 
     if not dependencies:
-        return ScanResult(dependencies_scanned=0, errors=tuple(parsed.warnings[:5])), []
+        return (
+            ScanResult(
+                dependencies_scanned=0,
+                errors=(*parsed.warnings[:5], *reachability_notes[:5]),
+            ),
+            [],
+        )
 
-    errors: list[str] = []
+    errors: list[str] = list(reachability_notes)
 
     # An empty mirror would report every project clean — the most dangerous
     # wrong answer this system can give. Refuse rather than reassure.
@@ -328,6 +371,8 @@ async def _scan_every_manifest(
     target: TrackedTarget,
     manifests: list[ProjectManifest],
     policy: MatchPolicy,
+    *,
+    source_bundle: SourceBundle | None,
 ) -> tuple[ScanResult, list[Dependency], list[CVEMatch], int]:
     """Scan each file and add the answers up.
 
@@ -348,7 +393,7 @@ async def _scan_every_manifest(
 
     for manifest in manifests:
         try:
-            result, deps = await _run_pipeline(db, target, manifest, policy)
+            result, deps = await _run_pipeline(db, target, manifest, policy, source_bundle)
         except ManifestParseError as exc:
             message = f"{manifest.path}: could not parse ({exc})"
             manifest.last_parse_error = str(exc)[:500]
@@ -421,12 +466,62 @@ async def _sync_dependency_rows(
                 version=dep.version,
                 version_spec=dep.version_spec[:200],
                 reachability=dep.reachability,
+                automated_reachability=dep.automated_reachability,
+                reachability_evidence=[item.as_dict() for item in dep.reachability_evidence],
                 version_exact=dep.version_exact,
                 depth=dep.depth,
                 via=list(dep.via),
             )
         )
     await db.flush()
+
+
+async def _carry_forward_reachability(
+    db: AsyncSession, manifest: ProjectManifest, dependencies: list[Dependency]
+) -> list[Dependency]:
+    """Reuse the last source pass when a scheduled scan has no source upload.
+
+    Weedout intentionally does not retain raw project source. Scheduled and
+    dashboard-triggered checks therefore reuse the last bounded evidence for
+    an unchanged dependency identity. An explicit API scan without source
+    passes an incomplete :class:`SourceBundle` instead and resets conclusions
+    to ``unknown``; it never silently turns missing analysis into
+    ``not_observed``.
+    """
+    rows = (
+        await db.scalars(
+            select(DependencyRecord).where(DependencyRecord.manifest_id == manifest.id)
+        )
+    ).all()
+    stored = {(row.ecosystem, row.name, row.version): row for row in rows}
+    hydrated: list[Dependency] = []
+    from app.core.types import ReachabilityEvidence
+
+    for dependency in dependencies:
+        row = stored.get((dependency.ecosystem, dependency.name, dependency.version))
+        if row is None:
+            hydrated.append(dependency)
+            continue
+        evidence = tuple(
+            ReachabilityEvidence(
+                source_file=str(item.get("source_file") or ""),
+                line=item.get("line") if isinstance(item.get("line"), int) else None,
+                import_kind=str(item.get("import_kind") or "import"),
+                imported_package=str(item.get("imported_package") or ""),
+                dependency_path=tuple(str(part) for part in item.get("dependency_path") or []),
+                explanation=str(item.get("explanation") or ""),
+            )
+            for item in (row.reachability_evidence or [])
+            if isinstance(item, dict)
+        )
+        hydrated.append(
+            replace(
+                dependency,
+                automated_reachability=row.automated_reachability,
+                reachability_evidence=evidence,
+            )
+        )
+    return hydrated
 
 
 async def _reconcile_matches(
@@ -469,6 +564,10 @@ async def _reconcile_matches(
                 version_spec=decision.dependency.version_spec[:200],
                 version_exact=decision.dependency.version_exact,
                 reachability=decision.dependency.reachability,
+                automated_reachability=decision.dependency.automated_reachability,
+                reachability_evidence=[
+                    item.as_dict() for item in decision.dependency.reachability_evidence
+                ],
                 depth=decision.dependency.depth,
                 via=list(decision.dependency.via),
                 ignore_overridden=decision.ignore_overridden,
@@ -480,7 +579,11 @@ async def _reconcile_matches(
                 fixed_version=decision.fixed_version,
                 actionable_reason=decision.actionable_reason,
                 suppression_reason=decision.suppression_reason,
-                status=AlertStatus.OPEN,
+                status=(
+                    AlertStatus.OPEN
+                    if decision.verdict is Verdict.ACTIONABLE
+                    else AlertStatus.FILTERED
+                ),
                 first_seen_at=now,
                 last_seen_at=now,
             )
@@ -502,7 +605,11 @@ async def _reconcile_matches(
         existing.actionable_reason = decision.actionable_reason
         existing.suppression_reason = decision.suppression_reason
         existing.reachability = decision.dependency.reachability
-        # The tree can be reshaped by an upgrade without the finding changing
+        existing.automated_reachability = decision.dependency.automated_reachability
+        existing.reachability_evidence = [
+            item.as_dict() for item in decision.dependency.reachability_evidence
+        ]
+        # The tree can be reshaped by a dependency update without the finding changing
         # identity, so the route to it is refreshed alongside everything else.
         existing.depth = decision.dependency.depth
         existing.via = list(decision.dependency.via)
@@ -512,8 +619,15 @@ async def _reconcile_matches(
         existing.epss_score = decision.epss_score
         existing.epss_percentile = decision.epss_percentile
 
-        if existing.status is AlertStatus.RESOLVED:
-            # It came back (a downgrade, or a manifest revert).
+        if decision.verdict is Verdict.SUPPRESSED:
+            # Automated filtering is a logical state, not an OPEN finding with
+            # a quieter badge. Preserve a person's dismissal separately; every
+            # other currently-matched suppressed row is filtered.
+            if existing.status is not AlertStatus.DISMISSED:
+                existing.status = AlertStatus.FILTERED
+            existing.resolved_at = None
+        elif existing.status in (AlertStatus.RESOLVED, AlertStatus.FILTERED):
+            # It came back or became actionable after previously being noise.
             existing.status = AlertStatus.OPEN
             existing.resolved_at = None
             existing.notified_at = None
@@ -521,7 +635,7 @@ async def _reconcile_matches(
         # Two cases deserve a notification even though the row is not new:
         # a suppressed finding promoted to actionable (how a CVE landing on the
         # KEV list reaches the user), and a resolved finding that has come back
-        # (a downgrade, or a reverted upgrade). Both are news.
+        # (for example, after a reverted dependency update). Both are news.
         if (
             (was_suppressed or was_resolved)
             and decision.verdict is Verdict.ACTIONABLE

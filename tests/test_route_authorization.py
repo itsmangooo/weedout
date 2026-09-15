@@ -102,6 +102,10 @@ PUBLIC_ROUTES: dict[str, str] = {
         "is a documented address that has to work before anyone has an account, "
         "and the file is a static asset with no user data in it."
     ),
+    "/install.ps1": (
+        "the Windows install script. `irm https://weedout.dev/install.ps1 | iex` "
+        "must work before sign-in, and the file contains no user data."
+    ),
     "/docs": "public documentation index",
     "/docs/{slug}": "public documentation page",
     "/targets/new": (
@@ -115,12 +119,8 @@ PUBLIC_ROUTES: dict[str, str] = {
         "either way, and the API is what refuses."
     ),
     "/contact": "the static React shell for the contact form",
-    "/billing": "the static React shell; the plan itself comes from the API",
-    "/billing/success": (
-        "where Dodo returns somebody after checkout. Served to anyone, "
-        "because the shell holds nothing — what it shows comes from the API, "
-        "which is session-guarded."
-    ),
+    "/billing": "a compatibility redirect to settings; it exposes no account data",
+    "/billing/success": "a compatibility redirect retained for old provider return links",
     "/cli-auth": (
         "the static React shell, reached by opening a URL printed in a terminal. "
         "Nothing about the account is in it, and the endpoints behind it that "
@@ -277,7 +277,6 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/projects/{target_id}/webhook/remove": "internal_user",
     "/api/internal/alerts/{match_id}": "internal_user",
     "/api/internal/alerts/{match_id}/status": "internal_user",
-    "/api/internal/billing": "internal_user",
     "/api/internal/settings": "internal_user",
     "/api/internal/settings/organisation": "internal_user",
     "/api/internal/settings/showcase": "internal_user",
@@ -297,7 +296,6 @@ INTERNAL_SESSION_ROUTES = {
     "/api/internal/admin/overview": "internal_admin",
     "/api/internal/admin/users": "internal_admin",
     "/api/internal/admin/users/{user_id}": "internal_admin",
-    "/api/internal/admin/users/{user_id}/tier": "internal_admin",
     "/api/internal/admin/users/{user_id}/showcase": "internal_admin",
     "/api/internal/admin/users/{user_id}/suspend": "internal_admin",
     "/api/internal/admin/users/{user_id}/unsuspend": "internal_admin",

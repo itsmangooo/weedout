@@ -58,7 +58,9 @@ async def findings(
             installed_version=match.package_version,
             severity=match.severity,
             is_exploited=match.is_kev,
-            reachability=match.reachability,
+            reachability=match.automated_reachability,
+            reachability_evidence=list(match.reachability_evidence or []),
+            dependency_relationship=match.reachability,
             status=match.status,
             detected_at=match.first_seen_at,
         )

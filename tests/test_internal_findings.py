@@ -42,7 +42,7 @@ async def add_finding(
     is_exploited: bool = False,
     reachability: Reachability = Reachability.RUNTIME_DIRECT,
     verdict: Verdict = Verdict.ACTIONABLE,
-    status: AlertStatus = AlertStatus.OPEN,
+    status: AlertStatus | None = None,
     detected_at: datetime | None = None,
 ) -> CVEMatch:
     vulnerability_id = f"OSV-{identifier}"
@@ -75,7 +75,8 @@ async def add_finding(
         suppression_reason=(
             SuppressionReason.BELOW_SEVERITY_THRESHOLD if verdict is Verdict.SUPPRESSED else None
         ),
-        status=status,
+        status=status
+        or (AlertStatus.FILTERED if verdict is Verdict.SUPPRESSED else AlertStatus.OPEN),
         first_seen_at=detected_at or datetime(2026, 8, 20, 18, 30, tzinfo=UTC),
     )
     db.add(match)
@@ -267,7 +268,9 @@ class TestInternalFindingReads:
             "installed_version": "1.2.5",
             "severity": "critical",
             "is_exploited": True,
-            "reachability": "runtime_transitive",
+            "dependency_relationship": "runtime_transitive",
+            "reachability": "unknown",
+            "reachability_evidence": [],
             "status": "open",
             "detected_at": "2026-08-20T18:30:00Z",
         }
@@ -279,7 +282,9 @@ class TestInternalFindingReads:
             "installed_version",
             "severity",
             "is_exploited",
+            "dependency_relationship",
             "reachability",
+            "reachability_evidence",
             "status",
             "detected_at",
         }
@@ -299,12 +304,7 @@ class TestInternalFindingReads:
 
 
 class TestTheRetentionWindow:
-    """`history_days` was on the plan table and enforced nowhere.
-
-    The pricing page sold a longer archive as part of Pro while every Free
-    account already had one, which is the direction of pricing error that costs
-    money rather than trust. These pin the fix.
-    """
+    """Archived findings use the single Free plan's 365-day window."""
 
     async def _archive(self, db, owner, *, age_days: int, status: AlertStatus):
         from app.models import utcnow
@@ -333,12 +333,12 @@ class TestTheRetentionWindow:
         assert response.status_code == 200
         return [finding["id"] for finding in response.json()["data"]]
 
-    async def test_a_free_account_sees_the_last_thirty_days_only(self, auth_client, db, user):
+    async def test_a_free_account_sees_the_full_year(self, auth_client, db, user):
         recent = await self._archive(db, user, age_days=3, status=AlertStatus.RESOLVED)
-        await self._archive(db, user, age_days=90, status=AlertStatus.RESOLVED)
+        older = await self._archive(db, user, age_days=90, status=AlertStatus.RESOLVED)
         await db.commit()
 
-        assert await self._ids(auth_client, "resolved") == [recent.id]
+        assert sorted(await self._ids(auth_client, "resolved")) == sorted([recent.id, older.id])
 
     async def test_a_pro_account_sees_the_same_finding(self, pro_client, db, pro_user):
         """The negative above is only a plan limit if Pro reaches further."""
@@ -357,12 +357,12 @@ class TestTheRetentionWindow:
 
         assert await self._ids(pro_client, "resolved") == []
 
-    async def test_dismissed_findings_age_out_the_same_way(self, auth_client, db, user):
+    async def test_dismissed_findings_share_the_year_window(self, auth_client, db, user):
         recent = await self._archive(db, user, age_days=3, status=AlertStatus.DISMISSED)
-        await self._archive(db, user, age_days=90, status=AlertStatus.DISMISSED)
+        older = await self._archive(db, user, age_days=90, status=AlertStatus.DISMISSED)
         await db.commit()
 
-        assert await self._ids(auth_client, "dismissed") == [recent.id]
+        assert sorted(await self._ids(auth_client, "dismissed")) == sorted([recent.id, older.id])
 
     async def test_open_findings_are_never_trimmed_by_plan(self, auth_client, db, user):
         """The line that matters most here. An open finding is a live
@@ -408,7 +408,7 @@ class TestTheRetentionWindow:
         """
         body = (await auth_client.get("/api/internal/findings?show=resolved")).json()
 
-        assert body["meta"]["history_days"] == 30
+        assert body["meta"]["history_days"] == 365
 
     async def test_pro_reports_its_own(self, pro_client):
         body = (await pro_client.get("/api/internal/findings?show=resolved")).json()

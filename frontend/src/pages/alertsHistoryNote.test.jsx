@@ -67,17 +67,17 @@ afterEach(() => {
 });
 
 describe("the retention window on the findings archive", () => {
-  it("tells a Free account how far back the tab reaches, and what changes it", async () => {
-    renderResolvedTab({ historyDays: 30 });
+  it("tells a Free account how far back the archive reaches", async () => {
+    renderResolvedTab({ historyDays: 365 });
 
-    expect(await screen.findByText("Showing the past 30 days. Pro keeps a year.")).toBeVisible();
+    expect(await screen.findByText("Showing the past year.")).toBeVisible();
   });
 
-  it("names the window on Pro without an upsell", async () => {
+  it("normalizes a legacy paid account to the same archive window", async () => {
     renderResolvedTab({ historyDays: 365, tier: "pro" });
 
     expect(await screen.findByText("Showing the past year.")).toBeVisible();
-    expect(screen.queryByText(/Pro keeps/)).toBeNull();
+    expect(screen.queryByText(/upgrade|paid plan/i)).toBeNull();
   });
 
   it("says nothing on the tabs that are not trimmed", async () => {

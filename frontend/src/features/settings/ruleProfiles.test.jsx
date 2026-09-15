@@ -57,11 +57,11 @@ afterEach(() => {
 });
 
 describe("rule profiles", () => {
-  it("offers the plan rather than a broken control on Free", () => {
+  it("keeps profile controls available on Free", () => {
     renderProfiles({ meta: { can_use_profiles: false } });
 
-    expect(screen.getByText(/part of the Pro plan/i)).toBeVisible();
-    expect(screen.queryByLabelText("New profile")).toBeNull();
+    expect(screen.getByLabelText("New profile")).toBeVisible();
+    expect(screen.queryByText(/paid plan/i)).toBeNull();
   });
 
   it("says what an account with no profiles is running", () => {

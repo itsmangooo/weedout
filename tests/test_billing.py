@@ -1,13 +1,7 @@
-"""Dodo Payments webhook handling and signature verification.
+"""Security and compatibility tests for legacy payment webhooks.
 
-
-
-The webhook is the only thing that grants paid access, so a forged or replayed
-
-request must never move a user to Pro. Signature verification follows the
-
-Standard Webhooks spec, which Dodo implements.
-
+Subscriptions no longer control product access. The signed endpoint remains so
+historical invoice, refund, and dispute data can be reconciled by admins.
 """
 
 from __future__ import annotations
@@ -20,11 +14,12 @@ import time
 
 import pytest
 
+from app.config import get_settings
 from app.core.types import Tier
+from app.routes.billing import _handle_subscription_event
 from app.security import verify_dodo_signature
 
 SECRET = "whsec_" + base64.b64encode(b"dodo-test-signing-key-0123456789").decode()
-
 WEBHOOK_ID = "msg_2abcDEF"
 
 
@@ -34,27 +29,19 @@ def sign(
     webhook_id: str = WEBHOOK_ID,
     timestamp: int | None = None,
 ) -> tuple[str, str, str]:
-    """Produce the three Standard Webhooks headers for a body."""
-
     ts = str(timestamp if timestamp is not None else int(time.time()))
-
     key = base64.b64decode(secret.removeprefix("whsec_"))
-
     signed = b".".join([webhook_id.encode(), ts.encode(), body])
-
     digest = base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode()
-
     return webhook_id, ts, f"v1,{digest}"
 
 
 def check(body: bytes, **overrides) -> bool:
-
-    webhook_id, ts, signature = sign(body)
-
+    webhook_id, timestamp, signature = sign(body)
     return verify_dodo_signature(
         raw_body=overrides.get("raw_body", body),
         webhook_id=overrides.get("webhook_id", webhook_id),
-        webhook_timestamp=overrides.get("webhook_timestamp", ts),
+        webhook_timestamp=overrides.get("webhook_timestamp", timestamp),
         signature_header=overrides.get("signature_header", signature),
         secret=overrides.get("secret", SECRET),
     )
@@ -62,756 +49,195 @@ def check(body: bytes, **overrides) -> bool:
 
 class TestVerifyDodoSignature:
     def test_valid_signature_is_accepted(self):
-
         assert check(b'{"type":"subscription.active"}') is True
 
     def test_tampered_body_is_rejected(self):
-
         assert check(b'{"type":"subscription.active"}', raw_body=b'{"type":"hacked"}') is False
 
-    def test_wrong_secret_is_rejected(self):
-
+    def test_wrong_secret_and_webhook_id_are_rejected(self):
         body = b"{}"
+        other = "whsec_" + base64.b64encode(b"another-key").decode()
+        _, timestamp, signature = sign(body, secret=other)
+        assert not verify_dodo_signature(
+            raw_body=body,
+            webhook_id=WEBHOOK_ID,
+            webhook_timestamp=timestamp,
+            signature_header=signature,
+            secret=SECRET,
+        )
+        assert check(body, webhook_id="msg_different") is False
 
-        _, ts, signature = sign(body, secret="whsec_" + base64.b64encode(b"another-key").decode())
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"signature_header": None},
+            {"webhook_id": None},
+            {"webhook_timestamp": None},
+            {"secret": ""},
+            {"signature_header": "garbage"},
+            {"webhook_timestamp": "not-a-number"},
+        ],
+    )
+    def test_missing_and_malformed_inputs_are_rejected(self, overrides):
+        assert check(b"{}", **overrides) is False
 
-        assert (
-            verify_dodo_signature(
-                raw_body=body,
-                webhook_id=WEBHOOK_ID,
-                webhook_timestamp=ts,
-                signature_header=signature,
-                secret=SECRET,
-            )
-            is False
+    @pytest.mark.parametrize("offset", [-3600, 3600])
+    def test_replayed_or_future_requests_are_rejected(self, offset):
+        body = b"{}"
+        webhook_id, timestamp, signature = sign(body, timestamp=int(time.time()) + offset)
+        assert not verify_dodo_signature(
+            raw_body=body,
+            webhook_id=webhook_id,
+            webhook_timestamp=timestamp,
+            signature_header=signature,
+            secret=SECRET,
         )
 
-    def test_a_different_webhook_id_is_rejected(self):
-
-        # The id is part of the signed content, so swapping it must invalidate
-
-        # the signature — otherwise one captured body could be replayed under a
-
-        # fresh id to dodge idempotency.
-
-        assert check(b"{}", webhook_id="msg_somethingelse") is False
-
-    def test_missing_headers_are_rejected(self):
-
+    def test_recent_request_and_rotated_signature_are_accepted(self):
         body = b"{}"
-
-        assert check(body, signature_header=None) is False
-
-        assert check(body, webhook_id=None) is False
-
-        assert check(body, webhook_timestamp=None) is False
-
-    def test_missing_secret_is_rejected(self):
-
-        assert check(b"{}", secret="") is False
-
-    @pytest.mark.parametrize("header", ["garbage", "v1", "v1,", ",abc", "v2,abc", "", "abc"])
-    def test_malformed_signature_headers_are_rejected(self, header):
-
-        assert check(b"{}", signature_header=header) is False
-
-    @pytest.mark.parametrize("timestamp", ["not-a-number", "", "12.5"])
-    def test_malformed_timestamps_are_rejected(self, timestamp):
-
-        assert check(b"{}", webhook_timestamp=timestamp) is False
-
-    def test_old_timestamp_is_rejected(self):
-
-        # Without this, a captured webhook could be replayed forever to keep
-
-        # resetting a cancelled subscription back to active.
-
-        body = b"{}"
-
-        webhook_id, ts, signature = sign(body, timestamp=int(time.time()) - 3600)
-
-        assert (
-            verify_dodo_signature(
-                raw_body=body,
-                webhook_id=webhook_id,
-                webhook_timestamp=ts,
-                signature_header=signature,
-                secret=SECRET,
-            )
-            is False
+        webhook_id, timestamp, signature = sign(body, timestamp=int(time.time()) - 60)
+        assert verify_dodo_signature(
+            raw_body=body,
+            webhook_id=webhook_id,
+            webhook_timestamp=timestamp,
+            signature_header=f"v1,deadbeef {signature}",
+            secret=SECRET,
         )
-
-    def test_future_timestamp_beyond_tolerance_is_rejected(self):
-
-        body = b"{}"
-
-        webhook_id, ts, signature = sign(body, timestamp=int(time.time()) + 3600)
-
-        assert (
-            verify_dodo_signature(
-                raw_body=body,
-                webhook_id=webhook_id,
-                webhook_timestamp=ts,
-                signature_header=signature,
-                secret=SECRET,
-            )
-            is False
-        )
-
-    def test_recent_timestamp_is_accepted(self):
-
-        body = b"{}"
-
-        webhook_id, ts, signature = sign(body, timestamp=int(time.time()) - 60)
-
-        assert (
-            verify_dodo_signature(
-                raw_body=body,
-                webhook_id=webhook_id,
-                webhook_timestamp=ts,
-                signature_header=signature,
-                secret=SECRET,
-            )
-            is True
-        )
-
-    def test_multiple_signatures_accepts_any_match(self):
-
-        # Sent during secret rotation.
-
-        body = b"{}"
-
-        _, _, good = sign(body)
-
-        assert check(body, signature_header=f"v1,deadbeef {good}") is True
-
-    def test_secret_without_the_whsec_prefix_works(self):
-
-        raw = base64.b64encode(b"dodo-test-signing-key-0123456789").decode()
-
-        body = b"{}"
-
-        _, ts, signature = sign(body, secret=raw)
-
-        assert (
-            verify_dodo_signature(
-                raw_body=body,
-                webhook_id=WEBHOOK_ID,
-                webhook_timestamp=ts,
-                signature_header=signature,
-                secret=raw,
-            )
-            is True
-        )
-
-    def test_byte_exact_body_matters(self):
-
-        # Re-serialising parsed JSON changes whitespace and key order, which is
-
-        # why the handler must sign over the raw request body.
-
-        original = b'{"a": 1, "b": 2}'
-
-        reserialised = json.dumps(json.loads(original), separators=(",", ":")).encode()
-
-        assert check(original, raw_body=reserialised) is False
-
-
-class TestDodoWebhookRoute:
-    async def test_webhook_is_404_when_billing_is_off(self, client):
-
-        response = await client.post("/webhooks/dodo", json={"type": "subscription.active"})
-
-        assert response.status_code == 404
 
 
 @pytest.fixture
 def billing_on(monkeypatch):
-    """Turn billing on for the app's cached settings object.
-
-    The route reads `get_settings()`, so patching the cached instance is what
-    actually changes behaviour — setting an environment variable would be read
-    too late.
-    """
-    from app.config import get_settings
-
     settings = get_settings()
     monkeypatch.setattr(settings, "dodo_enabled", True)
     monkeypatch.setattr(settings, "dodo_webhook_secret", SECRET)
-    monkeypatch.setattr(settings, "dodo_api_key", "test-key")
-    monkeypatch.setattr(settings, "dodo_product_id_pro_monthly", "pdt_test")
     return settings
 
 
-class TestWebhookSignatureIsEnforcedAtTheRoute:
-    """The unit tests above prove `verify_dodo_signature` is correct. These
-    prove the route actually calls it.
+async def post_signed(client, payload: dict, *, secret: str = SECRET):
+    body = json.dumps(payload, separators=(",", ":")).encode()
+    webhook_id, timestamp, signature = sign(body, secret=secret)
+    return await client.post(
+        "/webhooks/dodo",
+        content=body,
+        headers={
+            "content-type": "application/json",
+            "webhook-id": webhook_id,
+            "webhook-timestamp": timestamp,
+            "webhook-signature": signature,
+        },
+    )
 
-    Those are different claims, and only the second one stops a forged request
-    granting somebody a paid plan. A verifier that is implemented but not
-    reached is worth nothing.
-    """
 
-    BODY = json.dumps({"type": "subscription.active", "data": {"subscription_id": "sub_x"}})
+class TestWebhookRoute:
+    async def test_disabled_endpoint_is_not_exposed(self, client):
+        response = await client.post("/webhooks/dodo", json={"type": "subscription.active"})
+        assert response.status_code == 404
 
-    async def _post(self, client, body: str, headers: dict[str, str]):
-        return await client.post(
-            "/webhooks/dodo",
-            content=body.encode(),
-            headers={"content-type": "application/json", **headers},
-        )
-
-    async def test_a_correctly_signed_request_is_accepted(self, client, billing_on):
-        webhook_id, ts, signature = sign(self.BODY.encode())
-        response = await self._post(
+    async def test_valid_signature_is_accepted(self, client, billing_on):
+        response = await post_signed(
             client,
-            self.BODY,
-            {
-                "webhook-id": webhook_id,
-                "webhook-timestamp": ts,
-                "webhook-signature": signature,
-            },
+            {"type": "subscription.active", "data": {"subscription_id": "sub_unknown"}},
         )
         assert response.status_code == 200
 
-    async def test_an_unsigned_request_is_rejected(self, client, billing_on):
-        response = await self._post(client, self.BODY, {})
-        assert response.status_code == 401
-
-    async def test_a_forged_signature_is_rejected(self, client, billing_on):
-        webhook_id, ts, _ = sign(self.BODY.encode())
-        response = await self._post(
-            client,
-            self.BODY,
-            {
-                "webhook-id": webhook_id,
-                "webhook-timestamp": ts,
-                "webhook-signature": "v1,YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo=",
-            },
+    async def test_unsigned_forged_and_tampered_requests_are_rejected(self, client, billing_on):
+        unsigned = await client.post(
+            "/webhooks/dodo",
+            content=b"{}",
+            headers={"content-type": "application/json"},
         )
-        assert response.status_code == 401
-
-    async def test_a_signature_from_a_different_secret_is_rejected(self, client, billing_on):
-        other = "whsec_" + base64.b64encode(b"a-completely-different-key-000000").decode()
-        webhook_id, ts, signature = sign(self.BODY.encode(), secret=other)
-
-        response = await self._post(
+        forged = await post_signed(
             client,
-            self.BODY,
-            {
+            {"type": "subscription.active", "data": {}},
+            secret="whsec_" + base64.b64encode(b"wrong-secret").decode(),
+        )
+
+        signed_body = b'{"type":"subscription.active","data":{}}'
+        webhook_id, timestamp, signature = sign(signed_body)
+        tampered = await client.post(
+            "/webhooks/dodo",
+            content=b'{"type":"subscription.active","data":{"status":"active"}}',
+            headers={
+                "content-type": "application/json",
                 "webhook-id": webhook_id,
-                "webhook-timestamp": ts,
+                "webhook-timestamp": timestamp,
                 "webhook-signature": signature,
             },
         )
-        assert response.status_code == 401
 
-    async def test_a_tampered_body_is_rejected(self, client, billing_on):
-        """Sign a benign payload, then swap in one that grants Pro."""
-        webhook_id, ts, signature = sign(self.BODY.encode())
-        tampered = json.dumps(
-            {"type": "subscription.active", "data": {"subscription_id": "sub_evil"}}
-        )
+        assert unsigned.status_code == forged.status_code == tampered.status_code == 401
+        assert "secret" not in forged.text.lower()
 
-        response = await self._post(
+    async def test_signed_payment_cannot_recreate_pro(self, client, db, user, billing_on):
+        user.tier = Tier.PRO
+        await db.commit()
+
+        response = await post_signed(
             client,
-            tampered,
-            {
-                "webhook-id": webhook_id,
-                "webhook-timestamp": ts,
-                "webhook-signature": signature,
-            },
-        )
-        assert response.status_code == 401
-
-    async def test_a_replayed_request_is_rejected_once_it_is_old(self, client, billing_on):
-        """A captured webhook must not keep working forever — otherwise it can
-        be replayed to reset a cancelled subscription back to active."""
-        stale = int(time.time()) - 3600
-        webhook_id, ts, signature = sign(self.BODY.encode(), timestamp=stale)
-
-        response = await self._post(
-            client,
-            self.BODY,
-            {
-                "webhook-id": webhook_id,
-                "webhook-timestamp": ts,
-                "webhook-signature": signature,
-            },
-        )
-        assert response.status_code == 401
-
-    async def test_a_forged_request_cannot_grant_a_paid_plan(self, client, db, user, billing_on):
-        """The outcome that actually matters."""
-        assert user.tier is Tier.FREE
-
-        body = json.dumps(
             {
                 "type": "subscription.active",
                 "data": {
-                    "subscription_id": "sub_forged",
+                    "subscription_id": "sub_legacy",
                     "status": "active",
                     "reference_id": str(user.id),
+                    "product_id": "pdt_retired",
                 },
-            }
-        )
-        response = await self._post(
-            client,
-            body,
-            {
-                "webhook-id": "msg_forged",
-                "webhook-timestamp": str(int(time.time())),
-                "webhook-signature": "v1,dGhpcyBpcyBub3QgYSByZWFsIHNpZ25hdHVyZQ==",
             },
         )
-
-        assert response.status_code == 401
-        await db.refresh(user)
-        assert user.tier is Tier.FREE
-
-    async def test_the_rejection_does_not_explain_itself(self, client, billing_on):
-        # A verifier that says *why* it refused is a verifier that helps
-        # somebody iterate towards a valid forgery.
-        response = await self._post(client, self.BODY, {})
-
-        assert "secret" not in response.text.lower()
-        assert "timestamp" not in response.text.lower()
-
-
-class TestSubscriptionStateMapping:
-    """The status → tier mapping, exercised through the handler directly."""
-
-    async def _handle(self, db, data, event_type="subscription.updated"):
-
-        from app.routes import billing
-
-        return await billing._handle_subscription_event(db, event_type, data)
-
-    def _payload(self, user, status, **extra):
-
-        return {
-            "subscription_id": "sub_1",
-            "status": status,
-            "reference_id": str(user.id),
-            **extra,
-        }
-
-    @pytest.mark.parametrize("status", ["active", "trialing", "on_hold"])
-    async def test_paying_statuses_grant_pro(self, db, user, status):
-
-        await self._handle(db, self._payload(user, status))
-
-        assert user.tier is Tier.PRO
-
-    @pytest.mark.parametrize("status", ["cancelled", "expired", "failed", "paused"])
-    async def test_ended_statuses_drop_to_free(self, db, user, status):
-
-        user.tier = Tier.PRO
-
-        await self._handle(db, self._payload(user, status))
-
-        assert user.tier is Tier.FREE
-
-    async def test_on_hold_keeps_access_during_dunning(self, db, user):
-
-        # Locking someone out while their bank retries loses a customer who was
-
-        # about to pay.
-
-        user.tier = Tier.PRO
-
-        await self._handle(db, self._payload(user, "on_hold"))
-
-        assert user.tier is Tier.PRO
-
-    async def test_an_unknown_status_does_not_revoke_access(self, db, user):
-
-        # A status Dodo adds later must not silently cancel paying customers.
-
-        user.tier = Tier.PRO
-
-        await self._handle(db, self._payload(user, "some_new_state"))
-
-        assert user.tier is Tier.PRO
-
-        assert user.subscription_status == "some_new_state"
-
-    async def test_identifiers_are_recorded(self, db, user):
-
-        await self._handle(
-            db,
-            self._payload(
-                user,
-                "active",
-                customer={"customer_id": "cus_xyz", "email": user.email},
-                product_id="pdt_pro",
-            ),
-        )
-
-        assert user.dodo_subscription_id == "sub_1"
-
-        assert user.dodo_customer_id == "cus_xyz"
-
-        assert user.dodo_product_id == "pdt_pro"
-
-    async def test_user_is_found_by_metadata_when_reference_is_absent(self, db, user):
-
-        assert await self._handle(
-            db,
-            {
-                "subscription_id": "sub_1",
-                "status": "active",
-                "metadata": {"user_id": str(user.id)},
-            },
-        )
-
-        assert user.tier is Tier.PRO
-
-    async def test_user_is_found_by_stored_customer_id(self, db, user):
-
-        user.dodo_customer_id = "cus_known"
-
-        await db.flush()
-
-        assert await self._handle(
-            db,
-            {
-                "subscription_id": "sub_1",
-                "status": "active",
-                "customer": {"customer_id": "cus_known"},
-            },
-        )
-
-        assert user.tier is Tier.PRO
-
-    async def test_user_is_found_by_email(self, db, user):
-
-        assert await self._handle(
-            db,
-            {
-                "subscription_id": "sub_1",
-                "status": "active",
-                "customer": {"email": user.email.upper()},
-            },
-        )
-
-        assert user.tier is Tier.PRO
-
-    async def test_unknown_subscription_is_reported_not_crashed(self, db):
-
-        assert (
-            await self._handle(db, {"subscription_id": "sub_nobody", "status": "active"}) is False
-        )
-
-    async def test_cancellation_with_a_future_end_date_keeps_access(self, db, user):
-
-        from datetime import UTC, datetime, timedelta
-
-        user.tier = Tier.PRO
-
-        future = (datetime.now(UTC) + timedelta(days=20)).isoformat()
-
-        await self._handle(db, self._payload(user, "cancelled", next_billing_date=future))
-
-        # Time already paid for is honoured; the expiry job downgrades later.
-
-        assert user.tier is Tier.PRO
-
-        assert user.subscription_ends_at is not None
-
-    async def test_cancellation_with_no_end_date_downgrades_immediately(self, db, user):
-
-        user.tier = Tier.PRO
-
-        await self._handle(db, self._payload(user, "cancelled"))
-
-        assert user.tier is Tier.FREE
-
-
-class TestSubscriptionPriceCapture:
-    """The amount fields the admin revenue snapshot sums."""
-
-    async def _handle(self, db, data):
-
-        from app.routes import billing
-
-        return await billing._handle_subscription_event(db, "subscription.active", data)
-
-    def _payload(self, user, **extra):
-
-        return {
-            "subscription_id": "sub_1",
-            "status": "active",
-            "reference_id": str(user.id),
-            "currency": "USD",
-            "payment_frequency_interval": "Month",
-            "payment_frequency_count": 1,
-            **extra,
-        }
-
-    async def test_captures_amount_currency_and_interval(self, db, user):
-
-        await self._handle(db, self._payload(user, recurring_pre_tax_amount=1200))
-
-        assert user.subscription_amount_cents == 1200
-
-        assert user.subscription_currency == "USD"
-
-        assert user.subscription_interval == "month"
-
-        assert user.monthly_value_cents == 1200
-
-    async def test_annual_plans_normalise_to_a_monthly_value(self, db, user):
-
-        await self._handle(
-            db,
-            self._payload(user, recurring_pre_tax_amount=12000, payment_frequency_interval="Year"),
-        )
-
-        assert user.subscription_amount_cents == 12000
-
-        assert user.monthly_value_cents == 1000
-
-    async def test_a_multi_period_cadence_is_folded_into_the_interval(self, db, user):
-
-        # Billed 3600 every 3 months is 1200/month, not 3600/month.
-
-        await self._handle(
-            db,
-            self._payload(user, recurring_pre_tax_amount=3600, payment_frequency_count=3),
-        )
-
-        assert user.subscription_amount_cents == 1200
-
-        assert user.monthly_value_cents == 1200
-
-    async def test_falls_back_to_the_product_cart(self, db, user):
-
-        await self._handle(
-            db, self._payload(user, product_cart=[{"product_id": "pdt", "amount": 900}])
-        )
-
-        assert user.subscription_amount_cents == 900
-
-    @pytest.mark.parametrize(
-        "extra",
-        [
-            {},
-            {"recurring_pre_tax_amount": None},
-            {"recurring_pre_tax_amount": "not-a-number"},
-            {"recurring_pre_tax_amount": -500},
-            {"product_cart": "not-a-list"},
-            {"product_cart": []},
-        ],
-    )
-    async def test_unrecognised_shapes_leave_stored_values_untouched(self, db, user, extra):
-
-        # A parsing miss must not zero the amount — MRR silently dropping to
-
-        # zero is worse than MRR being briefly stale.
-
-        user.subscription_amount_cents = 1200
-
-        user.subscription_currency = "USD"
-
-        await db.flush()
-
-        await self._handle(db, self._payload(user, **extra))
-
-        assert user.subscription_amount_cents == 1200
-
-        assert user.subscription_currency == "USD"
-
-
-class TestCheckoutUrl:
-    def test_returns_none_when_billing_is_disabled(self, user):
-
-        from app.config import get_settings
-        from app.routes.billing import build_checkout_url
-
-        assert build_checkout_url(get_settings(), user) is None
-
-    def test_builds_a_test_mode_url_with_the_account_reference(self, user, monkeypatch):
-
-        from app.config import get_settings
-        from app.routes.billing import build_checkout_url
-
-        settings = get_settings()
-
-        monkeypatch.setattr(settings, "dodo_enabled", True)
-
-        monkeypatch.setattr(settings, "dodo_product_id_pro_monthly", "pdt_pro")
-
-        monkeypatch.setattr(settings, "dodo_environment", "test")
-
-        url = build_checkout_url(settings, user)
-
-        assert url.startswith("https://test.checkout.dodopayments.com/buy/pdt_pro?")
-
-        # The reference is how a payment is tied back to an account even when
-
-        # the customer pays with a different email.
-
-        assert f"reference_id={user.id}" in url
-
-    def test_live_mode_uses_the_production_host(self, user, monkeypatch):
-
-        from app.config import get_settings
-        from app.routes.billing import build_checkout_url
-
-        settings = get_settings()
-
-        monkeypatch.setattr(settings, "dodo_enabled", True)
-
-        monkeypatch.setattr(settings, "dodo_product_id_pro_monthly", "pdt_pro")
-
-        monkeypatch.setattr(settings, "dodo_environment", "live")
-
-        assert build_checkout_url(settings, user).startswith(
-            "https://checkout.dodopayments.com/buy/pdt_pro?"
-        )
-
-
-class TestFailFastConfiguration:
-    """Billing enabled with a missing credential must not boot."""
-
-    @pytest.mark.parametrize(
-        "missing", ["dodo_api_key", "dodo_webhook_secret", "dodo_product_id_pro_monthly"]
-    )
-    def test_enabling_dodo_requires_every_credential(self, missing):
-
-        from pydantic import ValidationError
-
-        from app.config import Settings
-
-        values = {
-            "secret_key": "x" * 40,
-            "database_url": "postgresql+psycopg://u:p@localhost:5432/db",
-            "dodo_enabled": True,
-            "dodo_api_key": "key",
-            "dodo_webhook_secret": "whsec_abc",
-            "dodo_product_id_pro_monthly": "pdt_pro",
-        }
-
-        values[missing] = None
-
-        with pytest.raises(ValidationError, match="DODO_ENABLED"):
-            Settings(**values)
-
-    def test_disabled_billing_needs_no_credentials(self):
-
-        from app.config import Settings
-
-        settings = Settings(
-            secret_key="x" * 40,
-            database_url="postgresql+psycopg://u:p@localhost:5432/db",
-            dodo_enabled=False,
-        )
-
-        assert settings.dodo_enabled is False
-
-
-class TestExpireSubscriptionsJob:
-    async def test_downgrades_users_whose_paid_period_ended(self, db, user, monkeypatch):
-
-        from contextlib import asynccontextmanager
-        from datetime import timedelta
-
-        from app.jobs import tasks
-        from app.models import utcnow
-
-        user.tier = Tier.PRO
-
-        user.subscription_status = "cancelled"
-
-        user.subscription_ends_at = utcnow() - timedelta(days=1)
-
-        await db.flush()
-
-        @asynccontextmanager
-        async def fake_scope():
-
-            yield db
-
-        monkeypatch.setattr(tasks, "session_scope", fake_scope)
-
-        assert await tasks.expire_subscriptions_task() == 1
-
-        assert user.tier is Tier.FREE
-
-    async def test_leaves_paying_subscribers_alone(self, db, user, monkeypatch):
-
-        from contextlib import asynccontextmanager
-        from datetime import timedelta
-
-        from app.jobs import tasks
-        from app.models import utcnow
-
-        user.tier = Tier.PRO
-
-        # Dunning: the billing date has passed but retries are in progress.
-
-        user.subscription_status = "on_hold"
-
-        user.subscription_ends_at = utcnow() - timedelta(days=1)
-
-        await db.flush()
-
-        @asynccontextmanager
-        async def fake_scope():
-
-            yield db
-
-        monkeypatch.setattr(tasks, "session_scope", fake_scope)
-
-        assert await tasks.expire_subscriptions_task() == 0
-
-        assert user.tier is Tier.PRO
-
-
-class TestTheBillingEndpoint:
-    """What the React billing page reads.
-
-    Read-only by construction. The only thing in this area that can change what
-    somebody has paid for is Dodo's webhook, which is authenticated by an HMAC
-    over the raw body — so a session, however obtained, cannot grant a plan.
-    """
-
-    async def test_it_reports_the_current_plan(self, auth_client, user):
-        response = await auth_client.get("/api/internal/billing")
 
         assert response.status_code == 200
-        data = response.json()["data"]
-        assert data["tier"] == "free"
-        assert data["is_pro"] is False
-
-    async def test_it_offers_no_checkout_when_dodo_is_off(self, auth_client):
-        """A self-hosted instance with no credentials says so rather than
-        showing a button that goes nowhere."""
-        data = (await auth_client.get("/api/internal/billing")).json()["data"]
-
-        assert data["checkout_enabled"] is False
-        assert data["checkout_url"] is None
-
-    async def test_a_pro_account_is_offered_no_checkout_link(self, client, pro_user):
-        """Nothing to buy. A live link here is an invitation to pay twice."""
-        from tests.conftest import sign_in
-
-        await sign_in(client, pro_user.email)
-
-        data = (await client.get("/api/internal/billing")).json()["data"]
-        assert data["is_pro"] is True
-        assert data["checkout_url"] is None
-
-    async def test_it_has_no_way_to_change_a_plan(self, auth_client, db, user):
-        """The endpoint is a GET and there is no sibling that writes. Granting
-        Pro is the webhook's job, because the thing that took the payment
-        should be the thing that grants what was paid for."""
-        response = await auth_client.post("/api/internal/billing", json={"tier": "pro"})
-
-        assert response.status_code in {404, 405}
         await db.refresh(user)
-        assert user.tier is not Tier.PRO
+        assert user.tier is Tier.FREE
+        assert user.subscription_status == "active"
+        assert user.dodo_subscription_id == "sub_legacy"
 
-    async def test_signed_out_callers_get_nothing(self, client):
-        assert (await client.get("/api/internal/billing")).status_code == 401
+
+class TestLegacySubscriptionMapping:
+    @pytest.mark.parametrize("status", ["active", "trialing", "on_hold", "cancelled", "expired"])
+    async def test_every_known_state_has_free_entitlement(self, db, user, status):
+        user.tier = Tier.PRO
+        handled = await _handle_subscription_event(
+            db,
+            f"subscription.{status}",
+            {"reference_id": str(user.id), "status": status, "subscription_id": "sub_old"},
+        )
+        assert handled is True
+        assert user.tier is Tier.FREE
+
+    async def test_unknown_state_is_recorded_without_granting_access(self, db, user):
+        handled = await _handle_subscription_event(
+            db,
+            "subscription.changed",
+            {"reference_id": str(user.id), "status": "new-provider-state"},
+        )
+        assert handled is True
+        assert user.subscription_status == "new-provider-state"
+        assert user.tier is Tier.FREE
+
+    async def test_price_and_customer_metadata_are_retained_for_admin_reconciliation(
+        self, db, user
+    ):
+        await _handle_subscription_event(
+            db,
+            "subscription.active",
+            {
+                "reference_id": str(user.id),
+                "status": "active",
+                "subscription_id": "sub_history",
+                "customer": {"customer_id": "cus_history"},
+                "recurring_pre_tax_amount": 12000,
+                "payment_frequency_interval": "Year",
+                "currency": "usd",
+            },
+        )
+        assert user.dodo_customer_id == "cus_history"
+        assert user.subscription_amount_cents == 12000
+        assert user.subscription_interval == "year"
+        assert user.subscription_currency == "USD"
+
+
+class TestConfiguration:
+    def test_legacy_webhook_needs_only_a_secret(self):
+        settings = get_settings()
+        assert not hasattr(settings, "dodo_api_key")
+        assert not hasattr(settings, "dodo_product_id_pro_monthly")

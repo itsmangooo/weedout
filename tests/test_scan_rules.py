@@ -258,9 +258,7 @@ class TestPrecedence:
         assert "CVE-2019-0001" in effective.policy.ignored_ids
         assert CVE in effective.policy.ignored_ids
 
-    async def test_a_free_project_honours_no_rules_at_all(self, db, user, pro_target):
-        """The rows survive a lapsed subscription; they simply stop applying.
-        Deleting somebody's configuration when they downgrade would be worse."""
+    async def test_a_free_project_honours_its_rules(self, db, user, pro_target):
         from app.services.rules_service import build_policy
 
         pro_target.user_id = user.id
@@ -270,13 +268,13 @@ class TestPrecedence:
         await db.flush()
 
         effective = await build_policy(db, pro_target, user)
-        assert effective.policy.ignored_ids == frozenset()
-        assert effective.policy.direct_threshold is DEFAULT_POLICY.direct_threshold
-        assert any("Pro plan" in note for note in effective.notes)
+        assert effective.policy.ignored_ids == frozenset({CVE})
+        assert effective.policy.direct_threshold is Severity.LOW
+        assert not any("plan" in note.lower() for note in effective.notes)
 
 
 class TestAccessControl:
-    async def test_a_free_account_cannot_post_a_rule(self, auth_client, db, user):
+    async def test_a_free_account_can_post_a_rule(self, auth_client, db, user):
         target = TrackedTarget(
             user_id=user.id, name="free-one", ecosystem=Ecosystem.NPM, is_active=True
         )
@@ -288,11 +286,10 @@ class TestAccessControl:
             json={"identifier": CVE, "reason": "I would rather not hear about this one."},
             headers={"X-CSRF-Token": set_csrf(auth_client)},
         )
-        assert response.status_code == 402
-        assert "Pro" in response.json()["error"]["message"]
-        assert (await db.execute(select(IgnoreRule))).scalars().first() is None
+        assert response.status_code == 200
+        assert (await db.execute(select(IgnoreRule))).scalars().first() is not None
 
-    async def test_a_free_account_cannot_post_a_threshold(self, auth_client, db, user):
+    async def test_a_free_account_can_post_a_threshold(self, auth_client, db, user):
         target = TrackedTarget(
             user_id=user.id, name="free-two", ecosystem=Ecosystem.NPM, is_active=True
         )
@@ -304,9 +301,9 @@ class TestAccessControl:
             json={"direct": "low"},
             headers={"X-CSRF-Token": set_csrf(auth_client)},
         )
-        assert response.status_code == 402
+        assert response.status_code == 200
         await db.refresh(target)
-        assert target.direct_threshold is None
+        assert target.direct_threshold is Severity.LOW
 
     async def test_somebody_elses_project_is_a_404(self, auth_client, db, pro_user):
         theirs = TrackedTarget(

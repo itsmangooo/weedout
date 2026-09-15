@@ -91,7 +91,7 @@ def snapshot_user(user: User | None) -> TemplateUser | None:
     return TemplateUser(
         id=user.id,
         email=user.email,
-        tier=user.tier,
+        tier=Tier.FREE,
         is_admin=user.is_admin,
         is_suspended=user.is_suspended,
         is_active=user.is_active,

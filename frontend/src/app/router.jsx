@@ -1,8 +1,7 @@
 import { createBrowserRouter, createMemoryRouter } from "react-router";
 
 import { RouteErrorBoundary } from "../components/feedback/AppErrorBoundary";
-import { AdminShell } from "../components/layout/AdminShell";
-import { AppShell } from "../components/layout/AppShell";
+import { DashboardShell } from "../components/layout/DashboardShell";
 import { FoundationLayout } from "../components/layout/FoundationLayout";
 import { AdminRoute } from "../features/auth/components/AdminRoute";
 import { ProtectedRoute } from "../features/auth/components/ProtectedRoute";
@@ -27,7 +26,7 @@ export const appRoutes = [
         children: [
           {
             index: true,
-            handle: { title: "Weed out the noise in your CVE alerts" },
+            handle: { title: "Project security without the noise" },
             lazy: async () => {
               const { FoundationPage } = await import("../pages/FoundationPage");
               return { Component: FoundationPage };
@@ -173,7 +172,7 @@ export const appRoutes = [
         element: <ProtectedRoute />,
         children: [
           {
-            element: <AppShell />,
+            element: <DashboardShell />,
             children: [
               {
                 path: "dashboard",
@@ -189,22 +188,6 @@ export const appRoutes = [
                 lazy: async () => {
                   const { NewProjectPage } = await import("../pages/NewProjectPage");
                   return { Component: NewProjectPage };
-                },
-              },
-              {
-                path: "billing",
-                handle: { title: "Billing" },
-                lazy: async () => {
-                  const { BillingPage } = await import("../pages/BillingPage");
-                  return { Component: BillingPage };
-                },
-              },
-              {
-                path: "billing/success",
-                handle: { title: "Billing" },
-                lazy: async () => {
-                  const { BillingPage } = await import("../pages/BillingPage");
-                  return { Component: BillingPage };
                 },
               },
               {
@@ -229,7 +212,7 @@ export const appRoutes = [
               },
               {
                 path: "alerts",
-                handle: { title: "Findings" },
+                handle: { title: "Dependency findings" },
                 lazy: async () => {
                   const { AlertsPage } = await import("../pages/AlertsPage");
                   return { Component: AlertsPage };
@@ -251,8 +234,6 @@ export const appRoutes = [
                   return { Component: ProjectPage };
                 },
               },
-            ],
-          },
           {
             // The admin panel. Nested inside ProtectedRoute so an expired
             // session shows "sign in" rather than "not allowed", then behind
@@ -260,9 +241,6 @@ export const appRoutes = [
             // /api/internal/admin enforces the same rule in Python.
             element: <AdminRoute />,
             children: [
-              {
-                element: <AdminShell />,
-                children: [
                   {
                     path: "admin",
                     handle: { title: "Admin" },
@@ -365,8 +343,8 @@ export const appRoutes = [
                       return { Component: AdminAuditPage };
                     },
                   },
-                ],
-              },
+            ],
+          },
             ],
           },
         ],

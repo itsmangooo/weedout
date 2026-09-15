@@ -195,9 +195,7 @@ class TestCreatingAProject:
         assert response.status_code == 400
         assert await db.scalar(select(func.count(TrackedTarget.id))) == 0
 
-    async def test_the_free_plan_limit_is_enforced(self, client, db, user):
-        """Server-side, like every other gate. A machine credential is not a
-        way around the plan."""
+    async def test_free_can_create_multiple_projects(self, client, db, user):
         from sqlalchemy import select
 
         from app.models import CliAuthRequest
@@ -227,7 +225,7 @@ class TestCreatingAProject:
         )
 
         assert first.status_code == 200, first.text
-        assert second.status_code == 402
+        assert second.status_code == 200, second.text
 
 
 class TestListingProjects:

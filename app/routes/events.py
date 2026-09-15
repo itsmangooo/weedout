@@ -60,7 +60,10 @@ async def _snapshot(user_id: int) -> dict[str, int]:
                         CVEMatch.is_kev.is_(True),
                         CVEMatch.status == AlertStatus.OPEN,
                     ),
-                    func.count(CVEMatch.id).filter(CVEMatch.verdict == Verdict.SUPPRESSED),
+                    func.count(CVEMatch.id).filter(
+                        CVEMatch.verdict == Verdict.SUPPRESSED,
+                        CVEMatch.status == AlertStatus.FILTERED,
+                    ),
                 )
                 .select_from(CVEMatch)
                 .join(TrackedTarget, TrackedTarget.id == CVEMatch.target_id)

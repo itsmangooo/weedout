@@ -21,7 +21,6 @@ from app.core.types import (
     ManifestKind,
     Reachability,
     Severity,
-    Tier,
     Verdict,
 )
 from app.models import (
@@ -218,16 +217,23 @@ class TestAuditTrail:
         assert entry.details["tier"] == "free"
 
     async def test_earlier_entries_about_the_account_also_survive(self, db, admin, user):
-        from app.services.admin_service import change_user_tier
-
-        await change_user_tier(db, admin, user, Tier.PRO, note="comped")
+        db.add(
+            AdminAuditLog(
+                actor_user_id=admin.id,
+                actor_email=admin.email,
+                target_user_id=user.id,
+                target_email=user.email,
+                action="user.note_added",
+                details={"note": "legacy account note"},
+            )
+        )
         await db.flush()
 
         await delete_user(db, admin, user)
         await db.flush()
 
         entries = (await db.scalars(select(AdminAuditLog))).all()
-        assert {e.action for e in entries} == {"user.tier_changed", "user.deleted"}
+        assert {e.action for e in entries} == {"user.note_added", "user.deleted"}
         assert all(e.target_email == user.email for e in entries)
 
 

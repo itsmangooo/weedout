@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { ArrowsClockwise as RefreshCw } from "@phosphor-icons/react/ArrowsClockwise";
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 
@@ -7,14 +7,16 @@ import { Button } from "../components/ui/Button";
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { InlineNotice } from "../components/ui/InlineNotice";
 import { ProjectFindings } from "../features/projects/components/ProjectFindings";
-import { ProjectOverview } from "../features/projects/components/ProjectOverview";
+import { ProjectOverview, ProjectHistory, ProjectDependencies } from "../features/projects/components/ProjectOverview";
 import { ProjectSettings } from "../features/projects/components/ProjectSettings";
 import { useProject, useProjectMutation } from "../features/projects/hooks/useProject";
 import { dueTime, relativeTime } from "../lib/time";
 
 const VIEWS = [
-  { id: "findings", label: "Findings" },
-  { id: "overview", label: "Overview" },
+  { id: "overview", label: "Security overview" },
+  { id: "findings", label: "Dependency findings" },
+  { id: "dependencies", label: "Dependencies" },
+  { id: "history", label: "Scan history" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -51,16 +53,10 @@ export function ProjectPage() {
   const page = query.data;
   const project = page.data;
 
-  // Findings is the default because it is what somebody clicking through from
-  // the dashboard came for — the dashboard already showed them the counts. A
-  // project with no manifest is the exception: it has no findings to show, so
-  // landing there would be an empty table that can only tell you to leave.
   const requested = params.get("view");
   const view = VIEWS.some((entry) => entry.id === requested)
     ? requested
-    : project.has_manifest
-      ? "findings"
-      : "overview";
+    : "overview";
 
   function setParam(key, value) {
     const next = new URLSearchParams(params);
@@ -97,6 +93,8 @@ export function ProjectPage() {
       ) : null}
 
       {view === "overview" ? <ProjectOverview page={page} /> : null}
+      {view === "history" && <ProjectHistory page={page} />}
+      {view === "dependencies" && <ProjectDependencies page={page} />}
 
       {view === "settings" ? <ProjectSettings page={page} projectId={projectId} /> : null}
     </div>
@@ -109,7 +107,7 @@ function ProjectHeader({ project }) {
   const rescan = useProjectMutation(project.id, () => rescanProject(project.id), {
     onSuccess: (result) => {
       setMessage(
-        `Checked ${project.name}: ${result.actionable} to act on, ${result.suppressed} filtered out.`,
+        `Checked ${project.name}: ${result.actionable} matched alert rules, ${result.suppressed} filtered out.`,
       );
     },
   });
@@ -120,7 +118,7 @@ function ProjectHeader({ project }) {
   return (
     <header className="project-head">
       <div className="project-head__identity">
-        <p className="section-label">{project.manifest_kind || project.ecosystem}</p>
+        <p className="section-label">Project security · {project.manifest_kind || project.ecosystem}</p>
         <h1>{project.name}</h1>
         <p className="project-head__meta">
           {project.dependency_count}{" "}

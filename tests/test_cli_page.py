@@ -196,26 +196,27 @@ class TestPageRenders:
         assert (await client.get("/cli")).status_code == 200
         assert (await client.get("/api/internal/cli")).status_code == 200
 
-    async def test_the_install_script_is_served_as_readable_text(self, client):
-        # `curl -sSL https://weedout.dev/install.sh | sh` is a documented
-        # address. It must also be readable in a browser: anyone sensible reads
-        # a script before piping it into a shell.
-        response = await client.get("/install.sh")
+    @pytest.mark.parametrize("name", ["install.sh", "install.ps1"])
+    async def test_the_install_scripts_are_served_as_readable_text(self, client, name):
+        # Both documented one-liners must resolve before sign-in. They also stay
+        # readable in a browser: anyone sensible reads a script before piping it.
+        response = await client.get(f"/{name}")
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/plain")
         assert "attachment" not in response.headers.get("content-disposition", "")
         assert "weedout" in response.text
 
-    async def test_the_served_script_matches_the_one_in_the_cli_repo(self):
+    @pytest.mark.parametrize("name", ["install.sh", "install.ps1"])
+    async def test_the_served_installers_match_the_cli_repo(self, name):
         # Two hand-maintained copies would drift, and the one people actually
         # run would be the stale one.
-        source = ROOT.parent / "weedout-cli" / "install.sh"
+        source = ROOT.parent / "weedout-cli" / name
         if not source.is_file():
             pytest.skip("the CLI repository is not checked out alongside this one")
 
-        served = ROOT / "app" / "static" / "install.sh"
+        served = ROOT / "app" / "static" / name
         assert served.read_text(encoding="utf-8") == source.read_text(encoding="utf-8"), (
-            "app/static/install.sh has drifted from the CLI repo. "
+            f"app/static/{name} has drifted from the CLI repo. "
             "Run: python scripts/sync_cli.py ../weedout-cli"
         )
 

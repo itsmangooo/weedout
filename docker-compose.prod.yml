@@ -105,11 +105,8 @@ x-app-env: &app-env
   BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-weedout}
   BACKUP_S3_REGION: ${BACKUP_S3_REGION:-auto}
 
-  DODO_ENABLED: ${DODO_ENABLED:-true}
-  DODO_ENVIRONMENT: ${DODO_ENVIRONMENT:-live}
-  DODO_API_KEY: ${DODO_API_KEY:-}
+  DODO_ENABLED: ${DODO_ENABLED:-false}
   DODO_WEBHOOK_SECRET: ${DODO_WEBHOOK_SECRET:-}
-  DODO_PRODUCT_ID_PRO_MONTHLY: ${DODO_PRODUCT_ID_PRO_MONTHLY:-}
 
 x-logging: &logging
   # Without a cap, container logs can grow until the disk is full.

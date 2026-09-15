@@ -76,7 +76,7 @@ function finding(overrides = {}) {
     installed_version: "1.2.5",
     severity: "critical",
     is_exploited: true,
-    reachability: "runtime_transitive",
+    reachability: "potentially_reachable",
     status: "open",
     detected_at: "2026-08-20T18:30:00Z",
     ...overrides,
@@ -147,7 +147,7 @@ describe("React dashboard route", () => {
     renderDashboard();
 
     expect(
-      await screen.findByRole("heading", { name: "What needs your attention?" }),
+      await screen.findByRole("heading", { name: "Security overview" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Exploited in the wild")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "checkout-api" })).toBeInTheDocument();
@@ -208,7 +208,7 @@ describe("React dashboard route", () => {
     );
     expect(screen.getAllByText("Exploited in the wild")).toHaveLength(2);
     expect(screen.getByText("critical severity")).toBeInTheDocument();
-    expect(screen.getByText("Transitive runtime")).toBeInTheDocument();
+    expect(screen.getByText("Potentially reachable")).toBeInTheDocument();
   });
 
   it("keeps anonymous visitors at the existing protected-route boundary", async () => {
@@ -302,7 +302,7 @@ describe("React dashboard route", () => {
     renderDashboard({ authenticated: true });
 
     expect(
-      await screen.findByRole("heading", { name: "What needs your attention?" }),
+      await screen.findByRole("heading", { name: "Security overview" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("Open findings unavailable")).toBeInTheDocument();
     expect(screen.getByText("Finding read unavailable")).toBeInTheDocument();

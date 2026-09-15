@@ -21,6 +21,7 @@ Three things separate these routes from the HTML ones:
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from typing import Annotated
 
@@ -30,6 +31,15 @@ from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.core.policy import MAX_POLICY_BYTES, parse_policy
+from app.core.reachability import (
+    MAX_SOURCE_BYTES,
+    MAX_SOURCE_FILE_BYTES,
+    MAX_SOURCE_FILES,
+    SourceBundle,
+    SourceFile,
+    safe_source_path,
+    supported_source_path,
+)
 from app.core.types import ActionableReason, AlertStatus, Severity, Verdict
 from app.deps import DbSession, ManageKey, ReadKey, ScanKey
 from app.logging_config import get_logger
@@ -68,13 +78,8 @@ def _fail(status_code: int, code: str, message: str, **extra) -> HTTPException:
 async def _plan_for(db, key) -> dict:
     """The plan this key's owner is on, right now.
 
-    On every machine-facing response so a client can notice a change at the
-    first command after it and say so. A CLI cannot be pushed to -- it runs,
-    prints and exits -- so the honest version of "in real time" is that the
-    very next thing it does reflects the change.
-
-    Read fresh, never cached. A cached tier would put a window between paying
-    and being served, and a longer one between cancelling and being cut off.
+    Read fresh and normalised so legacy database tier values never leak into
+    the machine-facing contract.
     """
     from app.services.plan_service import plan_summary
 
@@ -123,10 +128,12 @@ async def scan(
     manifest: Annotated[UploadFile | None, File()] = None,
     policy: Annotated[UploadFile | None, File()] = None,
     profile: Annotated[str | None, Form()] = None,
+    sources: Annotated[list[UploadFile] | None, File()] = None,
+    source_context: Annotated[str | None, Form()] = None,
 ):
     """Scan a lockfile against the project this key belongs to.
 
-    Returns the tier counts and a dashboard link — small on purpose. The full
+    Returns finding counts and a dashboard link — small on purpose. The full
     findings live behind the link, and a CI log is the wrong place to print
     them; what a pipeline needs is a number to gate on.
 
@@ -197,8 +204,15 @@ async def scan(
     except UnsupportedManifest as exc:
         raise _fail(HTTP_UNPROCESSABLE_CONTENT, "unsupported_manifest", str(exc)) from exc
 
+    source_bundle = await _source_bundle(sources or [], source_context)
+
     try:
-        outcome = await scan_target(db, target, requested_profile=profile)
+        outcome = await scan_target(
+            db,
+            target,
+            requested_profile=profile,
+            source_bundle=source_bundle,
+        )
     except NoSuchProfile as exc:
         # 400 rather than 404: the project and the key are both fine, and what
         # is wrong is the request. Raised before anything was scanned, so
@@ -244,10 +258,130 @@ async def scan(
         "new": len(outcome.new_matches),
         "resolved": outcome.resolved_count,
         "counts": counts,
+        "reachability": {
+            "analysis_complete": outcome.reachability_analysis_complete,
+            "source_files": outcome.reachability_source_count,
+            "counts": outcome.reachability_counts,
+            "notes": outcome.reachability_notes,
+        },
         "findings": await _blocking_findings(db, target.id),
         "warnings": outcome.errors,
         "dashboard_url": f"{base_url}/targets/{target.id}",
     }
+
+
+async def _source_bundle(uploads: list[UploadFile], source_context: str | None) -> SourceBundle:
+    """Validate and read the bounded source inventory attached by the CLI.
+
+    Source is analysed in memory and discarded after the request. The context
+    carries repository-relative labels because multipart clients and proxies
+    commonly reduce an uploaded filename to its basename.
+    """
+    if len(uploads) > MAX_SOURCE_FILES:
+        raise _fail(
+            HTTP_CONTENT_TOO_LARGE,
+            "too_many_source_files",
+            f"Source analysis accepts at most {MAX_SOURCE_FILES} files per scan.",
+        )
+
+    context: dict = {}
+    if source_context:
+        if len(source_context) > 100_000:
+            raise _fail(
+                HTTP_CONTENT_TOO_LARGE,
+                "source_context_too_large",
+                "The source inventory metadata is too large.",
+            )
+        try:
+            decoded = json.loads(source_context)
+        except json.JSONDecodeError as exc:
+            raise _fail(
+                status.HTTP_400_BAD_REQUEST,
+                "invalid_source_context",
+                "The source inventory metadata is not valid JSON.",
+            ) from exc
+        if not isinstance(decoded, dict):
+            raise _fail(
+                status.HTTP_400_BAD_REQUEST,
+                "invalid_source_context",
+                "The source inventory metadata must be an object.",
+            )
+        context = decoded
+
+    raw_paths = context.get("files")
+    if raw_paths is None:
+        raw_paths = [upload.filename or "" for upload in uploads]
+    if not isinstance(raw_paths, list) or len(raw_paths) != len(uploads):
+        raise _fail(
+            status.HTTP_400_BAD_REQUEST,
+            "invalid_source_context",
+            "The source inventory must name every attached source file exactly once.",
+        )
+
+    notes = context.get("notes") or []
+    if not isinstance(notes, list):
+        raise _fail(
+            status.HTTP_400_BAD_REQUEST,
+            "invalid_source_context",
+            "Source analysis notes must be a list.",
+        )
+    bounded_notes = tuple(str(note)[:300] for note in notes[:20] if str(note).strip())
+    complete = context.get("complete") is True
+
+    files: list[SourceFile] = []
+    seen_paths: set[str] = set()
+    total = 0
+    for upload, raw_path in zip(uploads, raw_paths, strict=True):
+        if not isinstance(raw_path, str):
+            raise _fail(
+                status.HTTP_400_BAD_REQUEST,
+                "invalid_source_context",
+                "Every source inventory path must be a string.",
+            )
+        path = safe_source_path(raw_path)
+        if path is None or not supported_source_path(path):
+            raise _fail(
+                status.HTTP_400_BAD_REQUEST,
+                "invalid_source_path",
+                f"Unsupported or unsafe source path: {str(raw_path)[:120]!r}.",
+            )
+        if path in seen_paths:
+            raise _fail(
+                status.HTTP_400_BAD_REQUEST,
+                "invalid_source_context",
+                f"The source inventory names {path!r} more than once.",
+            )
+        seen_paths.add(path)
+
+        raw = await upload.read(MAX_SOURCE_FILE_BYTES + 1)
+        if len(raw) > MAX_SOURCE_FILE_BYTES:
+            raise _fail(
+                HTTP_CONTENT_TOO_LARGE,
+                "source_file_too_large",
+                f"{path} is larger than {MAX_SOURCE_FILE_BYTES // 1024} KiB.",
+            )
+        total += len(raw)
+        if total > MAX_SOURCE_BYTES:
+            raise _fail(
+                HTTP_CONTENT_TOO_LARGE,
+                "source_bundle_too_large",
+                f"Source analysis accepts at most {MAX_SOURCE_BYTES // (1024 * 1024)} MiB.",
+            )
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            complete = False
+            bounded_notes = (*bounded_notes, f"{path} was not UTF-8 and could not be analysed.")
+            continue
+        files.append(SourceFile(path=path, content=content))
+
+    if not source_context:
+        complete = False
+        bounded_notes = (
+            *bounded_notes,
+            "No complete source inventory was supplied; unobserved dependencies remain unknown.",
+        )
+    return SourceBundle(files=tuple(files), complete=complete, notes=bounded_notes)
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +450,12 @@ async def list_findings(
 
     where = [CVEMatch.target_id == key.target_id]
     if show == "filtered":
-        where.append(CVEMatch.verdict == Verdict.SUPPRESSED)
+        where.extend(
+            [
+                CVEMatch.verdict == Verdict.SUPPRESSED,
+                CVEMatch.status == AlertStatus.FILTERED,
+            ]
+        )
     elif show == "dismissed":
         where.append(CVEMatch.status == AlertStatus.DISMISSED)
     elif show == "resolved":
@@ -356,6 +495,10 @@ async def list_findings(
                 # difference between "upgrade this" and "upgrade what wants it".
                 "via": list(match.via or []),
                 "depth": match.depth,
+                "dependency_relationship": str(match.reachability),
+                "reachability": str(match.automated_reachability),
+                "reachability_evidence": list(match.reachability_evidence or []),
+                "status": str(match.status),
                 "reason": (
                     match.actionable_reason.label
                     if match.actionable_reason
@@ -530,15 +673,10 @@ async def add_scan_rule(request: Request, db: DbSession, key: ManageKey):
     from app.models import IgnoreRule
     from app.schemas import IgnoreRuleForm
     from app.services.rules_service import list_rules
-    from app.tiers import can_use_custom_rules
 
     owner = await db.get(User, key.user_id)
-    if owner is None or not can_use_custom_rules(owner.tier):
-        raise _fail(
-            status.HTTP_403_FORBIDDEN,
-            "pro_required",
-            "Custom scan rules are part of the Pro plan.",
-        )
+    if owner is None:
+        raise _fail(status.HTTP_401_UNAUTHORIZED, "unauthenticated", "That account is gone.")
 
     try:
         payload = await request.json()
@@ -699,6 +837,8 @@ async def _blocking_findings(db, target_id: int) -> list[dict]:
                 CVEMatch.severity,
                 CVEMatch.is_kev,
                 CVEMatch.actionable_reason,
+                CVEMatch.automated_reachability,
+                CVEMatch.reachability_evidence,
             )
             .join(VulnerabilityRecord, VulnerabilityRecord.id == CVEMatch.vulnerability_id)
             .where(
@@ -729,6 +869,8 @@ async def _blocking_findings(db, target_id: int) -> list[dict]:
             # been taught about this yet still sees `exploited: false` and a
             # severity it understands, rather than a level it cannot rank.
             "malicious": reason == ActionableReason.MALICIOUS_PACKAGE,
+            "reachability": str(reachability),
+            "reachability_evidence": list(evidence or []),
         }
-        for cve_ids, package, version, fixed, severity, is_kev, reason in rows
+        for cve_ids, package, version, fixed, severity, is_kev, reason, reachability, evidence in rows
     ]

@@ -63,7 +63,6 @@ from app.services.rules_service import list_rules
 from app.services.scan_service import scan_target
 from app.services.supply_chain_service import open_signals
 from app.services.target_service import (
-    TargetLimitReached,
     UnsupportedManifest,
     create_empty_target,
     create_target,
@@ -71,7 +70,6 @@ from app.services.target_service import (
     get_target_for_user,
     replace_manifest,
 )
-from app.tiers import can_use_custom_rules, can_use_webhooks
 
 log = get_logger(__name__)
 
@@ -125,7 +123,10 @@ async def project_page(
 
     filters = {
         "open": (CVEMatch.verdict == Verdict.ACTIONABLE, CVEMatch.status == AlertStatus.OPEN),
-        "filtered": (CVEMatch.verdict == Verdict.SUPPRESSED,),
+        "filtered": (
+            CVEMatch.verdict == Verdict.SUPPRESSED,
+            CVEMatch.status == AlertStatus.FILTERED,
+        ),
         "dismissed": (CVEMatch.status == AlertStatus.DISMISSED,),
         "resolved": (CVEMatch.status == AlertStatus.RESOLVED,),
     }
@@ -175,7 +176,10 @@ async def project_page(
                 name=row.name,
                 version=row.version or "",
                 depth=row.depth or 0,
-                is_direct=(row.depth or 0) <= 1,
+                is_direct=(row.depth or 0) == 0,
+                dependency_relationship=row.reachability,
+                reachability=row.automated_reachability,
+                reachability_evidence=list(row.reachability_evidence or []),
             )
             for row in dependencies
         ],
@@ -238,8 +242,8 @@ async def project_page(
             for key in await keys_for_target(db, target.id)
         ],
         webhook=_webhook_view(target),
-        can_use_rules=can_use_custom_rules(user.tier),
-        can_use_webhooks=can_use_webhooks(user.tier),
+        can_use_rules=True,
+        can_use_webhooks=True,
     )
 
 
@@ -256,6 +260,10 @@ def _detail_view(target, tab_counts: dict[str, int]) -> ProjectDetailView:
         next_scan_at=target.next_scan_at,
         last_scan_error=target.last_scan_error,
         unreached_by_depth=target.unreached_by_depth or 0,
+        reachability_analyzed_at=target.reachability_analyzed_at,
+        reachability_source_count=target.reachability_source_count or 0,
+        reachability_analysis_complete=target.reachability_analysis_complete,
+        reachability_analysis_notes=list(target.reachability_analysis_notes or []),
         counts={
             "critical": tab_counts.get("critical", 0),
             "high": tab_counts.get("high", 0),
@@ -273,7 +281,9 @@ def _finding_view(match, project: FindingProjectView) -> FindingAttentionView:
         installed_version=match.package_version,
         severity=match.severity,
         is_exploited=bool(match.is_kev),
-        reachability=match.reachability,
+        reachability=match.automated_reachability,
+        reachability_evidence=list(match.reachability_evidence or []),
+        dependency_relationship=match.reachability,
         status=match.status,
         detected_at=match.first_seen_at,
     )
@@ -343,8 +353,6 @@ async def create_project(
 
         try:
             target = await create_empty_target(db, user, form.name, form.ecosystem)
-        except TargetLimitReached as exc:
-            raise _fail(status.HTTP_402_PAYMENT_REQUIRED, "LIMIT_REACHED", str(exc)) from None
         except UnsupportedManifest as exc:
             raise _fail(status.HTTP_400_BAD_REQUEST, "UNSUPPORTED", str(exc)) from None
 
@@ -363,8 +371,6 @@ async def create_project(
 
     try:
         target = await create_target(db, user, upload_name, text_content, meta.name)
-    except TargetLimitReached as exc:
-        raise _fail(status.HTTP_402_PAYMENT_REQUIRED, "LIMIT_REACHED", str(exc)) from None
     except UnsupportedManifest as exc:
         raise _fail(status.HTTP_400_BAD_REQUEST, "UNSUPPORTED", str(exc)) from None
 
@@ -649,15 +655,6 @@ def _ignore_kind(raw: object) -> IgnoreKind:
         ) from None
 
 
-def _require_rules(user) -> None:
-    if not can_use_custom_rules(user.tier):
-        raise _fail(
-            status.HTTP_402_PAYMENT_REQUIRED,
-            "PRO_REQUIRED",
-            "Custom scan rules are part of the Pro plan.",
-        )
-
-
 @router.post("/projects/{target_id}/rules", dependencies=[CsrfProtected])
 async def add_project_rule(
     request: Request, db: DbSession, user: CurrentInternalUser, target_id: int
@@ -665,7 +662,6 @@ async def add_project_rule(
     from app.models import IgnoreRule
 
     target = await _owned(db, user, target_id)
-    _require_rules(user)
 
     payload = await request.json()
     try:
@@ -709,7 +705,6 @@ async def remove_project_rule(
     db: DbSession, user: CurrentInternalUser, target_id: int, rule_id: int
 ) -> dict:
     target = await _owned(db, user, target_id)
-    _require_rules(user)
 
     for rule in await list_rules(db, target.id):
         if rule.id == rule_id:
@@ -738,7 +733,6 @@ async def set_project_profile(
     from app.services.profile_service import get_profile
 
     target = await _owned(db, user, target_id)
-    _require_rules(user)
 
     if body.profile is None or not body.profile.strip():
         target.profile_id = None
@@ -763,7 +757,6 @@ async def set_project_thresholds(
     db: DbSession, user: CurrentInternalUser, target_id: int, body: ThresholdsBody
 ) -> dict:
     target = await _owned(db, user, target_id)
-    _require_rules(user)
 
     def parse(value: str) -> Severity | None:
         """An empty value means "use the default", which is not the same as a
@@ -811,15 +804,6 @@ class WebhookBody(BaseModel):
     kind: str = "discord"
 
 
-def _require_webhooks(user) -> None:
-    if not can_use_webhooks(user.tier):
-        raise _fail(
-            status.HTTP_402_PAYMENT_REQUIRED,
-            "PRO_REQUIRED",
-            "Webhook alerts are part of the Pro plan.",
-        )
-
-
 @router.post("/projects/{target_id}/webhook", dependencies=[CsrfProtected])
 async def save_project_webhook(
     db: DbSession, user: CurrentInternalUser, target_id: int, body: WebhookBody
@@ -829,7 +813,6 @@ async def save_project_webhook(
     from app.services.discord_service import parse_webhook_url
 
     target = await _owned(db, user, target_id)
-    _require_webhooks(user)
 
     kind = WebhookKind.CUSTOM if body.kind == WebhookKind.CUSTOM else WebhookKind.DISCORD
 
@@ -873,7 +856,6 @@ async def test_project_webhook(db: DbSession, user: CurrentInternalUser, target_
     from app.services.discord_service import build_test_payload, post_webhook
 
     target = await _owned(db, user, target_id)
-    _require_webhooks(user)
 
     if not target.discord_webhook_url:
         raise _fail(status.HTTP_400_BAD_REQUEST, "NO_WEBHOOK", "Add a webhook URL first.")

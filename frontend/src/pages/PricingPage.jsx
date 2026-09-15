@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "@phosphor-icons/react/Check";
 
 import { AsyncError, AsyncLoading } from "../components/feedback/AsyncState";
 import { usePricing } from "../features/marketing/hooks/useMarketing";
@@ -16,17 +16,17 @@ export function PricingPage() {
   const query = usePricing();
 
   return (
-    <div className="page-narrow">
+    <div className="pricing-page public-editorial">
       <header className="page-head">
         <p className="section-label">Pricing</p>
-        <h1>One free project. Everything else on one plan.</h1>
+        <h1>Everything Weedout ships is Free.</h1>
         <p className="page-head__lede">
-          Both plans use the same matching and the same filtering. Paying does not
-          change which vulnerabilities you are shown — it changes how many projects
-          you can watch, how often, and how deep.
+          Dependency analysis, Node reachability evidence, custom rules, alerts, CLI,
+          and CI behavior are included at no charge in the single Free product.
         </p>
       </header>
 
+      <div className="pricing-detail">
       {query.isPending ? <AsyncLoading>Loading plans…</AsyncLoading> : null}
       {query.isError ? (
         <AsyncError error={query.error} onRetry={() => query.refetch()} />
@@ -36,8 +36,7 @@ export function PricingPage() {
         <div className="plan-grid">
           {query.data.plans.map((plan) => (
             <section className="plan-card" key={plan.id}>
-              <h2>{plan.name}</h2>
-              <p className="plan-card__price">{plan.price}</p>
+              <header className="plan-intro"><div><p className="eyebrow">The whole product</p><h2>{plan.name}</h2></div><p className="plan-card__price">{plan.price}</p></header>
               <ul>
                 {plan.features.map((feature) => (
                   <li key={feature}>
@@ -46,12 +45,12 @@ export function PricingPage() {
                 ))}
               </ul>
               <Link className="button button--primary" to="/signup">
-                Start with {plan.name}
+                Create a free account
               </Link>
             </section>
           ))}
         </div>
       ) : null}
-    </div>
+    </div></div>
   );
 }

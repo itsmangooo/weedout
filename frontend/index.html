@@ -1,19 +1,36 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script src="https://swetrix.org/swetrix.js" defer></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    swetrix.init('F0r8kzzmxyo1', {
+      apiURL: 'https://analytics-api.weedout.dev/log',
+    })
+    swetrix.trackViews()
+  })
+</script>
+
+<noscript>
+  <img
+    src="https://analytics-api.weedout.dev/log/noscript?pid=F0r8kzzmxyo1"
+    alt=""
+    referrerpolicy="no-referrer-when-downgrade"
+  />
+</noscript>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Weedout watches your dependency manifests and only tells you about vulnerabilities that are actually exploited in the wild or actually reachable in what you ship."
+      content="Weedout turns vulnerable dependency data into a clear project security queue, prioritised by exploit and reachability signals instead of raw CVE volume."
     />
-    <title>Weedout</title>
+    <title>Weedout — project security without the noise</title>
     <!--
       Synchronous and ahead of everything else: it sets the theme before the
       first paint. Deferring it flashes the default palette at anybody who
       chose the other one. Separate file because the CSP is `script-src 'self'`.
     -->
-    <script src="/static/js/theme-boot.js"></script>
+    <script vite-ignore src="/static/js/theme-boot.js"></script>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   </head>
   <body>
