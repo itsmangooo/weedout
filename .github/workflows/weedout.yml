@@ -1,0 +1,21 @@
+name: Weedout Dependency Scan
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  security-triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install & Run Weedout CLI
+        env:
+          WEEDOUT_API_KEY: ${{ secrets.WEEDOUT_API_KEY }}
+        run: |
+          curl -sSL https://weedout.dev | sh
+          ./weedout scan --ci

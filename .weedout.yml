@@ -1,0 +1,13 @@
+version: "1"
+project_name: "weedout"
+ecosystems:
+  - pip          # Instructs the runner to search for requirements.txt
+
+reachability:
+  mode: automated
+  fallback: report
+
+fail_on:
+  severity: critical
+  require_reachability: true # Keep pipelines safe unless a CVE is actively reachable
+  require_exploit: true      # Only break if an exploit exists in the wild (CISA KEV)
