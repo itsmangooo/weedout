@@ -59,6 +59,7 @@ fi
 command -v npm >/dev/null 2>&1 || fail "npm was not found"
 [[ -f frontend/package-lock.json ]] || fail "frontend/package-lock.json is missing"
 [[ -f web/package-lock.json ]] || fail "web/package-lock.json is missing"
+[[ -f integrations/vscode/package-lock.json ]] || fail "integrations/vscode/package-lock.json is missing"
 command -v go >/dev/null 2>&1 || fail "Go was not found"
 
 printf 'Running Python lint and format checks...\n'
@@ -83,6 +84,30 @@ printf 'Installing and validating the frontend...\n'
   npm run lint
   npm run test -- --run
   npm run build
+)
+
+printf 'Installing and validating the Next.js web application...\n'
+(
+  cd web
+  npm ci
+  npm run lint
+  npm test
+  npm run build
+  npm run typecheck
+)
+
+printf 'Installing and validating the VS Code integration...\n'
+(
+  cd integrations/vscode
+  npm ci
+  npm run check
+  npm test
+)
+
+printf 'Validating the JetBrains integration...\n'
+(
+  cd integrations/jetbrains
+  ./gradlew test buildPlugin --no-daemon
 )
 
 # Route tests exercise the real React shell. Build it before pytest so a clean

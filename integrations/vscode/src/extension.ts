@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 
 import { WeedoutApi } from "./api";
 import { dependencyKey, findDependencyOccurrences, inlineHint, isManifest, MANIFEST_PATTERNS, manifestRank } from "./manifest";
+import { ScanState } from "./scanState";
 import type { DependencyOccurrence, Finding, ProjectBinding } from "./types";
 
 const MACHINE_TOKEN = "weedout.machineToken";
@@ -20,12 +21,13 @@ function projectSecret(binding: ProjectBinding): string {
 }
 
 class FindingTree implements vscode.TreeDataProvider<Finding> {
-  private findings: Finding[] = [];
+  private readonly byWorkspace = new Map<string, Finding[]>();
   private readonly changed = new vscode.EventEmitter<Finding | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
 
-  update(findings: Finding[]) {
-    this.findings = findings;
+  update(workspace: string, findings: Finding[]) {
+    if (findings.length > 0) this.byWorkspace.set(workspace, findings);
+    else this.byWorkspace.delete(workspace);
     this.changed.fire(undefined);
   }
 
@@ -37,7 +39,7 @@ class FindingTree implements vscode.TreeDataProvider<Finding> {
     return item;
   }
 
-  getChildren(): Finding[] { return this.findings; }
+  getChildren(): Finding[] { return [...this.byWorkspace.values()].flat(); }
 }
 
 function hoverMarkdown(finding: Finding): vscode.MarkdownString {
@@ -67,9 +69,11 @@ class WeedoutController implements vscode.Disposable, vscode.HoverProvider {
   private readonly occurrences = new Map<string, DependencyOccurrence[]>();
   private readonly disposables: vscode.Disposable[] = [];
   private readonly baselines = new Map<string, Set<string>>();
+  private readonly scans = new ScanState();
+  private readonly output = vscode.window.createOutputChannel("Weedout", { log: true });
 
   constructor(private readonly context: vscode.ExtensionContext, private readonly tree: FindingTree) {
-    this.disposables.push(this.diagnostics, this.decoration);
+    this.disposables.push(this.diagnostics, this.decoration, this.output);
     for (const pattern of [...MANIFEST_PATTERNS, "**/.weedout.yml"]) {
       const watcher = vscode.workspace.createFileSystemWatcher(pattern);
       watcher.onDidCreate((uri) => this.schedule(uri));
@@ -112,10 +116,19 @@ class WeedoutController implements vscode.Disposable, vscode.HoverProvider {
   }
 
   private async scanFolder(folder: vscode.WorkspaceFolder, startup: boolean) {
+    const workspace = folder.uri.toString();
+    const version = this.scans.begin(workspace);
     const binding = this.context.workspaceState.get<ProjectBinding>(`${BINDING}:${folder.uri.toString()}`);
-    if (!binding) return;
+    if (!binding) {
+      this.clearFolder(folder);
+      return;
+    }
     const key = await this.context.secrets.get(projectSecret(binding));
-    if (!key) return;
+    if (!this.scans.isCurrent(workspace, version)) return;
+    if (!key) {
+      this.clearFolder(folder);
+      return;
+    }
     const manifests = await this.findManifests(folder);
     const manifest = manifests[0];
     if (!manifest) {
@@ -130,10 +143,11 @@ class WeedoutController implements vscode.Disposable, vscode.HoverProvider {
       ]);
       const policy = policies[0] ? await vscode.workspace.fs.readFile(policies[0]) : undefined;
       const result = await api().scan(key, path.basename(manifest.fsPath), content, policy);
+      if (!this.scans.isCurrent(workspace, version)) return;
       this.apply(folder, manifest, content, result.findings, startup);
     } catch (error) {
-      console.error("Weedout automatic scan failed", error);
-      if (!startup) void vscode.window.showErrorMessage(`Weedout could not update: ${String((error as Error).message ?? error)}`);
+      if (!this.scans.isCurrent(workspace, version)) return;
+      this.output.error(`Automatic analysis failed for ${folder.name}: ${String((error as Error).message ?? error)}`);
     }
   }
 
@@ -145,7 +159,7 @@ class WeedoutController implements vscode.Disposable, vscode.HoverProvider {
   }
 
   private apply(folder: vscode.WorkspaceFolder, manifest: vscode.Uri, content: Uint8Array, findings: Finding[], startup: boolean) {
-    this.clearFolder(folder);
+    this.removeFolderState(folder);
     const text = new TextDecoder().decode(content);
     const occurrences = findDependencyOccurrences(text, path.basename(manifest.fsPath));
     const byPackage = new Map(findings.map((finding) => [dependencyKey(finding.package), finding]));
@@ -162,7 +176,7 @@ class WeedoutController implements vscode.Disposable, vscode.HoverProvider {
     this.diagnostics.set(manifest, diagnostics);
     this.findings.set(manifest.toString(), findings);
     this.occurrences.set(manifest.toString(), matched);
-    this.tree.update(findings);
+    this.tree.update(folder.uri.toString(), findings);
     this.refreshDecorations();
 
     const baselineKey = folder.uri.toString();
@@ -180,6 +194,13 @@ class WeedoutController implements vscode.Disposable, vscode.HoverProvider {
   }
 
   private clearFolder(folder: vscode.WorkspaceFolder) {
+    this.scans.invalidate(folder.uri.toString());
+    this.removeFolderState(folder);
+    this.tree.update(folder.uri.toString(), []);
+    this.baselines.delete(folder.uri.toString());
+  }
+
+  private removeFolderState(folder: vscode.WorkspaceFolder) {
     for (const [uri] of this.findings) {
       if (vscode.workspace.getWorkspaceFolder(vscode.Uri.parse(uri))?.uri.toString() === folder.uri.toString()) {
         this.diagnostics.delete(vscode.Uri.parse(uri));
@@ -188,6 +209,10 @@ class WeedoutController implements vscode.Disposable, vscode.HoverProvider {
       }
     }
     this.refreshDecorations();
+  }
+
+  unbind(folder: vscode.WorkspaceFolder) {
+    this.clearFolder(folder);
   }
 
   private refreshDecorations() {
@@ -292,7 +317,7 @@ export async function activate(context: vscode.ExtensionContext) {
       await api().deleteProject(machine, binding.id);
       await context.secrets.delete(projectSecret(binding));
       await context.workspaceState.update(`${BINDING}:${folder.uri.toString()}`, undefined);
-      tree.update([]);
+      controller.unbind(folder);
       void vscode.window.showInformationMessage(`Deleted Weedout project “${binding.name}”.`);
     }),
   );
