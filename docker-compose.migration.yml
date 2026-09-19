@@ -1,0 +1,77 @@
+name: weedout-migration
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: weedout
+      POSTGRES_PASSWORD: weedout
+      POSTGRES_DB: weedout
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata-migration:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weedout -d weedout"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  engine:
+    build:
+      context: ./engine
+      dockerfile: Dockerfile
+    expose: ["8080"]
+    environment:
+      ENGINE_ADDR: :8080
+    security_opt: ["no-new-privileges:true"]
+
+  legacy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "alembic upgrade head && python -m app"
+    expose: ["8000"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://weedout:weedout@db:5432/weedout
+      SECRET_KEY: ${SECRET_KEY:-local-development-secret-key-change-me-please}
+      ENVIRONMENT: local
+      BASE_URL: http://localhost:3000
+      EMAIL_BACKEND: console
+      RUN_SCHEDULER_IN_WEB: "false"
+      DETECTION_ENGINE_MODE: shadow
+      DETECTION_ENGINE_URL: http://engine:8080
+    depends_on:
+      db: {condition: service_healthy}
+      engine: {condition: service_healthy}
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports: ["3000:3000"]
+    environment:
+      LEGACY_WEB_URL: http://legacy:8000
+      ENGINE_INTERNAL_URL: http://engine:8080
+      DATABASE_URL: postgresql://weedout:weedout@db:5432/weedout
+    depends_on:
+      engine: {condition: service_healthy}
+      legacy: {condition: service_started}
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m app.jobs.runner loop
+    healthcheck: {disable: true}
+    environment:
+      DATABASE_URL: postgresql+psycopg://weedout:weedout@db:5432/weedout
+      SECRET_KEY: ${SECRET_KEY:-local-development-secret-key-change-me-please}
+      ENVIRONMENT: local
+      BASE_URL: http://localhost:3000
+      EMAIL_BACKEND: console
+    depends_on:
+      legacy: {condition: service_started}
+
+volumes:
+  pgdata-migration:

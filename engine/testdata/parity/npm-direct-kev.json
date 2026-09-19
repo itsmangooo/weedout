@@ -1,0 +1,47 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-npm-direct-kev",
+    "manifests": [
+      {
+        "path": "package-lock.json",
+        "kind": "package-lock.json",
+        "content": "{\"name\":\"fixture\",\"lockfileVersion\":3,\"packages\":{\"\":{\"dependencies\":{\"lodash\":\"4.17.20\",\"safe-package\":\"1.0.0\"}},\"node_modules/lodash\":{\"version\":\"4.17.20\"},\"node_modules/safe-package\":{\"version\":\"1.0.0\"}}}"
+      }
+    ],
+    "sources": [
+      {"path": "src/index.js", "content": "import lodash from 'lodash';\nconsole.log(lodash);"}
+    ],
+    "advisories": {
+      "provider": "inline",
+      "inline": [
+        {
+          "id": "GHSA-35JH-R3H4-6JHM",
+          "aliases": ["CVE-2021-23337"],
+          "summary": "Command injection in lodash",
+          "severity": "high",
+          "known_exploited": true,
+          "affected": [
+            {
+              "ecosystem": "npm",
+              "name": "lodash",
+              "ranges": [{"introduced": "0", "fixed": "4.17.21"}]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expected": {
+    "dependencies": ["lodash@4.17.20", "safe-package@1.0.0"],
+    "findings": [
+      {
+        "id": "GHSA-35JH-R3H4-6JHM:npm:lodash:4.17.20",
+        "verdict": "actionable",
+        "fixed_version": "4.17.21",
+        "known_exploited": true,
+        "reachability": "reachable"
+      }
+    ]
+  }
+}

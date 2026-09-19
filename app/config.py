@@ -142,6 +142,14 @@ class Settings(BaseSettings):
     #: enough not to bite, and low enough to bound a runaway loop.
     api_scan_rate_limit_per_hour: int = 60
 
+    # ---- Detection engine migration --------------------------------------
+    #: `shadow` sends production-shaped inputs to the Go engine and compares
+    #: decisions, while the Python result remains authoritative. This is the
+    #: safe bridge to cutover: parity evidence before stored findings change.
+    detection_engine_mode: Literal["off", "shadow"] = "off"
+    detection_engine_url: str | None = None
+    detection_engine_timeout_seconds: float = 10.0
+
     # ---- Background jobs --------------------------------------------------
     # Set false in the web process when running a dedicated worker container.
     run_scheduler_in_web: bool = True
