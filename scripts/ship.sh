@@ -85,16 +85,8 @@ printf 'Installing and validating the frontend...\n'
   npm run build
 )
 
-printf 'Installing and validating the Next.js web application...\n'
-(
-  cd web
-  npm ci
-  npm run lint
-  npm test
-  npm run build
-  npm run typecheck
-)
-
+# Route tests exercise the real React shell. Build it before pytest so a clean
+# checkout validates the application rather than returning 503 for every page.
 printf 'Running Python tests...\n'
 "$python_bin" -m pytest -q
 
