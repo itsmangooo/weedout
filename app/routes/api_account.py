@@ -6,9 +6,9 @@ the point of having two credential types:
 
 - A **project key** can push a scan and read findings for one project. It is
   what sits in CI, where anyone who can read a build log can take it.
-- A **CLI token** can create projects and mint keys for them, and cannot read a
-  single finding. It belongs to a person at a keyboard and is obtained by
-  confirming in a browser.
+- A **CLI token** can create and delete projects and mint keys for them, and
+  cannot read a single finding. It belongs to a person at a keyboard and is
+  obtained by confirming in a browser.
 
 Neither can do the other's job. A key stolen from a runner cannot enumerate the
 account; a token stolen from a laptop cannot quietly read what the account is
@@ -38,6 +38,7 @@ from app.services.target_service import (
     UnsupportedManifest,
     create_empty_target,
     create_target,
+    delete_target,
 )
 
 #: Starlette renamed its 422 constant and deprecated the old spelling. Named
@@ -231,6 +232,25 @@ async def create_project(response: Response, db: DbSession, key: CliKey, body: C
         "key": issued.token,
         "scope": str(scope),
     }
+
+
+@router.delete("/projects/{project_id}")
+async def delete_project(response: Response, db: DbSession, key: CliKey, project_id: int) -> dict:
+    """Delete one owned project from an authenticated developer machine.
+
+    IDE integrations confirm this destructive action in their native UI before
+    calling the endpoint. Ownership is still enforced here; an identifier from
+    another account is indistinguishable from one that does not exist.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    target = await db.get(TrackedTarget, project_id)
+    if target is None or target.user_id != key.user_id:
+        raise _fail(status.HTTP_404_NOT_FOUND, "no_such_project", "No such project.")
+
+    await delete_target(db, target)
+    await db.commit()
+    log.info("account.project_deleted", user_id=key.user_id, target_id=project_id)
+    return {"deleted": True}
 
 
 @router.post("/keys")

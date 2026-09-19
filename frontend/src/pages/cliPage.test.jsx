@@ -52,6 +52,12 @@ afterEach(() => {
 });
 
 describe("the CLI page", () => {
+  it("marks the CLI as work in progress", async () => {
+    renderCli();
+
+    expect(await screen.findByText(/Command line · Work in progress/)).toBeVisible();
+  });
+
   it("numbers its sections without repeating one", async () => {
     // They drifted the moment two sections were inserted, which is why the
     // numbers are derived from the render order now.

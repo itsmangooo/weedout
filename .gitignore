@@ -34,6 +34,16 @@ htmlcov/
 frontend/node_modules/
 frontend/dist/
 frontend/coverage/
+web/node_modules/
+web/.next/
+web/coverage/
+web/*.tsbuildinfo
+engine/bin/
+integrations/vscode/node_modules/
+integrations/vscode/out/
+integrations/jetbrains/.gradle/
+integrations/jetbrains/.intellijPlatform/
+integrations/jetbrains/build/
 
 # Editors / OS
 .vscode/

@@ -2,6 +2,12 @@
 
 A reachable-CVE watchlist for small dev teams.
 
+> **Architecture migration:** the standalone Go detector is in [`engine/`](engine/README.md)
+> and the incremental Next.js product application is in [`web/`](web/README.md).
+> The Python/FastAPI and React/Vite implementation remains the compatibility
+> layer until the documented parity gates pass. Run the migration stack with
+> `docker compose -f docker-compose.migration.yml up --build`.
+
 Connect a dependency manifest and get alerted only about vulnerabilities that
 are **actually being exploited in the wild** (CISA KEV) or **severe and reachable
 in the code you actually ship**. Everything else is recorded, counted, and left

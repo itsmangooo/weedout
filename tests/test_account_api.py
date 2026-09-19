@@ -261,6 +261,39 @@ class TestListingProjects:
         assert [p["name"] for p in response.json()["projects"]] == ["mine"]
 
 
+class TestDeletingAProject:
+    async def test_machine_credential_deletes_an_owned_project(
+        self, client, db, pro_user, machine_token
+    ):
+        from tests.test_api import make_target
+
+        target = await make_target(db, pro_user, name="obsolete")
+        await db.commit()
+
+        response = await client.delete(
+            f"/api/account/projects/{target.id}", headers=bearer(machine_token)
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json() == {"deleted": True}
+        assert await db.get(TrackedTarget, target.id) is None
+
+    async def test_another_accounts_project_is_not_disclosed(
+        self, client, db, second_pro_user, machine_token
+    ):
+        from tests.test_api import make_target
+
+        target = await make_target(db, second_pro_user, name="theirs")
+        await db.commit()
+
+        response = await client.delete(
+            f"/api/account/projects/{target.id}", headers=bearer(machine_token)
+        )
+
+        assert response.status_code == 404
+        assert await db.get(TrackedTarget, target.id) is not None
+
+
 class TestMintingAKey:
     async def test_it_issues_one_for_an_existing_project(self, client, db, pro_user, machine_token):
         from tests.test_api import make_target

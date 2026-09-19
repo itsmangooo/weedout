@@ -237,7 +237,7 @@ def _register_middleware(app: FastAPI) -> None:
         # sources stay first-party only.
         script_src = "'self'"
         frame_src = "'none'"
-        connect_src = "'self'"
+        connect_src = "'self' https://analytics-api.weedout.dev"
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; "

@@ -1,0 +1,25 @@
+<idea-plugin>
+  <id>dev.weedout.jetbrains</id>
+  <name>Weedout</name>
+  <vendor url="https://weedout.dev">Weedout</vendor>
+  <description>Automatic dependency vulnerability context inside JetBrains IDEs.</description>
+  <depends>com.intellij.modules.platform</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <projectService serviceImplementation="dev.weedout.ide.WeedoutProjectService"/>
+    <postStartupActivity implementation="dev.weedout.ide.WeedoutStartupActivity"/>
+    <annotator language="ANY" implementationClass="dev.weedout.ide.WeedoutAnnotator"/>
+    <toolWindow id="Weedout" anchor="right" factoryClass="dev.weedout.ide.WeedoutToolWindowFactory"/>
+    <notificationGroup id="Weedout" displayType="BALLOON" isLogByDefault="true"/>
+  </extensions>
+
+  <actions>
+    <group id="Weedout.Menu" text="Weedout" popup="true">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+      <action id="Weedout.Auth" class="dev.weedout.ide.WeedoutAuthAction" text="Auth"/>
+      <action id="Weedout.Rules" class="dev.weedout.ide.WeedoutRulesAction" text="Rules"/>
+      <action id="Weedout.CreateProject" class="dev.weedout.ide.WeedoutCreateProjectAction" text="Create Project"/>
+      <action id="Weedout.DeleteProject" class="dev.weedout.ide.WeedoutDeleteProjectAction" text="Delete Project"/>
+    </group>
+  </actions>
+</idea-plugin>

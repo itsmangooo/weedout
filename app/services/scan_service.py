@@ -41,6 +41,7 @@ from app.models import (
     User,
     utcnow,
 )
+from app.services.engine_client import shadow_compare
 from app.services.feed_service import load_epss_index, load_kev_index
 from app.services.mirror_service import (
     find_local_vulnerabilities,
@@ -349,17 +350,26 @@ async def _run_pipeline(
     # switched on a threshold would be a worse explanation than none.
     epss_index = await load_epss_index(db, referenced_cves)
 
-    return (
-        triage_all(
-            dependencies,
-            by_dependency,
-            kev_index,
-            policy,
-            errors=tuple(errors),
-            epss_index=epss_index,
-        ),
+    scan_result = triage_all(
         dependencies,
+        by_dependency,
+        kev_index,
+        policy,
+        errors=tuple(errors),
+        epss_index=epss_index,
     )
+    await shadow_compare(
+        manifest_path=manifest.path,
+        manifest_kind=str(manifest.kind),
+        manifest_content=manifest.content,
+        source_bundle=source_bundle,
+        policy=policy,
+        vulnerabilities_by_dependency=by_dependency,
+        kev_index=kev_index,
+        epss_index=epss_index,
+        python_result=scan_result,
+    )
+    return scan_result, dependencies
 
 
 class AllManifestsFailed(RuntimeError):

@@ -58,10 +58,19 @@ fi
 
 command -v npm >/dev/null 2>&1 || fail "npm was not found"
 [[ -f frontend/package-lock.json ]] || fail "frontend/package-lock.json is missing"
+[[ -f web/package-lock.json ]] || fail "web/package-lock.json is missing"
+command -v go >/dev/null 2>&1 || fail "Go was not found"
 
 printf 'Running Python lint and format checks...\n'
 "$python_bin" -m ruff check .
 "$python_bin" -m ruff format --check .
+
+printf 'Validating the standalone detection engine...\n'
+(
+  cd engine
+  go test ./...
+)
+"$python_bin" engine/parity/python_reference.py
 
 printf 'Checking database migrations...\n'
 "$python_bin" -m alembic upgrade head

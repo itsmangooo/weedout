@@ -405,7 +405,7 @@ weedout scan
 
 `weedout auth` prints a short code and opens a browser approval page. Confirm
 that the browser shows the same code. The resulting machine credential can
-create projects and issue project keys, but it cannot read a project's
+create or delete projects and issue project keys, but it cannot read a project's
 findings.
 
 `weedout create` detects the project, creates it in Weedout, and stores a
@@ -1389,7 +1389,7 @@ single credential that did everything.
 | From | `weedout auth` | `weedout create`, `weedout link`, or the project's settings page |
 | Belongs to | your account | one project |
 | Lives | in your OS config directory, on your machine | in `WEEDOUT_API_KEY`, or a `.weedout` file |
-| Can | create projects, list them, issue keys | scan, read findings, edit rules — depending on scope |
+| Can | create, list and delete projects; issue keys | scan, read findings, edit rules — depending on scope |
 | Cannot | read a single finding | create a project or reach another one |
 
 A key taken from a CI runner reaches the one project that runner builds. A

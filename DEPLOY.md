@@ -1,5 +1,11 @@
 # Deploying Weedout
 
+The Next.js/Go migration deployment is documented in
+[`docs/migration/deployment.md`](docs/migration/deployment.md). The classic
+stack below remains the production path until scan and route parity gates pass;
+the migration stack adds `weedout-web` and a private `weedout-engine` without
+resetting PostgreSQL or deleting the rollback service.
+
 Target setup: a single VM running Docker, with Cloudflare Tunnel terminating
 TLS and forwarding through Coolify/Traefik to the web container. No application
 or database port is published directly to the internet.
