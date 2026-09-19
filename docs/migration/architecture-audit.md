@@ -1,6 +1,8 @@
 # Architecture audit and migration boundary
 
 This document records the source-of-truth audit before legacy code is removed.
+The complete file-by-file Python removal audit is maintained in
+[`python-inventory.md`](python-inventory.md).
 
 ## Current product
 
