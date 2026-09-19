@@ -91,9 +91,11 @@ range rather than an installed version.
 `testdata/parity` is the shared contract corpus. Go tests run requests through
 the new engine. `parity/python_reference.py` runs the same fixtures through the
 legacy pure Python core. The corpus currently covers every supported ecosystem
-(npm, PyPI, Go, crates.io, and Maven) plus KEV, EPSS, ignored findings, source
-reachability, fixed versions, and severity policy. Add fixtures for parser and
-version edge cases before retiring the Python detector.
+(npm, PyPI, Go, crates.io, and Maven) plus Cargo dependency depth, Maven
+properties and managed versions, Gradle/sbt development scopes, KEV, EPSS,
+ignored findings, source reachability, fixed versions, and severity policy.
+Add fixtures for further parser and version edge cases before retiring the
+Python detector.
 
 ```bash
 go test ./...

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-maven-managed",
+    "manifests": [{
+      "path": "pom.xml",
+      "kind": "pom.xml",
+      "content": "<project><properties><spring.version>5.3.20</spring.version></properties><dependencyManagement><dependencies><dependency><groupId>com.google.guava</groupId><artifactId>guava</artifactId><version>31.1-jre</version></dependency></dependencies></dependencyManagement><dependencies><dependency><groupId>org.springframework</groupId><artifactId>spring-core</artifactId><version>${spring.version}</version></dependency><dependency><groupId>com.google.guava</groupId><artifactId>guava</artifactId></dependency></dependencies></project>"
+    }],
+    "advisories": {"provider": "inline", "inline": [{
+      "id": "GHSA-MANAGED-FIXTURE",
+      "severity": "high",
+      "affected": [{"ecosystem": "Maven", "name": "org.springframework:spring-core", "ranges": [{"introduced": "0", "fixed": "5.3.21"}]}]
+    }]}
+  },
+  "expected": {
+    "dependencies": ["com.google.guava:guava@31.1-jre", "org.springframework:spring-core@5.3.20"],
+    "findings": [{"id": "GHSA-MANAGED-FIXTURE:Maven:org.springframework:spring-core:5.3.20", "verdict": "actionable", "fixed_version": "5.3.21", "known_exploited": false, "reachability": "unknown"}]
+  }
+}

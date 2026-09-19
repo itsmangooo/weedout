@@ -1,0 +1,13 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-sbt-dev",
+    "manifests": [{"path": "build.sbt.lock", "kind": "build.sbt.lock", "content": "{\"lockVersion\":1,\"dependencies\":[{\"org\":\"org.scalatest\",\"name\":\"scalatest_2.13\",\"version\":\"3.2.11\",\"configurations\":[\"test\"]}]}"}],
+    "advisories": {"provider": "inline", "inline": [{"id": "GHSA-SBT-FIXTURE", "severity": "high", "affected": [{"ecosystem": "Maven", "name": "org.scalatest:scalatest_2.13", "ranges": [{"introduced": "0", "fixed": "3.2.12"}]}]}]},
+    "rules": {"dev_threshold": "critical"}
+  },
+  "expected": {
+    "dependencies": ["org.scalatest:scalatest_2.13@3.2.11"],
+    "findings": [{"id": "GHSA-SBT-FIXTURE:Maven:org.scalatest:scalatest_2.13:3.2.11", "verdict": "filtered", "fixed_version": "3.2.12", "known_exploited": false, "reachability": "unknown"}]
+  }
+}

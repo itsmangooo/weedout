@@ -1,0 +1,13 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-gradle-dev",
+    "manifests": [{"path": "gradle.lockfile", "kind": "gradle.lockfile", "content": "com.puppycrawl.tools:checkstyle:9.3=checkstyle\n"}],
+    "advisories": {"provider": "inline", "inline": [{"id": "GHSA-GRADLE-FIXTURE", "severity": "high", "affected": [{"ecosystem": "Maven", "name": "com.puppycrawl.tools:checkstyle", "ranges": [{"introduced": "0", "fixed": "9.4"}]}]}]},
+    "rules": {"dev_threshold": "critical"}
+  },
+  "expected": {
+    "dependencies": ["com.puppycrawl.tools:checkstyle@9.3"],
+    "findings": [{"id": "GHSA-GRADLE-FIXTURE:Maven:com.puppycrawl.tools:checkstyle:9.3", "verdict": "filtered", "fixed_version": "9.4", "known_exploited": false, "reachability": "unknown"}]
+  }
+}
