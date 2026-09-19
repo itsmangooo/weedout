@@ -158,7 +158,8 @@ class TestAnyoneCanSend:
             raise EmailError("smtp is having an afternoon")
 
         monkeypatch.setattr("app.services.email_service.send_email", explode)
-        monkeypatch.setattr(get_settings(), "admin_email", "admin@example.com")
+        settings = get_settings().model_copy(update={"admin_email": "admin@example.com"})
+        monkeypatch.setattr("app.services.contact_service.get_settings", lambda: settings)
 
         csrf = set_csrf(client)
         response = await client.post(

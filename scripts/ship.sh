@@ -76,6 +76,8 @@ printf 'Installing and validating the frontend...\n'
   npm run build
 )
 
+# Route tests exercise the real React shell. Build it before pytest so a clean
+# checkout validates the application rather than returning 503 for every page.
 printf 'Running Python tests...\n'
 "$python_bin" -m pytest -q
 
