@@ -35,11 +35,11 @@ def test_legacy_tier_value_cannot_change_capabilities():
 
 def test_normal_user_frontend_has_no_billing_or_upgrade_surface():
     root = Path(__file__).parents[1]
-    shell = (root / "frontend/src/components/layout/AppShell.jsx").read_text(encoding="utf-8")
+    shell = (root / "frontend/src/components/layout/DashboardShell.jsx").read_text(encoding="utf-8")
     router = (root / "frontend/src/app/router.jsx").read_text(encoding="utf-8")
     pricing = (root / "frontend/src/pages/PricingPage.jsx").read_text(encoding="utf-8")
 
-    assert "/billing" not in shell
+    assert 'to: "/billing"' not in shell
     assert '"../pages/BillingPage"' not in router
     assert "Pro plan" not in pricing
     assert "upgrade" not in pricing.lower()

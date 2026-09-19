@@ -1,0 +1,58 @@
+{
+  "name": "weedout-vscode",
+  "displayName": "Weedout",
+  "description": "Automatic dependency vulnerability context inside VS Code.",
+  "version": "0.1.0",
+  "publisher": "weedout",
+  "license": "AGPL-3.0-only",
+  "engines": { "vscode": "^1.96.0" },
+  "categories": ["Linters", "Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "files": ["out", "resources", "README.md", "LICENSE"],
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run compile && node --test out/test/*.test.js"
+  },
+  "contributes": {
+    "commands": [
+      { "command": "weedout.auth", "title": "Weedout: Auth" },
+      { "command": "weedout.rules", "title": "Weedout: Rules" },
+      { "command": "weedout.createProject", "title": "Weedout: Create Project" },
+      { "command": "weedout.deleteProject", "title": "Weedout: Delete Project" }
+    ],
+    "configuration": {
+      "title": "Weedout",
+      "properties": {
+        "weedout.serverUrl": {
+          "type": "string",
+          "default": "https://weedout.dev",
+          "description": "Weedout service URL."
+        },
+        "weedout.scanDebounceMs": {
+          "type": "number",
+          "default": 800,
+          "minimum": 250,
+          "maximum": 10000,
+          "description": "Delay after a dependency or rules file changes before automatic analysis."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "weedout", "title": "Weedout", "icon": "resources/weedout.svg" }
+      ]
+    },
+    "views": {
+      "weedout": [
+        { "id": "weedout.findings", "name": "Findings" }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/vscode": "^1.96.0",
+    "typescript": "^5.8.3"
+  }
+}

@@ -108,7 +108,7 @@ export function CliPage() {
     <div className="cli-page">
       <section className="cli-hero">
         <div className="cli-hero__copy">
-          <p className="eyebrow">Command line</p>
+          <p className="eyebrow">Command line · Work in progress</p>
           <h1>The same answer, in your pipeline.</h1>
           <p className="cli-hero__lede">
             One binary, no runtime to install, and nothing in its own dependency tree. It reports

@@ -203,11 +203,12 @@ API_KEY_ROUTES = set(API_KEY_SCOPES)
 #:
 #: The split is the point. A project key can push a scan and read findings for
 #: one project, and is what sits in CI where anyone reading a build log can
-#: take it. A machine credential can create projects and mint keys for them,
+#: take it. A machine credential can create or delete projects and mint keys for them,
 #: and cannot read a single finding. Neither can do the other's job, and
 #: `TestAccountApiSurface` asserts that rather than trusting it.
 ACCOUNT_ROUTES = {
     "/api/account/projects",
+    "/api/account/projects/{project_id}",
     "/api/account/keys",
     "/api/account/keys/regenerate",
     "/api/account/whoami",
