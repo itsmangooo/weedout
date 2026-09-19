@@ -10,6 +10,7 @@ import (
 
 	"github.com/itsmangooo/weedout-engine/pkg/manifest"
 	"github.com/itsmangooo/weedout-engine/pkg/model"
+	"github.com/pelletier/go-toml/v2"
 )
 
 type CargoLockParser struct{}
@@ -17,34 +18,58 @@ type CargoLockParser struct{}
 func (CargoLockParser) Name() string                      { return "Cargo.lock" }
 func (CargoLockParser) Detect(path string, _ []byte) bool { return manifest.Base(path) == "cargo.lock" }
 func (CargoLockParser) Parse(_ context.Context, input model.ManifestInput) (manifest.Result, error) {
-	var deps []model.Dependency
-	var name, version string
-	flush := func() {
-		if name != "" && version != "" {
-			deps = append(deps, dependency(model.EcosystemCargo, name, version, version, "runtime_transitive", true, 1))
-		}
-		name, version = "", ""
+	var lock struct {
+		Packages []struct {
+			Name         string   `toml:"name"`
+			Version      string   `toml:"version"`
+			Source       string   `toml:"source"`
+			Dependencies []string `toml:"dependencies"`
+		} `toml:"package"`
 	}
-	for _, raw := range strings.Split(input.Content, "\n") {
-		line := strings.TrimSpace(raw)
-		if line == "[[package]]" {
-			flush()
+	if err := toml.Unmarshal([]byte(input.Content), &lock); err != nil {
+		return manifest.Result{}, fmt.Errorf("Cargo.lock is not valid TOML: %w", err)
+	}
+	if len(lock.Packages) == 0 {
+		return manifest.Result{}, fmt.Errorf("Cargo.lock has no [[package]] entries")
+	}
+
+	local := map[string]struct{}{}
+	for _, item := range lock.Packages {
+		if item.Source == "" && item.Name != "" {
+			local[item.Name] = struct{}{}
+		}
+	}
+	direct := map[string]struct{}{}
+	for _, item := range lock.Packages {
+		if _, ok := local[item.Name]; !ok {
 			continue
 		}
-		if strings.HasPrefix(line, "name = ") {
-			name = unquote(strings.TrimPrefix(line, "name = "))
-		}
-		if strings.HasPrefix(line, "version = ") {
-			version = unquote(strings.TrimPrefix(line, "version = "))
+		for _, spec := range item.Dependencies {
+			name, _, _ := strings.Cut(spec, " ")
+			direct[name] = struct{}{}
 		}
 	}
-	flush()
-	if len(deps) == 0 {
-		return manifest.Result{}, fmt.Errorf("Cargo.lock has no packages")
+
+	deps := make([]model.Dependency, 0, len(lock.Packages))
+	for _, item := range lock.Packages {
+		if item.Name == "" || item.Version == "" {
+			continue
+		}
+		if _, ok := local[item.Name]; ok {
+			continue
+		}
+		scope, depth := "runtime_transitive", 1
+		if _, ok := direct[item.Name]; ok {
+			scope, depth = "runtime_direct", 0
+		}
+		deps = append(deps, dependency(model.EcosystemCargo, item.Name, item.Version, item.Version, scope, true, depth))
 	}
-	return manifest.Result{Graph: model.DependencyGraph{Dependencies: dedupe(deps)}}, nil
+	result := manifest.Result{Graph: model.DependencyGraph{Dependencies: dedupe(deps)}}
+	if len(result.Graph.Dependencies) == 0 {
+		result.Warnings = append(result.Warnings, "Cargo.lock lists no dependencies outside the workspace")
+	}
+	return result, nil
 }
-func unquote(value string) string { return strings.Trim(strings.TrimSpace(value), `"`) }
 
 type POMParser struct{}
 

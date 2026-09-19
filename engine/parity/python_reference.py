@@ -11,7 +11,8 @@ import json
 from pathlib import Path
 
 from app.core.manifests import parse_manifest
-from app.core.matching import triage_all
+from app.core.matching import MatchPolicy, normalise_ids, normalise_packages, triage_all
+from app.core.reachability import SourceBundle, SourceFile, analyze_node_reachability
 from app.core.types import (
     AffectedPackage,
     AffectedRange,
@@ -30,6 +31,13 @@ def validate(path: Path) -> None:
     for item in request["manifests"]:
         dependencies.extend(
             parse_manifest(ManifestKind(item["kind"]), item["content"]).dependencies
+        )
+    if request.get("sources"):
+        dependencies, _ = analyze_node_reachability(
+            dependencies,
+            SourceBundle(
+                files=tuple(SourceFile(**source) for source in request["sources"]), complete=True
+            ),
         )
 
     advisories = []
@@ -73,7 +81,30 @@ def validate(path: Path) -> None:
         for alias in raw.get("aliases", ())
         if alias.startswith("CVE-")
     }
-    result = triage_all(dependencies, by_dependency, kev)
+    epss = {
+        alias: (raw["epss_score"], raw.get("epss_percentile", 0.0))
+        for raw in request["advisories"]["inline"]
+        if raw.get("epss_score") is not None
+        for alias in raw.get("aliases", ())
+        if alias.startswith("CVE-")
+    }
+    rules = request.get("rules", {})
+    ignored = rules.get("ignored", [])
+    policy = MatchPolicy(
+        always_alert_on_kev=rules.get("always_alert_on_kev", True),
+        direct_threshold=Severity(rules.get("direct_threshold", "high")),
+        transitive_threshold=Severity(rules.get("transitive_threshold", "critical")),
+        dev_threshold=Severity(rules["dev_threshold"]) if rules.get("dev_threshold") else None,
+        epss_threshold=rules.get("epss_alert_above"),
+        max_depth=rules.get("max_depth"),
+        ignored_ids=normalise_ids(
+            entry["advisory_id"] for entry in ignored if entry.get("advisory_id")
+        ),
+        ignored_packages=normalise_packages(
+            entry["package"] for entry in ignored if entry.get("package")
+        ),
+    )
+    result = triage_all(dependencies, by_dependency, kev, policy, epss_index=epss)
 
     expected = fixture["expected"]
     actual_dependencies = sorted(
@@ -86,15 +117,19 @@ def validate(path: Path) -> None:
             "verdict": str(decision.verdict),
             "fixed_version": decision.fixed_version,
             "known_exploited": decision.kev,
+            "reachability": str(decision.dependency.automated_reachability),
         }
         for decision in (*result.actionable, *result.suppressed)
     ]
     for expected_finding, actual_finding in zip(expected["findings"], actual, strict=True):
-        for key in ("id", "verdict", "fixed_version", "known_exploited"):
-            assert actual_finding[key] == expected_finding[key], (
+        normalized_expected = dict(expected_finding)
+        if normalized_expected.get("verdict") == "filtered":
+            normalized_expected["verdict"] = "suppressed"
+        for key in normalized_expected:
+            assert actual_finding[key] == normalized_expected[key], (
                 key,
                 actual_finding,
-                expected_finding,
+                normalized_expected,
             )
 
 

@@ -1,0 +1,16 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-npm-epss",
+    "manifests": [{"path": "package.json", "kind": "package.json", "content": "{\"dependencies\":{\"demo\":\"1.0.0\"}}"}],
+    "rules": {"epss_alert_above": 0.5},
+    "advisories": {"provider": "inline", "inline": [{
+      "id": "GHSA-TEST-EPSS", "aliases": ["CVE-2026-1003"], "severity": "low", "epss_score": 0.8, "epss_percentile": 0.99,
+      "affected": [{"ecosystem": "npm", "name": "demo", "ranges": [{"introduced": "0", "fixed": "1.1.0"}]}]
+    }]}
+  },
+  "expected": {
+    "dependencies": ["demo@1.0.0"],
+    "findings": [{"id": "GHSA-TEST-EPSS:npm:demo:1.0.0", "verdict": "actionable", "fixed_version": "1.1.0", "known_exploited": false, "reachability": "unknown"}]
+  }
+}

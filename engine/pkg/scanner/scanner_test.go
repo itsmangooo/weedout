@@ -30,36 +30,46 @@ type parityFixture struct {
 }
 
 func TestLegacyParityFixture(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "parity", "npm-direct-kev.json")
-	payload, err := os.ReadFile(path)
+	paths, err := filepath.Glob(filepath.Join("..", "..", "testdata", "parity", "*.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fixture parityFixture
-	if err := json.Unmarshal(payload, &fixture); err != nil {
-		t.Fatal(err)
+	if len(paths) == 0 {
+		t.Fatal("no parity fixtures")
 	}
-	engine := scanner.Scanner{Parsers: builtin.Registry(), Version: "test", Now: func() time.Time { return time.Unix(0, 0) }}
-	result, err := engine.Scan(context.Background(), fixture.Request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	deps := make([]string, 0, len(result.Graph.Dependencies))
-	for _, dep := range result.Graph.Dependencies {
-		deps = append(deps, dep.Name+"@"+dep.Version)
-	}
-	sort.Strings(deps)
-	if !reflect.DeepEqual(deps, fixture.Expected.Dependencies) {
-		t.Fatalf("dependencies mismatch: %#v", deps)
-	}
-	if len(result.Findings) != len(fixture.Expected.Findings) {
-		t.Fatalf("findings: got %d want %d", len(result.Findings), len(fixture.Expected.Findings))
-	}
-	for index, expected := range fixture.Expected.Findings {
-		actual := result.Findings[index]
-		if actual.ID != expected.ID || actual.Verdict != expected.Verdict || actual.FixedVersion != expected.FixedVersion || actual.KnownExploited != expected.KnownExploited || actual.Reachability != expected.Reachability {
-			t.Fatalf("finding mismatch: %#v", actual)
-		}
+	for _, path := range paths {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			payload, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fixture parityFixture
+			if err := json.Unmarshal(payload, &fixture); err != nil {
+				t.Fatal(err)
+			}
+			engine := scanner.Scanner{Parsers: builtin.Registry(), Version: "test", Now: func() time.Time { return time.Unix(0, 0) }}
+			result, err := engine.Scan(context.Background(), fixture.Request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			deps := make([]string, 0, len(result.Graph.Dependencies))
+			for _, dep := range result.Graph.Dependencies {
+				deps = append(deps, dep.Name+"@"+dep.Version)
+			}
+			sort.Strings(deps)
+			if !reflect.DeepEqual(deps, fixture.Expected.Dependencies) {
+				t.Fatalf("dependencies mismatch: %#v", deps)
+			}
+			if len(result.Findings) != len(fixture.Expected.Findings) {
+				t.Fatalf("findings: got %d want %d", len(result.Findings), len(fixture.Expected.Findings))
+			}
+			for index, expected := range fixture.Expected.Findings {
+				actual := result.Findings[index]
+				if actual.ID != expected.ID || actual.Verdict != expected.Verdict || actual.FixedVersion != expected.FixedVersion || actual.KnownExploited != expected.KnownExploited || actual.Reachability != expected.Reachability {
+					t.Fatalf("finding mismatch: %#v", actual)
+				}
+			}
+		})
 	}
 }
 

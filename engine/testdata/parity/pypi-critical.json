@@ -1,0 +1,15 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-pypi-critical",
+    "manifests": [{"path": "requirements.txt", "kind": "requirements.txt", "content": "requests==2.31.0\n"}],
+    "advisories": {"provider": "inline", "inline": [{
+      "id": "PYSEC-TEST-1", "aliases": ["CVE-2026-1001"], "severity": "critical",
+      "affected": [{"ecosystem": "PyPI", "name": "requests", "ranges": [{"introduced": "2.0.0", "fixed": "2.32.0"}]}]
+    }]}
+  },
+  "expected": {
+    "dependencies": ["requests@2.31.0"],
+    "findings": [{"id": "PYSEC-TEST-1:PyPI:requests:2.31.0", "verdict": "actionable", "fixed_version": "2.32.0", "known_exploited": false, "reachability": "unknown"}]
+  }
+}

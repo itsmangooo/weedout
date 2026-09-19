@@ -29,6 +29,13 @@ type Scanner struct {
 	Now        Clock
 }
 
+func (s Scanner) Ready(ctx context.Context) error {
+	if health, ok := s.Advisories.(interface{ Ping(context.Context) error }); ok {
+		return health.Ping(ctx)
+	}
+	return nil
+}
+
 func (s Scanner) Scan(ctx context.Context, request model.ScanRequest) (model.ScanResult, error) {
 	if s.Parsers == nil {
 		return model.ScanResult{}, fmt.Errorf("parser registry is required")

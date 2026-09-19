@@ -1,0 +1,15 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-go-filtered",
+    "manifests": [{"path": "go.mod", "kind": "go.mod", "content": "module example.test/app\n\nrequire golang.org/x/text v0.3.7\n"}],
+    "advisories": {"provider": "inline", "inline": [{
+      "id": "GO-TEST-1", "aliases": ["CVE-2026-1002"], "severity": "medium",
+      "affected": [{"ecosystem": "Go", "name": "golang.org/x/text", "ranges": [{"introduced": "0", "fixed": "0.3.8"}]}]
+    }]}
+  },
+  "expected": {
+    "dependencies": ["golang.org/x/text@0.3.7"],
+    "findings": [{"id": "GO-TEST-1:Go:golang.org/x/text:0.3.7", "verdict": "filtered", "fixed_version": "0.3.8", "known_exploited": false, "reachability": "unknown"}]
+  }
+}

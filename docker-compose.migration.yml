@@ -24,6 +24,9 @@ services:
     expose: ["8080"]
     environment:
       ENGINE_ADDR: :8080
+      ENGINE_DATABASE_URL: postgresql://weedout:weedout@db:5432/weedout
+    depends_on:
+      db: {condition: service_healthy}
     security_opt: ["no-new-privileges:true"]
 
   legacy:

@@ -13,7 +13,8 @@ Unlisted routes remain owned by the legacy FastAPI/React service.
 | Rules/profiles | Legacy | Next.js | policy parsing and audit parity |
 | Admin/docs/notifications | Legacy | Next.js | authorization and audit parity |
 | CLI/account APIs | Legacy | Next.js | token scope and compatibility suite |
-| Detection | Python core | Go engine | ecosystem/rule/reachability fixture parity |
+| Advisory mirror reads | Go PostgreSQL provider | Go engine | provider implemented; production soak pending |
+| Detection | Python core with Go shadow | Go engine | ecosystem/rule/reachability fixture parity |
 
 Move one row at a time. A moved filesystem route wins before the fallback
 rewrite, which keeps URLs stable and avoids a flag day.

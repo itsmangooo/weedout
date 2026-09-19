@@ -1,0 +1,16 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-npm-ignore",
+    "manifests": [{"path": "package.json", "kind": "package.json", "content": "{\"dependencies\":{\"demo-package\":\"1.0.0\"}}"}],
+    "rules": {"ignored": [{"package": "demo-*", "reason": "fixture policy"}]},
+    "advisories": {"provider": "inline", "inline": [{
+      "id": "GHSA-TEST-IGNORE", "severity": "high",
+      "affected": [{"ecosystem": "npm", "name": "demo-package", "ranges": [{"introduced": "0", "fixed": "1.0.1"}]}]
+    }]}
+  },
+  "expected": {
+    "dependencies": ["demo-package@1.0.0"],
+    "findings": [{"id": "GHSA-TEST-IGNORE:npm:demo-package:1.0.0", "verdict": "filtered", "fixed_version": "1.0.1", "known_exploited": false, "reachability": "unknown"}]
+  }
+}

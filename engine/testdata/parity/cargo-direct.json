@@ -1,0 +1,43 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-cargo-direct",
+    "manifests": [
+      {
+        "path": "Cargo.lock",
+        "kind": "Cargo.lock",
+        "content": "version = 3\n\n[[package]]\nname = \"demo\"\nversion = \"0.1.0\"\ndependencies = [\"serde 1.0.100\"]\n\n[[package]]\nname = \"serde\"\nversion = \"1.0.100\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n"
+      }
+    ],
+    "advisories": {
+      "provider": "inline",
+      "inline": [
+        {
+          "id": "RUSTSEC-2026-0001",
+          "aliases": ["CVE-2026-10001"],
+          "summary": "Fixture advisory for serde",
+          "severity": "high",
+          "affected": [
+            {
+              "ecosystem": "crates.io",
+              "name": "serde",
+              "ranges": [{"introduced": "0", "fixed": "1.0.101"}]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expected": {
+    "dependencies": ["serde@1.0.100"],
+    "findings": [
+      {
+        "id": "RUSTSEC-2026-0001:crates.io:serde:1.0.100",
+        "verdict": "actionable",
+        "fixed_version": "1.0.101",
+        "known_exploited": false,
+        "reachability": "unknown"
+      }
+    ]
+  }
+}

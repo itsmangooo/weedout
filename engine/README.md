@@ -23,13 +23,17 @@ docker run --rm -p 8080:8080 weedout-engine
 
 The process is stateless. `ENGINE_ADDR` controls the listener (default
 `:8080`). `ENGINE_ADVISORY_FILE` can point at a normalized JSON advisory array
-for an offline/local mirror. Production deployments should keep port 8080 on an internal network;
+for an offline/local mirror. `ENGINE_DATABASE_URL` activates the PostgreSQL
+mirror provider used by Weedout production; it queries only `vulnerabilities`,
+`vulnerability_affected`, `kev_entries`, and `epss_scores`. Production
+deployments should keep port 8080 on an internal network;
 the Weedout web application is the authenticated public boundary.
 
 ## Public API
 
 `POST /v1/scan` accepts the public `model.ScanRequest` and returns
-`model.ScanResult`. `GET /healthz` is the liveness endpoint and `GET /version`
+`model.ScanResult`. `GET /healthz` is the liveness endpoint, `GET /readyz`
+checks the configured advisory provider, and `GET /version`
 reports build and schema versions. The request can carry inline normalized
 advisories; deployments can instead inject any implementation of
 `advisory.Source`, such as an OSV mirror or company advisory store.
@@ -86,8 +90,10 @@ range rather than an installed version.
 
 `testdata/parity` is the shared contract corpus. Go tests run requests through
 the new engine. `parity/python_reference.py` runs the same fixtures through the
-legacy pure Python core. Add fixtures for every bug and ecosystem edge case
-before retiring the Python detector.
+legacy pure Python core. The corpus currently covers every supported ecosystem
+(npm, PyPI, Go, crates.io, and Maven) plus KEV, EPSS, ignored findings, source
+reachability, fixed versions, and severity policy. Add fixtures for parser and
+version edge cases before retiring the Python detector.
 
 ```bash
 go test ./...

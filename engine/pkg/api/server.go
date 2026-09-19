@@ -27,12 +27,21 @@ func New(engine scanner.Scanner, version string, logger *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
+	mux.HandleFunc("GET /readyz", s.ready)
 	mux.HandleFunc("GET /version", s.build)
 	mux.HandleFunc("POST /v1/scan", s.scan)
 	return securityHeaders(mux)
 }
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "version": s.version})
+}
+func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
+	if err := s.scanner.Ready(r.Context()); err != nil {
+		s.logger.Error("engine not ready", "error", err)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ready", "version": s.version})
 }
 func (s *Server) build(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"engine": "weedout-engine", "version": s.version, "schema_version": model.SchemaVersion})

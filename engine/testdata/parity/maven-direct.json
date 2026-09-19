@@ -1,0 +1,43 @@
+{
+  "request": {
+    "schema_version": "v1",
+    "request_id": "parity-maven-direct",
+    "manifests": [
+      {
+        "path": "pom.xml",
+        "kind": "pom.xml",
+        "content": "<project><dependencies><dependency><groupId>org.demo</groupId><artifactId>core</artifactId><version>1.2.3</version></dependency></dependencies></project>"
+      }
+    ],
+    "advisories": {
+      "provider": "inline",
+      "inline": [
+        {
+          "id": "GHSA-MAVEN-FIXTURE",
+          "aliases": ["CVE-2026-10002"],
+          "summary": "Fixture advisory for a Maven package",
+          "severity": "high",
+          "affected": [
+            {
+              "ecosystem": "Maven",
+              "name": "org.demo:core",
+              "ranges": [{"introduced": "0", "fixed": "1.2.4"}]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expected": {
+    "dependencies": ["org.demo:core@1.2.3"],
+    "findings": [
+      {
+        "id": "GHSA-MAVEN-FIXTURE:Maven:org.demo:core:1.2.3",
+        "verdict": "actionable",
+        "fixed_version": "1.2.4",
+        "known_exploited": false,
+        "reachability": "unknown"
+      }
+    ]
+  }
+}
