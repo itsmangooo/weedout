@@ -7,9 +7,10 @@ Unlisted routes remain owned by the legacy FastAPI/React service.
 |---|---|---|---|
 | `/healthz` | Next.js | Next.js | complete |
 | `/readyz` web/engine readiness | Next.js | Next.js | engine health complete; database/feed parity pending |
+| `/api/internal/auth/me` | Next.js | Next.js | read-only session lookup and response contract migrated |
 | Public pages and SEO | Legacy | Next.js | visual, metadata, legal and redirect parity |
 | Dashboard/findings/projects | Legacy | Next.js | API response and persistence reconciliation parity |
-| Auth/sessions/2FA/reset | Legacy | Next.js | cookie, CSRF, Argon2, rotation and revocation parity |
+| Auth mutations/2FA/reset | Legacy | Next.js | CSRF, Argon2, rotation and revocation parity |
 | Rules/profiles | Legacy | Next.js | policy parsing and audit parity |
 | Admin/docs/notifications | Legacy | Next.js | authorization and audit parity |
 | CLI/account APIs | Legacy | Next.js | token scope and compatibility suite |

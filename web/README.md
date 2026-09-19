@@ -19,6 +19,8 @@ Current Next-owned routes:
 
 - `GET /healthz`: web liveness.
 - `GET /readyz`: private engine readiness through the web boundary.
+- `GET /api/internal/auth/me`: read-only browser session bootstrap, using the
+  existing opaque session cookie and PostgreSQL rows without changing IDs.
 
 `src/server/engine/client.ts` is server-only. Browser traffic does not call the
 engine directly. `src/server/db/client.ts` connects to the existing PostgreSQL
