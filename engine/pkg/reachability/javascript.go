@@ -10,9 +10,8 @@ import (
 
 var importPattern = regexp.MustCompile(`(?m)(?:from\s+|require\s*\(\s*|import\s*\(\s*|^\s*import\s+)["']([^"']+)["']`)
 
-func Analyze(graph model.DependencyGraph, sources []model.SourceFile, context model.SourceContext) (model.DependencyGraph, []string) {
+func Analyze(graph model.DependencyGraph, sources []model.SourceFile) model.DependencyGraph {
 	observed := map[string][]model.ReachabilityEvidence{}
-	notes := append([]string{}, context.Notes...)
 	for _, source := range sources {
 		for _, match := range importPattern.FindAllStringSubmatchIndex(source.Content, -1) {
 			spec := source.Content[match[2]:match[3]]
@@ -24,7 +23,7 @@ func Analyze(graph model.DependencyGraph, sources []model.SourceFile, context mo
 			observed[name] = append(observed[name], model.ReachabilityEvidence{SourceFile: source.Path, Line: line, ImportKind: "import", ImportedPackage: name, Explanation: source.Path + " imports " + spec})
 		}
 	}
-	complete := context.Complete
+	complete := len(sources) > 0
 	for i, dep := range graph.Dependencies {
 		evidence := observed[dep.Name]
 		state := "unknown"
@@ -43,23 +42,7 @@ func Analyze(graph model.DependencyGraph, sources []model.SourceFile, context mo
 		graph.Dependencies[i].AutomatedReachability = state
 		graph.Dependencies[i].ReachabilityEvidence = evidence
 	}
-	if !complete && len(sources) > 0 {
-		notes = append(notes, "Source analysis was incomplete; unobserved dependencies remain unknown.")
-	}
-	return graph, dedupeNotes(notes)
-}
-
-func dedupeNotes(notes []string) []string {
-	seen := map[string]bool{}
-	out := make([]string, 0, len(notes))
-	for _, note := range notes {
-		note = strings.TrimSpace(note)
-		if note != "" && !seen[note] {
-			seen[note] = true
-			out = append(out, note)
-		}
-	}
-	return out
+	return graph
 }
 func packageName(spec string) string {
 	if strings.HasPrefix(spec, ".") || strings.HasPrefix(spec, "/") || strings.HasPrefix(spec, "node:") {

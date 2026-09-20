@@ -1,9 +1,8 @@
 import "server-only";
 
-import { createHash, createHmac, randomInt, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-const backupAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 function decodeBase32(value: string) {
   const clean = value.toUpperCase().replace(/[\s-]/g, "").replace(/=+$/, "");
@@ -44,20 +43,4 @@ export function normalizeBackupCode(value: string) {
 
 export function backupCodeHash(value: string) {
   return createHash("sha256").update(normalizeBackupCode(value)).digest("hex");
-}
-
-export function generateTotpSecret() {
-  return Array.from({ length: 32 }, () => alphabet[randomInt(alphabet.length)]).join("");
-}
-
-export function provisioningUri(secret: string, account: string, issuer = "Weedout") {
-  const label = encodeURIComponent(`${issuer}:${account}`);
-  return `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
-}
-
-export function generateBackupCodes(count = 10) {
-  return Array.from({ length: count }, () => {
-    const raw = Array.from({ length: 10 }, () => backupAlphabet[randomInt(backupAlphabet.length)]).join("");
-    return `${raw.slice(0, 5)}-${raw.slice(5)}`;
-  });
 }

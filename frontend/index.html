@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Weedout turns vulnerable dependency data into a clear project security queue, prioritised by exploit and reachability signals instead of raw CVE volume."
+    />
+    <title>Weedout — project security without the noise</title>
+    <!--
+      Synchronous and ahead of everything else: it sets the theme before the
+      first paint. Deferring it flashes the default palette at anybody who
+      chose the other one. Separate file because the CSP is `script-src 'self'`.
+    -->
+    <script vite-ignore src="/static/js/theme-boot.js"></script>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div id="root">
+      <main class="route-hydrate-fallback" aria-live="polite">
+        
+        <noscript>Weedout needs JavaScript to run.</noscript>
+        <p>
+          If this message remains, a frontend asset could not be loaded. Refresh the page or
+          contact the operator.
+        </p>
+      </main>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
