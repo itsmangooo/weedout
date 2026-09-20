@@ -1,18 +1,5 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-alpine AS frontend-build
-
-WORKDIR /frontend
-
-# Lockfile-first install keeps the frontend layer reproducible and lets Docker
-# reuse it when application code changes without changing dependencies.
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
-
-COPY frontend/ ./
-RUN npm run build
-
-
 FROM python:3.13-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
@@ -41,10 +28,6 @@ COPY alembic.ini ./
 COPY migrations ./migrations
 COPY scripts ./scripts
 COPY app ./app
-
-# Vite output is immutable build material. It is copied into the Python image
-# because FastAPI remains the only same-origin production web service.
-COPY --from=frontend-build /frontend/dist ./app/frontend_dist
 
 # Run as an unprivileged user. The backup directory is created and chowned here
 # because by the time the script runs the process has dropped privileges and

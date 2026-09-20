@@ -108,7 +108,7 @@ def _shell() -> FileResponse:
     )
 
 
-@router.get("/", include_in_schema=False)
+@router.get("/", methods=["GET", "HEAD"], include_in_schema=False)
 async def landing_entry(user: OptionalUser):
     """The marketing page, or a redirect for somebody already signed in.
 

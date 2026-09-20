@@ -136,8 +136,17 @@ type ScanRequest struct {
 	RequestID     string          `json:"request_id,omitempty"`
 	Manifests     []ManifestInput `json:"manifests"`
 	Sources       []SourceFile    `json:"sources,omitempty"`
+	SourceContext SourceContext   `json:"source_context,omitempty"`
 	Rules         RuleConfig      `json:"rules,omitempty"`
 	Advisories    AdvisoryConfig  `json:"advisories,omitempty"`
+}
+
+// SourceContext describes the source inventory supplied by a caller. Complete
+// means discovery and reads finished within the caller's documented limits;
+// it does not claim that static analysis understands every possible program.
+type SourceContext struct {
+	Complete bool     `json:"complete,omitempty"`
+	Notes    []string `json:"notes,omitempty"`
 }
 
 type ScanStats struct {

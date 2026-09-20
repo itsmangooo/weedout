@@ -5,6 +5,7 @@ export type ScanRequest = {
   request_id?: string;
   manifests: Array<{ path: string; kind?: string; ecosystem?: Ecosystem; content: string }>;
   sources?: Array<{ path: string; content: string }>;
+  source_context?: { complete?: boolean; notes?: string[] };
   rules?: Record<string, unknown>;
   advisories?: { provider?: string; inline?: Array<Record<string, unknown>> };
 };

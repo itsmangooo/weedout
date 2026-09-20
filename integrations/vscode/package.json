@@ -8,7 +8,7 @@
   "engines": { "vscode": "^1.96.0" },
   "categories": ["Linters", "Other"],
   "activationEvents": ["onStartupFinished"],
-  "main": "./out/extension.js",
+  "main": "./out/src/extension.js",
   "files": ["out", "resources", "README.md", "LICENSE"],
   "scripts": {
     "compile": "tsc -p tsconfig.json",

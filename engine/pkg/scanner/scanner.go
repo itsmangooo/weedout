@@ -64,7 +64,9 @@ func (s Scanner) Scan(ctx context.Context, request model.ScanRequest) (model.Sca
 		result.Warnings = append(result.Warnings, parsed.Warnings...)
 	}
 	result.Graph.Dependencies = dedupe(result.Graph.Dependencies)
-	result.Graph = reachability.Analyze(result.Graph, request.Sources)
+	var reachabilityWarnings []string
+	result.Graph, reachabilityWarnings = reachability.Analyze(result.Graph, request.Sources, request.SourceContext)
+	result.Warnings = append(result.Warnings, reachabilityWarnings...)
 	queries := make([]advisory.Query, 0, len(result.Graph.Dependencies))
 	for _, dep := range result.Graph.Dependencies {
 		if request.Rules.MaxDepth != nil && dep.Depth > *request.Rules.MaxDepth {

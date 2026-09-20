@@ -3,17 +3,19 @@ import "server-only";
 import { scan } from "@/server/engine/client";
 import type { Dependency, Finding } from "@/server/engine/types";
 import { db } from "@/server/db/client";
+import { parsePolicy } from "@/server/projects/policy";
 
 type Manifest = { id: number; path: string; kind: string; ecosystem: string; content: string };
 type Target = {
   id: number; user_id: number; direct_threshold: string | null; transitive_threshold: string | null;
-  dev_threshold: string | null; epss_threshold: number | null;
+  dev_threshold: string | null; epss_threshold: number | null; policy_file: string | null; profile_id: number | null;
 };
 type Ignore = { kind: string; identifier: string; reason: string };
 type StoredMatch = { id: number; package_name: string; package_version: string; vulnerability_id: string; verdict: string; status: string };
 
 function relationship(dependency: Dependency) {
-  return dependency.scope === "dev_only" ? "dev" : "runtime";
+  if (dependency.scope === "dev_only") return "dev_only";
+  return dependency.depth > 0 ? "runtime_transitive" : "runtime_direct";
 }
 
 function actionableReason(finding: Finding) {
@@ -32,7 +34,7 @@ function suppressionReason(finding: Finding) {
   return "below_severity_threshold";
 }
 
-async function reconcile(target: Target, manifest: Manifest, findings: Finding[]) {
+async function reconcile(target: Target, manifest: Manifest, findings: Finding[], deliveredInApp = false) {
   const sql = db();
   const stored = await sql<StoredMatch[]>`
     SELECT id, package_name, package_version, vulnerability_id, verdict, status
@@ -52,7 +54,7 @@ async function reconcile(target: Target, manifest: Manifest, findings: Finding[]
     const actionReason = actionable ? actionableReason(finding) : null;
     const filterReason = actionable ? null : suppressionReason(finding);
     if (!previous) {
-      await sql`
+      const inserted = await sql<Array<{ id: number }>>`
         INSERT INTO cve_matches (
           target_id, manifest_id, vulnerability_id, ecosystem, package_name, package_version,
           version_spec, version_exact, reachability, automated_reachability, reachability_evidence,
@@ -67,9 +69,12 @@ async function reconcile(target: Target, manifest: Manifest, findings: Finding[]
           ${dependency.depth}, ${sql.json(dependency.via ?? [])}, ${actionable ? "actionable" : "suppressed"},
           ${finding.severity}, ${finding.known_exploited}, ${finding.fixed_version ?? null},
           ${actionReason}, ${filterReason}, ${status}, now(), now()
-        )
+        ) RETURNING id
       `;
-      if (actionable) created += 1;
+      if (actionable) {
+        created += 1;
+        if (deliveredInApp) await sql`UPDATE cve_matches SET notified_at = now() WHERE id = ${inserted[0].id}`;
+      }
       continue;
     }
     const resurfaced = (previous.verdict === "suppressed" || previous.status === "resolved") && actionable;
@@ -88,7 +93,10 @@ async function reconcile(target: Target, manifest: Manifest, findings: Finding[]
         notified_at = CASE WHEN ${resurfaced} THEN NULL ELSE notified_at END
       WHERE id = ${previous.id}
     `;
-    if (resurfaced) created += 1;
+    if (resurfaced) {
+      created += 1;
+      if (deliveredInApp) await sql`UPDATE cve_matches SET notified_at = now() WHERE id = ${previous.id}`;
+    }
   }
   for (const row of stored) {
     const key = `${row.package_name}\0${row.package_version}\0${row.vulnerability_id}`;
@@ -118,14 +126,26 @@ async function syncDependencies(targetId: number, manifestId: number, dependenci
   }
 }
 
-export async function scanProject(targetId: number, userId: number) {
+export async function scanProject(targetId: number, userId: number, options: {
+  sources?: Array<{ path: string; content: string }>;
+  sourceContext?: { complete: boolean; notes: string[] };
+  requestedProfile?: string | null;
+  deliveredInApp?: boolean;
+} = {}) {
   const sql = db();
   const targets = await sql<Target[]>`
-    SELECT id, user_id, direct_threshold, transitive_threshold, dev_threshold, epss_threshold
+    SELECT id, user_id, direct_threshold, transitive_threshold, dev_threshold, epss_threshold, policy_file, profile_id
     FROM tracked_targets WHERE id = ${targetId} AND user_id = ${userId} LIMIT 1
   `;
   const target = targets[0];
   if (!target) return null;
+  const projectPolicy = parsePolicy(target.policy_file);
+  const requestedProfile = options.requestedProfile ?? projectPolicy.profile;
+  const profiles = requestedProfile
+    ? await sql<Array<{id:number;document:string}>>`SELECT id, document FROM rule_profiles WHERE user_id=${userId} AND (slug=${requestedProfile} OR lower(name)=lower(${requestedProfile})) LIMIT 1`
+    : await sql<Array<{id:number;document:string}>>`SELECT id, document FROM rule_profiles WHERE user_id=${userId} AND (id=${target.profile_id} OR (${target.profile_id} IS NULL AND is_default=true)) ORDER BY (id=${target.profile_id}) DESC LIMIT 1`;
+  if (requestedProfile && !profiles.length) throw new Error(`NO_SUCH_PROFILE:${requestedProfile}`);
+  const profilePolicy = parsePolicy(profiles[0]?.document);
   const manifests = await sql<Manifest[]>`
     SELECT id, path, kind, ecosystem, content FROM project_manifests
     WHERE target_id = ${targetId} AND is_active ORDER BY id
@@ -137,28 +157,37 @@ export async function scanProject(targetId: number, userId: number) {
   `;
   const runId = runRows[0].id;
   let actionable = 0, filtered = 0, created = 0, resolved = 0, dependencies = 0, unreached = 0;
+  const reachabilityCounts: Record<string, number> = {};
+  const warnings: string[] = [];
   try {
     for (const manifest of manifests) {
       const result = await scan({
         manifests: [{ path: manifest.path, kind: manifest.kind, ecosystem: manifest.ecosystem as never, content: manifest.content }],
         rules: {
-          direct_threshold: target.direct_threshold ?? undefined,
-          transitive_threshold: target.transitive_threshold ?? undefined,
-          dev_threshold: target.dev_threshold ?? undefined,
-          epss_alert_above: target.epss_threshold ?? undefined,
-          ignored: ignores.map((rule) => rule.kind === "package"
+          direct_threshold: target.direct_threshold ?? projectPolicy.direct ?? profilePolicy.direct,
+          transitive_threshold: target.transitive_threshold ?? projectPolicy.transitive ?? profilePolicy.transitive,
+          dev_threshold: target.dev_threshold ?? projectPolicy.dev ?? profilePolicy.dev,
+          epss_alert_above: target.epss_threshold ?? projectPolicy.epss ?? profilePolicy.epss,
+          ignored: [...profilePolicy.ignored, ...projectPolicy.ignored, ...ignores.map((rule) => rule.kind === "package"
             ? { package: rule.identifier, reason: rule.reason }
-            : { advisory_id: rule.identifier, reason: rule.reason }),
+            : { advisory_id: rule.identifier, reason: rule.reason })],
         },
+        sources: options.sources,
+        source_context: options.sourceContext,
       } as never);
       await syncDependencies(targetId, manifest.id, result.graph.dependencies);
-      const reconciled = await reconcile(target, manifest, result.findings);
+      const reconciled = await reconcile(target, manifest, result.findings, options.deliveredInApp);
       actionable += result.stats.actionable + result.stats.blocking;
       filtered += result.stats.filtered;
       created += reconciled.created;
       resolved += reconciled.resolved;
       dependencies += result.stats.dependencies;
       unreached += result.stats.unreached_by_depth;
+      for (const dependency of result.graph.dependencies) {
+        const state = dependency.automated_reachability || "unknown";
+        reachabilityCounts[state] = (reachabilityCounts[state] ?? 0) + 1;
+      }
+      warnings.push(...(result.warnings ?? []));
       await sql`
         UPDATE project_manifests SET dependency_count = ${result.stats.dependencies}, parse_warnings = ${sql.json(result.warnings ?? [])},
           last_parsed_at = now(), last_parse_error = NULL WHERE id = ${manifest.id}
@@ -174,7 +203,20 @@ export async function scanProject(targetId: number, userId: number) {
         actionable_count = ${actionable}, suppressed_count = ${filtered}, new_actionable_count = ${created},
         resolved_count = ${resolved} WHERE id = ${runId}
     `;
-    return { actionable, suppressed: filtered, new: created, resolved, unreached_by_depth: unreached };
+    return {
+      actionable,
+      suppressed: filtered,
+      new: created,
+      resolved,
+      unreached_by_depth: unreached,
+      reachability: {
+        analysis_complete: options.sourceContext?.complete === true,
+        source_files: options.sources?.length ?? 0,
+        counts: reachabilityCounts,
+        notes: [...new Set([...(options.sourceContext?.notes ?? []), ...warnings])],
+      },
+      warnings: [...new Set(warnings)],
+    };
   } catch (error) {
     const message = String(error).slice(0, 4000);
     await sql`UPDATE tracked_targets SET last_scan_error = ${message}, next_scan_at = now() + interval '4 hours' WHERE id = ${targetId}`;
