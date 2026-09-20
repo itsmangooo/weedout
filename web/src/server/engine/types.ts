@@ -14,8 +14,8 @@ export type ScanResult = {
   engine_version: string;
   request_id?: string;
   input_digest: string;
-  graph: { dependencies: Array<Record<string, unknown>> };
-  findings: Array<Record<string, unknown>>;
+  graph: { dependencies: Dependency[] };
+  findings: Finding[];
   stats: {
     manifests: number;
     dependencies: number;
@@ -26,4 +26,52 @@ export type ScanResult = {
     unreached_by_depth: number;
   };
   warnings?: string[];
+};
+
+export type ReachabilityEvidence = {
+  source_file: string;
+  line?: number;
+  import_kind: string;
+  imported_package: string;
+  dependency_path?: string[];
+  explanation: string;
+};
+
+export type Dependency = {
+  ecosystem: Ecosystem;
+  name: string;
+  version: string;
+  version_spec?: string;
+  version_exact: boolean;
+  scope: string;
+  depth: number;
+  via?: string[];
+  automated_reachability: string;
+  reachability_evidence?: ReachabilityEvidence[];
+};
+
+export type Advisory = {
+  id: string;
+  aliases?: string[];
+  summary?: string;
+  severity: string;
+  known_exploited?: boolean;
+  epss_score?: number;
+  epss_percentile?: number;
+};
+
+export type Finding = {
+  id: string;
+  dependency: Dependency;
+  advisory: Advisory;
+  severity: string;
+  verdict: string;
+  fixed_version?: string;
+  known_exploited: boolean;
+  reachability: string;
+  evidence?: ReachabilityEvidence[];
+  rule_decisions: Array<{ rule: string; outcome: string; explanation: string }>;
+  filtering_reason?: string;
+  remediation: string;
+  explanation: string;
 };
