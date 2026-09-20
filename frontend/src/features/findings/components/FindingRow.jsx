@@ -67,6 +67,8 @@ export function FindingRow({ finding }) {
             <RadioTower aria-hidden="true" size={13} />
             {REACHABILITY_LABELS[finding.reachability] ?? "Unknown"}
           </span>
+          {finding.dependency_relationship ? <span className="finding-signal">{finding.dependency_relationship.replaceAll("_", " ")}</span> : null}
+          {finding.fixed_version ? <span className="finding-signal finding-signal--fix">Fix {finding.fixed_version}</span> : null}
         </div>
 
         <div className="finding-row__state">

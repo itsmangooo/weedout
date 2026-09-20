@@ -155,11 +155,11 @@ describe("the public header", () => {
 });
 
 describe("the application sidebar", () => {
-  it("reaches the CLI page, which used to exist only on the marketing site", () => {
+  it("keeps the CLI out of primary navigation while it is work in progress", () => {
     renderShell(<DashboardShell />);
 
     const nav = screen.getByRole("navigation", { name: "Dashboard navigation" });
-    expect(hrefsIn(nav)).toContain("/cli");
+    expect(hrefsIn(nav)).not.toContain("/cli");
   });
 
   it("offers every section of the product", () => {
@@ -168,16 +168,18 @@ describe("the application sidebar", () => {
     const nav = screen.getByRole("navigation", { name: "Dashboard navigation" });
     expect(hrefsIn(nav)).toEqual([
       "/dashboard",
-      "/dashboard?view=projects",
       "/alerts",
-      "/targets/new",
-      "/cli",
+      "/projects",
+      "/rules",
+      "/integrations",
+      "/activity",
+      "/docs",
     ]);
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
   });
 
   it("exposes only real analysis tools and gives Projects its own active state", () => {
-    renderShell(<DashboardShell />, { initialPath: "/dashboard?view=projects" });
+    renderShell(<DashboardShell />, { initialPath: "/projects" });
     for (const label of ["Source code", "Secrets", "CI & config"]) expect(screen.queryByText(label)).not.toBeInTheDocument();
     expect(screen.getByRole("link", {name: "Projects"})).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", {name: "Overview"})).not.toHaveAttribute("aria-current");

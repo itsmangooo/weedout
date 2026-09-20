@@ -8,13 +8,14 @@
 @import "./brand.css";
 @import "./shells.css";
 @import "./public.css";
-@import "./landing.css";
 @import "./workspace.css";
 @import "./operations.css";
 @import "./context-menu.css";
 @import "./glass.css";
 @import "./appearance.css";
 @import "./panel-redesign.css";
+@import "./product-dashboard.css";
+@import "./landing.css";
 
 @layer base {
   *,

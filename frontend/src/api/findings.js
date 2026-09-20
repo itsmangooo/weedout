@@ -27,6 +27,7 @@ function isFinding(value) {
     SEVERITIES.has(value.severity) &&
     typeof value.is_exploited === "boolean" &&
     REACHABILITY.has(value.reachability) &&
+    (value.fixed_version === null || typeof value.fixed_version === "string" || value.fixed_version === undefined) &&
     STATUSES.has(value.status) &&
     typeof value.detected_at === "string"
   );

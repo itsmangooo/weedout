@@ -234,6 +234,38 @@ export const appRoutes = [
                   return { Component: ProjectPage };
                 },
               },
+              {
+                path: "projects",
+                handle: { title: "Projects" },
+                lazy: async () => {
+                  const { ProjectsPage } = await import("../pages/ProjectsPage");
+                  return { Component: ProjectsPage };
+                },
+              },
+              {
+                path: "rules",
+                handle: { title: "Rules" },
+                lazy: async () => {
+                  const { RulesPage } = await import("../pages/RulesPage");
+                  return { Component: RulesPage };
+                },
+              },
+              {
+                path: "integrations",
+                handle: { title: "Integrations" },
+                lazy: async () => {
+                  const { IntegrationsPage } = await import("../pages/IntegrationsPage");
+                  return { Component: IntegrationsPage };
+                },
+              },
+              {
+                path: "activity",
+                handle: { title: "Activity" },
+                lazy: async () => {
+                  const { ActivityPage } = await import("../pages/ActivityPage");
+                  return { Component: ActivityPage };
+                },
+              },
           {
             // The admin panel. Nested inside ProtectedRoute so an expired
             // session shows "sign in" rather than "not allowed", then behind

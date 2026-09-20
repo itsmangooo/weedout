@@ -64,7 +64,7 @@ describe("rebuilt workspace interactions", () => {
     expect(screen.getByText("TEST-SECOND")).toBeInTheDocument();
     await user.type(screen.getByRole("searchbox"),"does-not-exist");
     expect(screen.getByText("No loaded findings match these filters.")).toBeInTheDocument();
-    expect(screen.getByText(/Filtering 2 loaded findings \(up to 100\)/)).toBeInTheDocument();
+    expect(screen.getByText(/0 of 2 loaded findings · up to 100 per state/)).toBeInTheDocument();
   });
   it("keeps multiple theme controls synchronized and supports arrow keys", async () => {
     localStorage.clear();

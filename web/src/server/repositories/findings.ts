@@ -22,6 +22,7 @@ type FindingRow = {
   reachability_evidence: Array<Record<string, unknown>> | null;
   reachability: string;
   status: string;
+  fixed_version: string | null;
   first_seen_at: Date;
 };
 
@@ -33,7 +34,7 @@ export async function findingsFor(userId: number, show: FindingView, requestedLi
     SELECT m.id, t.id AS project_id, t.name AS project_name,
            m.vulnerability_id, v.cve_ids, m.package_name, m.package_version,
            m.severity, m.is_kev, m.automated_reachability,
-           m.reachability_evidence, m.reachability, m.status, m.first_seen_at
+           m.reachability_evidence, m.reachability, m.status, m.fixed_version, m.first_seen_at
     FROM cve_matches m
     JOIN tracked_targets t ON t.id = m.target_id
     JOIN vulnerabilities v ON v.id = m.vulnerability_id
@@ -66,6 +67,7 @@ export async function findingsFor(userId: number, show: FindingView, requestedLi
       reachability: row.automated_reachability,
       reachability_evidence: row.reachability_evidence ?? [],
       dependency_relationship: row.reachability,
+      fixed_version: row.fixed_version,
       status: row.status,
       detected_at: row.first_seen_at,
     })),

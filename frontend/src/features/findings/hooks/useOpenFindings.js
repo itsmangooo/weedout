@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getFindings } from "../../../api/findings";
 
-export const OPEN_FINDINGS_LIMIT = 25;
+export const OPEN_FINDINGS_LIMIT = 3;
 export const openFindingsQueryKey = ["findings", "open", OPEN_FINDINGS_LIMIT];
 
 export function useOpenFindings({ enabled = true } = {}) {

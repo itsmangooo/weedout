@@ -106,7 +106,7 @@ describe("frontend routes", () => {
     await user.click(screen.getByRole("link", { name: "Return home" }));
     expect(
       await screen.findByRole("heading", {
-        name: "Dependency security that tells you what actually needs fixing.",
+        name: "Vulnerable dependencies. Found where you code.",
       }),
     ).toBeInTheDocument();
   });
@@ -120,31 +120,26 @@ describe("frontend routes", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Dependency security that tells you what actually needs fixing.",
+        name: "Vulnerable dependencies. Found where you code.",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /One finding\.\s*Every reason\./ }),
+      screen.getByRole("heading", { name: /The useful signal,\s*kept close to the code\./ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /Project in\.\s*Decision out\./ }),
+      screen.getByRole("heading", { name: "Open the project. Keep coding." }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/dynamic or incomplete analysis stays Unknown/),
+      screen.getByText(/update native diagnostics/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/does not claim that observing a package import proves a vulnerable function/),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText("8 manifest + lockfile formats").length).toBeGreaterThan(0);
-    expect(screen.getByText("$ weedout scan --ci")).toBeInTheDocument();
-    expect(screen.queryByText("Planned")).not.toBeInTheDocument();
-    expect(screen.queryByText("Source-code analysis")).not.toBeInTheDocument();
-    expect(screen.getByAltText("Emanuel RM")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Emanuel RM.*Founder/ })).toHaveAttribute(
-      "href",
-      expect.stringContaining("linkedin.com/in/emanuel-rm"),
-    );
-    expect(screen.getByText("Illustrative shortlist / demo-app")).toBeInTheDocument();
+      screen.getAllByText(/same canonical result/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("weedout scan --ci")).toBeInTheDocument();
+    expect(screen.getByText("Work in progress")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Install for VS Code/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Install for JetBrains/ }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Apply fix" })).toBeInTheDocument();
     const mainNav = screen.getByRole("navigation", { name: "Main" });
     expect(mainNav).not.toHaveTextContent("Pricing");
   });

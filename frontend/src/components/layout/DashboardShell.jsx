@@ -4,9 +4,11 @@ import { ClipboardText } from "@phosphor-icons/react/ClipboardText";
 import { CreditCard } from "@phosphor-icons/react/CreditCard";
 import { Envelope } from "@phosphor-icons/react/Envelope";
 import { FolderSimple } from "@phosphor-icons/react/FolderSimple";
+import { ClockCounterClockwise } from "@phosphor-icons/react/ClockCounterClockwise";
+import { House } from "@phosphor-icons/react/House";
 import { List } from "@phosphor-icons/react/List";
-import { PaperPlaneTilt } from "@phosphor-icons/react/PaperPlaneTilt";
-import { Plus } from "@phosphor-icons/react/Plus";
+import { PlugsConnected } from "@phosphor-icons/react/PlugsConnected";
+import { SlidersHorizontal } from "@phosphor-icons/react/SlidersHorizontal";
 import { ShieldCheck } from "@phosphor-icons/react/ShieldCheck";
 import { SquaresFour } from "@phosphor-icons/react/SquaresFour";
 import { Terminal } from "@phosphor-icons/react/Terminal";
@@ -22,11 +24,13 @@ import { PanelAccountControls } from "./PanelAccountControls";
 import { useNavigationDisclosure } from "./useNavigationDisclosure";
 
 const WORKSPACE_ITEMS = [
-  { to: "/dashboard", label: "Overview", Icon: SquaresFour, dashboardView: "overview" },
-  { to: "/dashboard?view=projects", label: "Projects", Icon: FolderSimple, dashboardView: "projects" },
+  { to: "/dashboard", label: "Overview", Icon: House, exact: true },
   { to: "/alerts", label: "Findings", Icon: Bell },
-  { to: "/targets/new", label: "Add a project", Icon: Plus, exact: true },
-  { to: "/cli", label: "CLI", Icon: Terminal, exact: true },
+  { to: "/projects", label: "Projects", Icon: FolderSimple },
+  { to: "/rules", label: "Rules", Icon: SlidersHorizontal },
+  { to: "/integrations", label: "Integrations", Icon: PlugsConnected },
+  { to: "/activity", label: "Activity", Icon: ClockCounterClockwise },
+  { to: "/docs", label: "Documentation", Icon: BookOpen, exact: true },
 ];
 
 const ADMIN_ITEMS = [
@@ -34,21 +38,16 @@ const ADMIN_ITEMS = [
   { to: "/admin/users", label: "Users", Icon: Users },
   { to: "/admin/billing", label: "Billing", Icon: CreditCard },
   { to: "/admin/inbox", label: "Inbox", Icon: Envelope, unread: true },
-  { to: "/admin/email", label: "Compose", Icon: PaperPlaneTilt },
+  { to: "/admin/email", label: "Compose", Icon: Terminal },
   { to: "/admin/docs", label: "Docs", Icon: BookOpen },
   { to: "/admin/audit", label: "Audit log", Icon: ClipboardText },
 ];
 
-function isActive(item, pathname, search) {
-  if (item.dashboardView) {
-    const view = new URLSearchParams(search).get("view");
-    return pathname === "/dashboard" && (item.dashboardView === "projects" ? view === "projects" : view !== "projects");
-  }
-
+function isActive(item, pathname) {
   return item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 
-function NavigationSection({ items, label, pathname, search, unread }) {
+function NavigationSection({ items, label, pathname, unread }) {
   return (
     <section className="dashboard-nav-section" aria-labelledby={`dashboard-nav-${label.toLowerCase().replaceAll(" ", "-")}`}>
       <p className="workspace-label eyebrow" id={`dashboard-nav-${label.toLowerCase().replaceAll(" ", "-")}`}>
@@ -56,7 +55,7 @@ function NavigationSection({ items, label, pathname, search, unread }) {
       </p>
       <div className="dashboard-nav-list">
         {items.map((item) => {
-          const active = isActive(item, pathname, search);
+          const active = isActive(item, pathname);
           const Icon = item.Icon;
 
           return (
@@ -79,10 +78,12 @@ function NavigationSection({ items, label, pathname, search, unread }) {
   );
 }
 
-function currentPage(pathname, search) {
-  if (pathname === "/dashboard") {
-    return new URLSearchParams(search).get("view") === "projects" ? "Projects" : "Overview";
-  }
+function currentPage(pathname) {
+  if (pathname === "/dashboard") return "Overview";
+  if (pathname === "/projects") return "Projects";
+  if (pathname === "/rules") return "Rules";
+  if (pathname === "/integrations") return "Integrations";
+  if (pathname === "/activity") return "Activity";
   if (pathname === "/targets/new") return "Add a project";
   if (pathname.startsWith("/targets/")) return "Project";
   if (pathname === "/alerts") return "Findings";
@@ -119,7 +120,7 @@ export function DashboardShell() {
         { label: "Administration", items: ADMIN_ITEMS },
       ]
     : [
-        { label: "Main", items: WORKSPACE_ITEMS },
+        { label: "Workspace", items: WORKSPACE_ITEMS },
         ...(data?.user?.is_admin
           ? [{ label: "Administration", items: [{ to: "/admin", label: "Administration", Icon: ShieldCheck, exact: true }] }]
           : []),
@@ -135,7 +136,7 @@ export function DashboardShell() {
         <div className="workspace-context" aria-label="Current area">
           <span>{adminContext ? "Administration" : "Workspace"}</span>
           <span>/</span>
-          <strong>{currentPage(pathname, search)}</strong>
+          <strong>{currentPage(pathname)}</strong>
         </div>
         <Link className="workspace-top__docs" to="/docs">Documentation</Link>
         <button
@@ -161,7 +162,6 @@ export function DashboardShell() {
                   key={section.label}
                   label={section.label}
                   pathname={pathname}
-                  search={search}
                   unread={unread}
                 />
               ))}

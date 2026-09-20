@@ -147,12 +147,12 @@ describe("React dashboard route", () => {
     renderDashboard();
 
     expect(
-      await screen.findByRole("heading", { name: "Security overview" }),
+      await screen.findByRole("heading", { name: "Overview" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Exploited in the wild")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "checkout-api" })).toBeInTheDocument();
     expect(screen.getByText("Exploited finding")).toBeInTheDocument();
-    expect(screen.getByText("73%")).toBeInTheDocument();
+    expect(screen.getByText(/73% filtered/)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/internal/dashboard",
       expect.objectContaining({ credentials: "include", method: "GET" }),
@@ -302,7 +302,7 @@ describe("React dashboard route", () => {
     renderDashboard({ authenticated: true });
 
     expect(
-      await screen.findByRole("heading", { name: "Security overview" }),
+      await screen.findByRole("heading", { name: "Overview" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("Open findings unavailable")).toBeInTheDocument();
     expect(screen.getByText("Finding read unavailable")).toBeInTheDocument();
